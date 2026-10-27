@@ -1,5 +1,15 @@
 package com.ouor.mycoupon.ui.screen
 
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import kotlinx.coroutines.delay
+import androidx.compose.material3.ExperimentalMaterial3Api
+import com.ouor.mycoupon.ui.component.ThousandsTransformation
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import com.ouor.mycoupon.ui.component.title
 import android.app.Activity
 import android.content.pm.ActivityInfo
@@ -151,28 +161,19 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.LocalDate
 
-/** F6: max brightness + keep-on for this window while [on]; restored on leave. Light status-bar icons follow the forced light theme. */
+/** F6: max brightness + keep-on for this window while [on]; restored on leave. Bars follow the system theme (S6 is no longer forced light, U11). */
 @Composable
 private fun CheckoutWindow(on: Boolean) {
     val activity = LocalContext.current as Activity
-    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     // counted: S6 and S7 overlap during the navigation transition, the last one out restores
     DisposableEffect(on) {
         val w = activity.window
-        val ctl = WindowCompat.getInsetsController(w, w.decorView)
-        ctl.isAppearanceLightStatusBars = true
-        ctl.isAppearanceLightNavigationBars = true
-        Checkout.lightBars++
         if (on) {
             Checkout.bright++
             w.attributes = w.attributes.apply { screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL }
             w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
         onDispose {
-            if (--Checkout.lightBars == 0) {
-                ctl.isAppearanceLightStatusBars = !systemDark
-                ctl.isAppearanceLightNavigationBars = !systemDark
-            }
             if (on && --Checkout.bright == 0) {
                 w.attributes = w.attributes.apply { screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE }
                 w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -183,12 +184,11 @@ private fun CheckoutWindow(on: Boolean) {
 
 private object Checkout {
     var bright = 0
-    var lightBars = 0
 }
 
-/** S6 (F6, F7, F12, F16) with S8, S12, F10 trash suggestion. Always light (D6). */
+/** S6 (F6, F7, F12, F16) with S8, S12, F10 trash suggestion. Follows the system theme; only the barcode card is always white (D6, revised by review U11). */
 @Composable
-fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCouponTheme(forceLight = true) {
+fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCouponTheme {
     val activity = LocalContext.current as MainActivity
     val vm: CouponViewModel = hiltViewModel()
     val homeVm: HomeViewModel = hiltViewModel(activity)
@@ -208,6 +208,8 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
     var notesOpen by remember { mutableStateOf(false) }
     /** set when this screen just ended the coupon: then F10, then back to S1 with an undo Snackbar */
     var finishing by remember { mutableStateOf<String?>(null) }
+    /** review U5: seconds left on the big [되돌리기] after [사용 완료] (replaces the confirm sheet) */
+    var undoLeft by remember { mutableStateOf(0) }
 
     val share = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { askGiven = true }
     val trash = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { vm.trashAnswered(); finishing?.let { leave(nav, snackbar, homeVm, id, it) } }
@@ -226,10 +228,18 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
     val today = LocalDate.now()
     val state = coupon.state(today)
     CheckoutWindow(on = coupon.status == CouponStatus.ACTIVE)
+    // review U13: swipe (or ‹ ›) to the neighbouring available coupon in the S1 order, without going back to the list
+    val home by homeVm.state.collectAsState()
+    val ring = remember(home.coupons, today) { home.coupons.filter { it.isAvailable(today) }.map { it.id } }
+    val pos = ring.indexOf(id)
+    val go = { step: Int ->
+        ring.getOrNull(pos + step)?.let { n -> nav.navigate(Route.Detail(n)) { popUpTo<Route.Detail> { inclusive = true } } }
+    }
 
     LaunchedEffect(coupon.status, finishing) {
         val msg = finishing ?: return@LaunchedEffect
         if (coupon.status != CouponStatus.USED) return@LaunchedEffect
+        while (undoLeft > 0) { delay(1000); undoLeft-- }
         // F10: offer to trash the gallery original once (API 30+, MediaStore uri that still exists)
         val canTrash = !coupon.trashAsked && Build.VERSION.SDK_INT >= 30 && coupon.sourceUri?.startsWith("content://media/") == true &&
             withContext(Dispatchers.IO) { runCatching { activity.contentResolver.openInputStream(Uri.parse(coupon.sourceUri))?.close(); true }.getOrDefault(false) }
@@ -239,6 +249,12 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
     Scaffold(
         topBar = {
             AppTopBar("", onBack = { nav.popBackStack() }) {
+                if (pos >= 0 && ring.size > 1 && undoLeft == 0) {
+                    IconButton({ go(-1) }, enabled = pos > 0) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "이전 쿠폰") }
+                    Text("${pos + 1}/${ring.size}", style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton({ go(1) }, enabled = pos < ring.lastIndex) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "다음 쿠폰") }
+                }
                 Box {
                     IconButton({ menu = true }) { Icon(Icons.Rounded.MoreVert, "더 보기") }
                     DropdownMenu(menu, { menu = false }) {
@@ -250,8 +266,13 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
         },
         bottomBar = {
             when {
+                // review U5: right after [사용 완료] the same spot becomes a big, filled [되돌리기] for 5 s, then S1 (+ Snackbar undo)
+                undoLeft > 0 -> BottomCta("되돌리기 · $undoLeft", { vm.undoUse(); undoLeft = 0; finishing = null; snackbar.show("다시 쓸 수 있게 되돌렸어요") },
+                    hint = "사용 완료로 표시했어요")
                 coupon.status != CouponStatus.ACTIVE -> BottomCta("되돌리기", { vm.undoUse(); snackbar.show("다시 쓸 수 있게 되돌렸어요") }, outlined = true)
-                else -> BottomCta(if (coupon.type == CouponType.AMOUNT) "사용 기록" else "사용 완료", { useSheet = true })
+                // review U4: the amount CTA says what it does ("사용 기록" read as "show history")
+                coupon.type == CouponType.AMOUNT -> BottomCta("쓴 금액 입력", { useSheet = true })
+                else -> BottomCta("사용 완료", { vm.markUsed(); undoLeft = 5; finishing = "사용 완료로 표시했어요" })
             }
         },
         snackbarHost = { SnackbarHost(snackbar.host) },
@@ -259,7 +280,13 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
         val large = isLargeFont()
         val title = remember { FocusRequester() }
         LaunchedEffect(Unit) { runCatching { title.requestFocus() } }
-        Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.l)) {
+        var drag by remember { mutableStateOf(0f) }
+        Column(Modifier.padding(pad).fillMaxSize()
+            .pointerInput(pos, ring) {
+                if (pos >= 0) detectHorizontalDragGestures(onDragStart = { drag = 0f }, onHorizontalDrag = { _, d -> drag += d },
+                    onDragEnd = { if (drag < -120f) go(1) else if (drag > 120f) go(-1) })
+            }
+            .verticalScroll(rememberScrollState()).padding(horizontal = Spacing.l)) {
             // short header so the barcode's top edge stays within 40 % of the screen (screens.md S6)
             if (!large) coupon.brand?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Text(coupon.title(), Modifier.focusRequester(title).semantics { heading() },
@@ -308,7 +335,7 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
                         Icon(if (history) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = MaterialTheme.colorScheme.primary)
                     }
                 }
-                if (history) UsageHistory(usage) { vm.undoLastBalance(); snackbar.show("마지막 기록을 취소했어요") }
+                if (history) UsageHistory(usage) { vm.undoLastBalance(); snackbar.show("마지막 기록을 지우고 잔액을 되돌렸어요") }
             }
             val days = Stats.daysLeft(coupon, today)
             if (coupon.issuer?.contains("카카오") == true && days != null && days in 0..7 && coupon.status == CouponStatus.ACTIVE)
@@ -333,7 +360,6 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
     }
 
     if (useSheet) UseSheet(coupon, onDismiss = { useSheet = false },
-        onUsed = { useSheet = false; vm.markUsed(); finishing = "사용 완료로 표시했어요" },
         onRemaining = { v ->
             useSheet = false
             // pre-checked in the sheet; a refusal here (stale balance) replaces the success Snackbar
@@ -406,7 +432,7 @@ private fun UsageHistory(usage: List<UsageLog>, onUndoLast: () -> Unit) {
             Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("${d.monthValue}.${"%02d".format(d.dayOfMonth)} · ${u.spent?.let(::won) ?: "-"} 사용 · 잔액 ${u.balanceAfter?.let(::won) ?: "-"}",
                     Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"))
-                if (i == 0) TextButton(onUndoLast) { Text("취소") }
+                if (i == 0) TextButton(onUndoLast) { Text("기록 지우기") }
             }
             if (i < usage.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
@@ -441,19 +467,13 @@ fun ImageViewer(bmp: Bitmap, onClose: () -> Unit) {
     }
 }
 
-/** S8: exchange → confirm; amount → remaining (or spent) with live preview and range check. */
+/** S8 (amount only): spent (default) or remaining amount with live preview and range check. Exchange coupons are marked from the CTA (U5). */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun UseSheet(c: Coupon, onDismiss: () -> Unit, onUsed: () -> Unit, onRemaining: (Long) -> Unit) {
-    if (c.type != CouponType.AMOUNT) {
-        AppSheet(onDismiss, "사용 완료로 표시할까요?", "지난 쿠폰으로 옮기고 알림을 끌게요.") {
-            PrimaryButton("사용 완료", onUsed)
-            SecondaryButton("취소", onDismiss)
-        }
-        return
-    }
+private fun UseSheet(c: Coupon, onDismiss: () -> Unit, onRemaining: (Long) -> Unit) {
     val bal = c.balance ?: c.faceValue ?: 0
     var text by remember { mutableStateOf("") }
-    var spentMode by remember { mutableStateOf(false) }
+    var spentMode by remember { mutableStateOf(true) } // matches [쓴 금액 입력]
     val n = text.toLongOrNull()
     // C1: the core's own rule decides; the sheet only words it
     val check = n?.let { v -> runCatching { if (spentMode) UsageInput.spent(bal, v) else UsageInput.remaining(bal, v) } }
@@ -464,19 +484,23 @@ private fun UseSheet(c: Coupon, onDismiss: () -> Unit, onUsed: () -> Unit, onRem
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     AppSheet(onDismiss, if (spentMode) "얼마 썼나요?" else "얼마 남았나요?", "지금 잔액 ${won(bal)}") {
+        // review U4: the mode is a visible two-way choice, not a link whose meaning flips
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(bottom = Spacing.m)) {
+            listOf(true to "쓴 금액", false to "남은 금액").forEachIndexed { i, (mode, label) ->
+                SegmentedButton(spentMode == mode, { if (spentMode != mode) { spentMode = mode; text = "" } },
+                    SegmentedButtonDefaults.itemShape(i, 2), Modifier.heightIn(min = Spacing.touch)) { Text(label) }
+            }
+        }
         OutlinedTextField(
             text, { v -> text = v.filter(Char::isDigit).take(9) }, Modifier.fillMaxWidth().focusRequester(focus),
             label = { Text(if (spentMode) "쓴 금액" else "남은 금액") }, suffix = { Text("원") },
             textStyle = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"), singleLine = true,
             isError = error != null, supportingText = error?.let { { Text(it, Modifier.semantics { error(it) }) } },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), visualTransformation = ThousandsTransformation,
         )
         if (remaining != null) Text(
             if (spentMode) "남는 금액 ${won(bal - n)}" else "이번에 쓴 금액 ${won(bal - n)}",
             Modifier.padding(vertical = Spacing.s), style = MaterialTheme.typography.bodyLarge)
-        TextButton({ spentMode = !spentMode; text = "" }, Modifier.heightIn(min = Spacing.touch)) {
-            Text(if (spentMode) "남은 금액으로 입력" else "쓴 금액으로 입력")
-        }
         Spacer(Modifier.height(Spacing.s))
         PrimaryButton(if (remaining == 0L) "다 썼어요 · 사용 완료" else "기록하기", { remaining?.let(onRemaining) },
             enabled = remaining != null)

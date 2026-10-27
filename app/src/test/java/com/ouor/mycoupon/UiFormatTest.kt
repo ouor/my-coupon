@@ -79,4 +79,16 @@ class UiFormatTest {
     @Test fun codeTailShowsLastFour() {
         assertEquals("번호 끝 2085", com.ouor.mycoupon.ui.component.codeTail("4550 3004 1841 2085"))
     }
+
+    @Test fun thousandsCommasAndCursor() {
+        val t = com.ouor.mycoupon.ui.component.ThousandsTransformation.filter(androidx.compose.ui.text.AnnotatedString("1234567"))
+        assertEquals("1,234,567", t.text.text)
+        assertEquals(9, t.offsetMapping.originalToTransformed(7))
+        assertEquals(0, t.offsetMapping.originalToTransformed(0))
+        assertEquals(1, t.offsetMapping.originalToTransformed(1))
+        assertEquals(3, t.offsetMapping.originalToTransformed(2))
+        assertEquals(7, t.offsetMapping.transformedToOriginal(9))
+        assertEquals(1, t.offsetMapping.transformedToOriginal(2))
+        assertEquals("100", com.ouor.mycoupon.ui.component.ThousandsTransformation.filter(androidx.compose.ui.text.AnnotatedString("100")).text.text)
+    }
 }

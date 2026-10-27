@@ -1,5 +1,8 @@
 package com.ouor.mycoupon.widget
 
+import com.ouor.mycoupon.ocr.core.CouponType
+import androidx.glance.LocalSize
+import androidx.glance.appwidget.SizeMode
 import com.ouor.mycoupon.reminder.ReminderPlanner
 import android.content.Context
 import android.content.Intent
@@ -70,6 +73,9 @@ interface WidgetEntryPoint {
 
 /** W1. Tap a row → S6, tap the empty state → S1. */
 class CouponWidget : GlanceAppWidget() {
+    // review U14: as many rows as the widget is tall, no empty lower half
+    override val sizeMode = SizeMode.Exact
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val repo = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java).repository()
         val open = Intent(context, MainActivity::class.java)
@@ -78,7 +84,8 @@ class CouponWidget : GlanceAppWidget() {
             // collected inside the session: updateAll() on a live session only recomposes, it does not re-run provideGlance (QA R1-02)
             val all by repo.observeAll().collectAsState(initial)
             val today = LocalDate.now()
-            val top = WidgetData.top(all, today)
+            val rows = ((LocalSize.current.height.value - 44f) / 52f).toInt().coerceIn(1, 6)
+            val top = WidgetData.top(all, today, rows)
             val more = all.count { it.isAvailable(today) } - top.size
             // W1 (screens.md): system day/night colors from the design tokens; never a barcode or number here
             val bg = ColorProvider(day = Color.White, night = Color(0xFF121417))
@@ -86,7 +93,10 @@ class CouponWidget : GlanceAppWidget() {
             val sub = ColorProvider(day = Color(0xFF4E5968), night = Color(0xFFAEB6C2))
             val soon = ColorProvider(day = Color(0xFFC62828), night = Color(0xFFFF9C94))
             Column(GlanceModifier.fillMaxSize().appWidgetBackground().cornerRadius(16.dp).background(bg).padding(horizontal = 14.dp, vertical = 10.dp)) {
-                Text("내 쿠폰", GlanceModifier.clickable(actionStartActivity(open)), style = TextStyle(fontSize = 12.sp, color = sub, fontWeight = FontWeight.Medium))
+                Row(GlanceModifier.fillMaxWidth().clickable(actionStartActivity(open))) {
+                    Text("내 쿠폰", GlanceModifier.defaultWeight(), style = TextStyle(fontSize = 13.sp, color = sub, fontWeight = FontWeight.Medium))
+                    if (more > 0) Text("외 ${more}개", style = TextStyle(fontSize = 13.sp, color = sub))
+                }
                 Spacer(GlanceModifier.height(4.dp))
                 if (top.isEmpty()) {
                     Text("쿠폰을 추가해 보세요", GlanceModifier.fillMaxWidth().padding(vertical = 12.dp).clickable(actionStartActivity(open)),
@@ -96,14 +106,19 @@ class CouponWidget : GlanceAppWidget() {
                     val row = Intent(context, MainActivity::class.java).putExtra(MainActivity.EXTRA_COUPON_ID, c.id)
                         .setAction("open-${c.id}") // distinct intents per row
                     val d = Stats.daysLeft(c, today)
-                    Row(GlanceModifier.fillMaxWidth().height(44.dp).clickable(actionStartActivity(row)), verticalAlignment = Alignment.CenterVertically) {
-                        Text(ReminderPlanner.title(c), GlanceModifier.defaultWeight(),
-                            style = TextStyle(fontSize = 14.sp, color = fg), maxLines = 1)
-                        Text(WidgetData.dday(c, today), style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    // review U14: name on its own larger line, brand (+ balance) under it; U1 short name
+                    val name = ReminderPlanner.shortName(c.brand, c.productName) ?: c.brand ?: "쿠폰"
+                    val line2 = listOfNotNull(c.brand?.takeIf { it != name },
+                        c.balance?.takeIf { c.type == CouponType.AMOUNT }?.let { "잔액 ${ReminderPlanner.won(it)}" }).joinToString(" · ")
+                    Row(GlanceModifier.fillMaxWidth().height(52.dp).clickable(actionStartActivity(row)), verticalAlignment = Alignment.CenterVertically) {
+                        Column(GlanceModifier.defaultWeight()) {
+                            Text(name, style = TextStyle(fontSize = 16.sp, color = fg, fontWeight = FontWeight.Medium), maxLines = 1)
+                            if (line2.isNotEmpty()) Text(line2, style = TextStyle(fontSize = 13.sp, color = sub), maxLines = 1)
+                        }
+                        Text(WidgetData.dday(c, today), style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold,
                             color = if (d != null && d <= 7) soon else fg))
                     }
                 }
-                if (more > 0) Text("외 ${more}개", GlanceModifier.clickable(actionStartActivity(open)), style = TextStyle(fontSize = 12.sp, color = sub))
             }
         }
     }

@@ -131,11 +131,12 @@ fun CodeNumber(code: String, style: TextStyle, modifier: Modifier = Modifier) {
 }
 
 /**
- * design-system §6.4. Always white with black bars, whatever the theme (P5). Tap → S7 ([onExpand]).
+ * design-system §6.4. Always white with black bars, whatever the theme (P5): the card has its own light theme, so its texts
+ * and button stay readable on white in dark mode (U11). Tap → S7 ([onExpand]).
  */
 @Composable
-fun BarcodeBlock(c: Coupon, onExpand: () -> Unit, onCopied: () -> Unit, modifier: Modifier = Modifier) {
-    val code = c.code ?: return
+fun BarcodeBlock(c: Coupon, onExpand: () -> Unit, onCopied: () -> Unit, modifier: Modifier = Modifier) = com.ouor.mycoupon.ui.theme.MyCouponTheme(forceLight = true) {
+    val code = c.code ?: return@MyCouponTheme
     val context = LocalContext.current
     val view = c.codeView()
     Surface(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, color = BarcodeColors.background,

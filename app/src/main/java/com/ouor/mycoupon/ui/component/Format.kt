@@ -89,3 +89,17 @@ fun String.subject(): String {
 
 /** "번호 끝 2085": tells identical coupons apart without showing the whole number (review U3). */
 fun codeTail(code: String): String = "번호 끝 " + code.filter(Char::isLetterOrDigit).takeLast(4)
+
+/** Digits-only field shown with thousands commas while typing, "17600" → "17,600" (review U4). */
+object ThousandsTransformation : androidx.compose.ui.text.input.VisualTransformation {
+    override fun filter(text: androidx.compose.ui.text.AnnotatedString): androidx.compose.ui.text.input.TransformedText {
+        val s = text.text
+        val comma = { i: Int -> i > 0 && (s.length - i) % 3 == 0 } // a comma goes before digit i
+        val out = buildString { s.forEachIndexed { i, ch -> if (comma(i)) append(','); append(ch) } }
+        return androidx.compose.ui.text.input.TransformedText(androidx.compose.ui.text.AnnotatedString(out),
+            object : androidx.compose.ui.text.input.OffsetMapping {
+                override fun originalToTransformed(offset: Int) = offset + (1 until offset).count(comma)
+                override fun transformedToOriginal(offset: Int) = out.take(offset).count { it != ',' }
+            })
+    }
+}
