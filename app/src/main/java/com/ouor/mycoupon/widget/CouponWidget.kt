@@ -23,7 +23,11 @@ import androidx.glance.layout.padding
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import androidx.glance.unit.ColorProvider
+import androidx.compose.ui.graphics.Color
+import androidx.glance.appwidget.appWidgetBackground
+import androidx.glance.appwidget.cornerRadius
+import androidx.glance.color.ColorProvider
+import androidx.glance.layout.Alignment
 import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponChangeListener
 import com.ouor.mycoupon.data.CouponRepository
@@ -66,24 +70,35 @@ class CouponWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val repo = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java).repository()
         val today = LocalDate.now()
-        val top = WidgetData.top(repo.all(), today)
+        val all = repo.all()
+        val top = WidgetData.top(all, today)
+        val more = all.count { it.isAvailable(today) } - top.size
+        val open = Intent(context, MainActivity::class.java)
         provideContent {
-            Column(GlanceModifier.fillMaxSize().background(ColorProvider(androidx.compose.ui.graphics.Color.White)).padding(12.dp)) {
+            // W1 (screens.md): system day/night colors from the design tokens; never a barcode or number here
+            val bg = ColorProvider(day = Color.White, night = Color(0xFF121417))
+            val fg = ColorProvider(day = Color(0xFF191F28), night = Color(0xFFE9ECF1))
+            val sub = ColorProvider(day = Color(0xFF4E5968), night = Color(0xFFAEB6C2))
+            val soon = ColorProvider(day = Color(0xFFC62828), night = Color(0xFFFF9C94))
+            Column(GlanceModifier.fillMaxSize().appWidgetBackground().cornerRadius(16.dp).background(bg).padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Text("내 쿠폰", GlanceModifier.clickable(actionStartActivity(open)), style = TextStyle(fontSize = 12.sp, color = sub, fontWeight = FontWeight.Medium))
+                Spacer(GlanceModifier.height(4.dp))
                 if (top.isEmpty()) {
-                    Text("쿠폰을 추가해 보세요", GlanceModifier.clickable(actionStartActivity(Intent(context, MainActivity::class.java))))
+                    Text("쿠폰을 추가해 보세요", GlanceModifier.fillMaxWidth().padding(vertical = 12.dp).clickable(actionStartActivity(open)),
+                        style = TextStyle(fontSize = 15.sp, color = fg))
                 }
                 top.forEach { c ->
-                    val open = Intent(context, MainActivity::class.java).putExtra(MainActivity.EXTRA_COUPON_ID, c.id)
+                    val row = Intent(context, MainActivity::class.java).putExtra(MainActivity.EXTRA_COUPON_ID, c.id)
                         .setAction("open-${c.id}") // distinct intents per row
-                    Row(GlanceModifier.fillMaxWidth().padding(vertical = 4.dp).clickable(actionStartActivity(open))) {
-                        Column(GlanceModifier.defaultWeight()) {
-                            Text(c.brand ?: "", style = TextStyle(fontSize = 12.sp))
-                            Text(c.productName ?: "쿠폰", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium), maxLines = 1)
-                        }
-                        Text(WidgetData.dday(c, today), style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold))
+                    val d = Stats.daysLeft(c, today)
+                    Row(GlanceModifier.fillMaxWidth().height(44.dp).clickable(actionStartActivity(row)), verticalAlignment = Alignment.CenterVertically) {
+                        Text(listOfNotNull(c.brand, c.productName).joinToString(" ").ifEmpty { "쿠폰" }, GlanceModifier.defaultWeight(),
+                            style = TextStyle(fontSize = 14.sp, color = fg), maxLines = 1)
+                        Text(WidgetData.dday(c, today), style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                            color = if (d != null && d <= 7) soon else fg))
                     }
-                    Spacer(GlanceModifier.height(2.dp))
                 }
+                if (more > 0) Text("외 ${more}개", GlanceModifier.clickable(actionStartActivity(open)), style = TextStyle(fontSize = 12.sp, color = sub))
             }
         }
     }
