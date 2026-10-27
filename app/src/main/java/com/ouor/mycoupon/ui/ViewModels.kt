@@ -65,6 +65,8 @@ data class HomeState(
     val hasCoupons: Boolean = false,
     val newImages: Int = 0,
     val banner: HomeBanner? = null,
+    /** review U9: brand chips, most coupons first (available ones only) */
+    val brands: List<String> = emptyList(),
 )
 
 /** S1 / S13. */
@@ -97,6 +99,8 @@ class HomeViewModel @Inject constructor(
         base.copy(
             reviewCount = review, firstReviewId = toReview.minByOrNull { it.expiryDate ?: LocalDate.MAX }?.id, newImages = n, loaded = true, hasCoupons = hasCoupons,
             availableCount = everything.count { it.isAvailable(base.today) },
+            brands = everything.filter { it.isAvailable(base.today) }.mapNotNull { it.brand?.trim()?.ifEmpty { null } }
+                .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }.take(10),
             banner = when {
                 crash -> HomeBanner.CRASH
                 notifOff && hasCoupons -> HomeBanner.NOTIFICATIONS_OFF

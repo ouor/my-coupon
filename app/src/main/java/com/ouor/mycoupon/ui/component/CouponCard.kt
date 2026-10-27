@@ -33,14 +33,15 @@ import java.time.LocalDate
  * "스타벅스, 아메리카노 T, 3일 남음, 곧 만료, 확인 필요". Past coupons get [onUndo] (사용 완료·넘김 only).
  */
 @Composable
-fun CouponCard(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modifier = Modifier, onUndo: (() -> Unit)? = null) {
+fun CouponCard(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modifier = Modifier, onUndo: (() -> Unit)? = null, codeTail: Boolean = false) {
     val state = c.state(today)
     val past = state == CouponState.EXPIRED || state == CouponState.USED || state == CouponState.GIVEN
     val large = isLargeFont()
     val review = c.needsCheck && !past
     val balance = if (c.type == CouponType.AMOUNT && c.balance != null && !past) "잔액 ${won(c.balance)}" else null
     val usedLine = c.usedAt?.takeIf { past }?.let { epochDay(it).monthDay() + if (state == CouponState.GIVEN) " 넘김" else " 사용" }
-    val spoken = listOfNotNull(c.brand, c.name() ?: "이름 없는 쿠폰", ddaySpoken(c, today), usedLine, balance, "확인 필요".takeIf { review })
+    val tail = c.code?.takeIf { codeTail }?.let(::codeTail)
+    val spoken = listOfNotNull(c.brand, c.name() ?: "이름 없는 쿠폰", ddaySpoken(c, today), usedLine, balance, tail, "확인 필요".takeIf { review })
         .joinToString(", ")
     val container = if (past) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surfaceContainer
 
@@ -63,7 +64,7 @@ fun CouponCard(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modif
                 c.brand?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 Text(c.name() ?: "이름 없는 쿠폰", style = MaterialTheme.typography.titleMedium)
                 if (large) DdayBadge(c, today, Modifier.padding(top = Spacing.xs))
-                val sub = listOfNotNull(balance, usedLine).joinToString(" · ")
+                val sub = listOfNotNull(balance, usedLine, tail).joinToString(" · ")
                 if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (review) ReviewMark(Modifier.padding(top = 2.dp))
             }

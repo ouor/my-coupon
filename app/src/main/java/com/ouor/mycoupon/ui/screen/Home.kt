@@ -1,5 +1,9 @@
 package com.ouor.mycoupon.ui.screen
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.rounded.CardGiftcard
+import com.ouor.mycoupon.ui.component.title
+import androidx.compose.foundation.lazy.LazyRow
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -116,6 +120,7 @@ fun HomeScreen(nav: NavHostController) {
     val askNotif by vm.notificationRationale.collectAsState()
     val snackbar = LocalSnackbar.current
     var addSheet by rememberSaveable { mutableStateOf(false) }
+    var kakaoGuide by rememberSaveable { mutableStateOf(false) }
     var searching by rememberSaveable { mutableStateOf(st.query.isNotEmpty()) }
     val listState = rememberLazyListState()
     val atTop by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
@@ -133,7 +138,7 @@ fun HomeScreen(nav: NavHostController) {
     val pickPhotos = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { vm.refresh() }
 
-    BackHandler(searching) { searching = false; vm.query.value = "" }
+    BackHandler(searching || st.query.isNotEmpty()) { searching = false; vm.query.value = "" }
     val past = st.filter == ListFilter.PAST
 
     Scaffold(
@@ -148,7 +153,9 @@ fun HomeScreen(nav: NavHostController) {
             )
         },
         floatingActionButton = {
+            // review U6: filled primary keeps contrast in dark mode
             if (st.hasCoupons && !past && !searching) ExtendedFloatingActionButton(
+                containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary,
                 onClick = { addSheet = true }, expanded = atTop,
                 icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("추가", style = MaterialTheme.typography.labelLarge) },
                 modifier = Modifier.semantics { contentDescription = "쿠폰 추가" },
@@ -165,11 +172,14 @@ fun HomeScreen(nav: NavHostController) {
                     EmptyState(Icons.Rounded.ConfirmationNumber, "아직 쿠폰이 없어요", "쿠폰 사진을 고르면 알아서 읽어 등록해요",
                         primary = "사진에서 추가" to pickPhotos, secondary = "갤러리에서 쿠폰 찾기" to { nav.navigate(Route.Gallery) })
                 }
+                TextButton({ kakaoGuide = true }, Modifier.fillMaxWidth().heightIn(min = Spacing.touch).padding(bottom = Spacing.l)) {
+                    Text("카카오톡 선물함 쿠폰은 이렇게 넣어요", style = MaterialTheme.typography.labelLarge)
+                }
             }
             return@Scaffold
         }
         LazyColumn(Modifier.padding(pad).fillMaxSize(), listState,
-            contentPadding = PaddingValues(start = Spacing.l, end = Spacing.l, bottom = 88.dp),
+            contentPadding = PaddingValues(start = Spacing.l, end = Spacing.l, bottom = 112.dp), // review U6: last card clears the FAB
             verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
             if (!searching) st.banner?.let { b -> item(key = "banner") { HomeBannerView(b, st.reviewCount, st.newImages, vm, nav, notifPermission::launch) } }
             item(key = "filters") {
@@ -183,6 +193,15 @@ fun HomeScreen(nav: NavHostController) {
                     if (!past) SortMenu(st.sort) { vm.sort.value = it }
                 }
             }
+            // review U9: find a coupon at the counter in one tap
+            if (!past && !searching && st.brands.size >= 2) item(key = "brands") {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                    items(st.brands, key = { it }) { b ->
+                        FilterChip(st.query == b, { vm.query.value = if (st.query == b) "" else b }, { Text(b, style = MaterialTheme.typography.labelLarge) },
+                            Modifier.heightIn(min = Spacing.touch))
+                    }
+                }
+            }
             if (st.coupons.isEmpty()) item(key = "empty") {
                 when {
                     st.query.isNotBlank() -> Text("‘${st.query}’과 맞는 쿠폰이 없어요", Modifier.fillMaxWidth().padding(vertical = Spacing.xxl),
@@ -191,8 +210,11 @@ fun HomeScreen(nav: NavHostController) {
                     else -> EmptyState(Icons.Rounded.ConfirmationNumber, "쓸 수 있는 쿠폰이 없어요", "새 쿠폰을 추가해 보세요", primary = "사진에서 추가" to pickPhotos)
                 }
             }
+            // review U3: identical names get the last four digits so they can be told apart
+            val twins = st.coupons.groupingBy { it.brand to it.title() }.eachCount().filterValues { it > 1 }.keys
             items(st.coupons, key = { it.id }) { c ->
                 CouponCard(c, st.today, onClick = { nav.navigate(Route.Detail(c.id)) }, modifier = Modifier.animateItem(),
+                    codeTail = (c.brand to c.title()) in twins,
                     onUndo = if (c.status == CouponStatus.USED) ({
                         vm.undoUse(c.id); snackbar.show("다시 쓸 수 있게 되돌렸어요")
                     }) else null)
@@ -200,7 +222,23 @@ fun HomeScreen(nav: NavHostController) {
         }
     }
 
-    if (addSheet) AddSheet({ addSheet = false }, { addSheet = false; pickPhotos() }, { addSheet = false; nav.navigate(Route.Gallery) })
+    if (addSheet) AddSheet({ addSheet = false }, { addSheet = false; pickPhotos() }, { addSheet = false; nav.navigate(Route.Gallery) },
+        { addSheet = false; kakaoGuide = true })
+    // review U12: the path first-time users could not find on their own
+    if (kakaoGuide) AppSheet({ kakaoGuide = false }, "카카오톡 선물함 쿠폰 넣기") {
+        listOf(
+            "카카오톡에서 [더보기] → [선물하기] → [선물함]을 열어요",
+            "받은 쿠폰을 누르고 [이미지 저장]을 눌러요. 없으면 화면을 캡처해도 돼요",
+            "여기서 [사진 고르기]로 저장한 이미지를 골라요",
+        ).forEachIndexed { i, step ->
+            Row(Modifier.padding(vertical = Spacing.s)) {
+                Text("${i + 1}", Modifier.width(28.dp), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Text(step, style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+        Spacer(Modifier.height(Spacing.m))
+        PrimaryButton("사진 고르기", { kakaoGuide = false; pickPhotos() })
+    }
     if (askNotif) AppSheet({ vm.notificationsAsked() }, "만료되기 전에 알려 드릴게요", "하루에 한 번까지만 보내요. 광고 알림은 없어요.") {
         PrimaryButton("알림 받기", {
             vm.notificationsAsked()
@@ -276,10 +314,11 @@ private fun HomeBannerView(b: HomeBanner, review: Int, newImages: Int, vm: HomeV
 
 /** S2 */
 @Composable
-private fun AddSheet(onDismiss: () -> Unit, onPick: () -> Unit, onGallery: () -> Unit) {
+private fun AddSheet(onDismiss: () -> Unit, onPick: () -> Unit, onGallery: () -> Unit, onKakao: () -> Unit) {
     AppSheet(onDismiss, "쿠폰 추가") {
         AddOption(Icons.Rounded.PhotoLibrary, "사진 고르기", "한 번에 30장까지 골라요", onPick)
         AddOption(Icons.Rounded.ImageSearch, "갤러리에서 쿠폰 찾기", "쿠폰 같은 사진을 대신 찾아 드려요", onGallery)
+        AddOption(Icons.Rounded.CardGiftcard, "카카오톡 선물함 쿠폰", "이미지로 저장해서 넣는 방법", onKakao)
         Spacer(Modifier.height(Spacing.s))
         Text("다른 앱에서 이미지를 [공유] → 내 쿠폰을 골라도 돼요", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
