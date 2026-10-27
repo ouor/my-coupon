@@ -60,11 +60,16 @@ class BenchActivity : Activity() {
             for (r in 0 until runs) for (f in files) {
                 val a = SystemClock.elapsedRealtime()
                 val bytes = f.readBytes()
-                val bmp = ImageCodec.decode(bytes) ?: continue
+                val bmp = ImageCodec.decode(bytes, CouponRecognizer.DECODE_MAX_SIDE) ?: continue // the app path (O-02 cap)
                 val img = CouponRecognizer.toBgr(bmp)
                 bmp.recycle()
                 val b = SystemClock.elapsedRealtime()
-                val bars = Barcodes.decode(img)
+                // as CouponRecognizer (O-09): ZXing beside det/rec; "barcode" is its own time, "total" the wall time
+                var barMs = 0L
+                val barsF = java.util.concurrent.CompletableFuture.supplyAsync {
+                    val b0 = SystemClock.elapsedRealtime()
+                    Barcodes.decode(img).also { barMs = SystemClock.elapsedRealtime() - b0 }
+                }
                 val c = SystemClock.elapsedRealtime()
                 if (intent.getBooleanExtra("stages", false) && r == 0 && totals.size < 3) {
                     Log.i(TAG, "stage img=${totals.size} after decode+barcode ${hwm()}")
@@ -73,6 +78,7 @@ class BenchActivity : Activity() {
                 }
                 val lines = engine.recognize(img)
                 if (intent.getBooleanExtra("stages", false) && r == 0 && totals.size < 3) Log.i(TAG, "stage img=${totals.size} after det+rec ${hwm()}")
+                val bars = barsF.get()
                 val d = SystemClock.elapsedRealtime()
                 val x = Extract.extract(lines, bars, img.width, img.height)
                 val e = SystemClock.elapsedRealtime()
@@ -81,7 +87,7 @@ class BenchActivity : Activity() {
                     val o = JSONObject()
                     o.put("file", "$sub/${f.name}")
                     o.put("ms", (d - c).toDouble())
-                    o.put("t", JSONObject().put("decode", b - a).put("barcode", c - b).put("det", engine.lastTimings?.detMs).put("rec", engine.lastTimings?.recMs).put("extract", e - d).put("total", e - a))
+                    o.put("t", JSONObject().put("decode", b - a).put("barcode", barMs).put("det", engine.lastTimings?.detMs).put("rec", engine.lastTimings?.recMs).put("extract", e - d).put("total", e - a))
                     o.put("lines", JSONArray(lines.map { l ->
                         JSONObject().put("text", l.text).put("score", l.score).put("poly", JSONArray(l.poly.map { JSONArray(listOf(it.x, it.y)) }))
                     }))

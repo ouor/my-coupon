@@ -17,6 +17,7 @@ import com.ouor.mycoupon.ocr.engine.BgrImage
 import com.ouor.mycoupon.ocr.engine.PaddleOcrEngine
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -33,8 +34,9 @@ data class Recognition(
     val timings: Timings,
 )
 
-data class Timings(val decodeMs: Long, val barcodeMs: Long, val detMs: Long, val recMs: Long, val extractMs: Long, val lines: Int) {
-    val totalMs get() = decodeMs + barcodeMs + detMs + recMs + extractMs
+/** Per-stage times; the barcode runs beside det/rec, so [totalMs] is the wall time, not the sum. */
+data class Timings(val decodeMs: Long, val barcodeMs: Long, val detMs: Long, val recMs: Long, val extractMs: Long, val lines: Int, val wallMs: Long = 0) {
+    val totalMs get() = wallMs
 }
 
 /**
@@ -60,17 +62,21 @@ class CouponRecognizer @Inject constructor(@ApplicationContext private val conte
             val img = try { cancel(); toBgr(bmp) } finally { bmp.recycle() }
             val t1 = SystemClock.elapsedRealtime()
             cancel()
-            val barcodes = Barcodes.decode(img)
-            val t2 = SystemClock.elapsedRealtime()
-            cancel()
+            // O-09: ZXing (one thread) runs beside det/rec; Extract needs both only at the end
+            var barcodeMs = 0L
+            val bars = async {
+                val b0 = SystemClock.elapsedRealtime()
+                Barcodes.decode(img).also { barcodeMs = SystemClock.elapsedRealtime() - b0 }
+            }
             val e = engine()
             val lines: List<OcrLine> = e.recognize(img, cancel)
+            val barcodes = bars.await()
             val et = e.lastTimings
             val t3 = SystemClock.elapsedRealtime()
             val x = withAppRules(Extract.extract(lines, barcodes, img.width, img.height))
             val t4 = SystemClock.elapsedRealtime()
             Recognition(x, img.width, img.height,
-                Timings(t1 - t0, t2 - t1, et?.detMs ?: 0, et?.recMs ?: (t3 - t2), t4 - t3, lines.size))
+                Timings(t1 - t0, barcodeMs, et?.detMs ?: 0, et?.recMs ?: (t3 - t1), t4 - t3, lines.size, wallMs = t4 - t0))
         }
     }
 

@@ -44,7 +44,8 @@ class PaddleOcrEngine private constructor(
         val shrinkArena: Boolean = true,
     )
 
-    data class Timings(val detMs: Long, val recMs: Long, val lines: Int)
+    /** [recMs] includes [cropMs] (perspective crops of the det boxes) */
+    data class Timings(val detMs: Long, val recMs: Long, val lines: Int, val cropMs: Long = 0)
 
     private val env = OrtEnvironment.getEnvironment().apply { runCatching { setTelemetry(false) } } // no telemetry, ever (code review S-01)
     private val det: OrtSession
@@ -94,16 +95,17 @@ class PaddleOcrEngine private constructor(
         val t0 = System.nanoTime()
         val boxes = detect(img)
         val t1 = System.nanoTime()
+        cancel()
+        // O-09: crops are independent and deterministic, so they run on all cores; order and output stay the same
+        val all = arrayOfNulls<BgrImage>(boxes.size)
+        java.util.stream.IntStream.range(0, boxes.size).parallel().forEach { all[it] = crop(img, boxes[it]) }
         val crops = ArrayList<BgrImage>()
         val kept = ArrayList<IntArray>()
-        for (b in boxes) {
-            cancel()
-            val c = crop(img, b) ?: continue
-            crops.add(c); kept.add(b)
-        }
+        boxes.forEachIndexed { i, b -> all[i]?.let { crops.add(it); kept.add(b) } }
+        val tc = System.nanoTime()
         val texts = recognizeCrops(crops, cancel)
         val t2 = System.nanoTime()
-        lastTimings = Timings((t1 - t0) / 1_000_000, (t2 - t1) / 1_000_000, kept.size)
+        lastTimings = Timings((t1 - t0) / 1_000_000, (t2 - t1) / 1_000_000, kept.size, (tc - t1) / 1_000_000)
         return kept.mapIndexed { i, b ->
             OcrLine(texts[i].first, texts[i].second.toDouble(), List(4) { Point(b[it * 2], b[it * 2 + 1]) })
         }
@@ -162,21 +164,46 @@ class PaddleOcrEngine private constructor(
     private fun recognizeCrops(crops: List<BgrImage>, cancel: () -> Unit): List<Pair<String, Float>> {
         val res = arrayOfNulls<Pair<String, Float>>(crops.size)
         val order = crops.indices.sortedBy { crops[it].width / crops[it].height.toDouble() }
-        for (chunk in order.chunked(options.recBatch)) {
-            cancel()
-            val widths = chunk.map { recWidth(crops[it]) } // padded width of each crop
-            val maxW = widths.max()
-            val plane = 48 * maxW
-            val buf = direct(chunk.size * 3 * plane) // zero padded, used in place by ORT
-            chunk.forEachIndexed { k, i ->
-                val c = crops[i]
-                val rw = if (widths[k] >= MAX_REC_W) MAX_REC_W else minOf(widths[k], ceil(48.0 * c.width / c.height).toInt())
-                val r = ImageOps.resizeLinear(c, rw.coerceAtLeast(1), 48)
-                val base = k * 3 * plane
-                for (y in 0 until 48) for (x in 0 until r.width) for (ch in 0 until 3) {
-                    buf.put(base + ch * plane + y * maxW + x, ((r.data[(y * r.width + x) * 3 + ch].toInt() and 0xFF) / 255f - 0.5f) / 0.5f)
-                }
+        val chunks = order.chunked(options.recBatch)
+        // O-09: the next batch's input is prepared on another thread while ORT runs this one (same bytes, same output)
+        var next: java.util.concurrent.Future<Batch>? = if (chunks.isEmpty()) null else prep.submit<Batch> { batch(crops, chunks[0]) }
+        try {
+            for (ci in chunks.indices) {
+                cancel()
+                val b = try { next!!.get() } catch (e: java.util.concurrent.ExecutionException) { throw e.cause ?: e }
+                next = if (ci + 1 < chunks.size) prep.submit<Batch> { batch(crops, chunks[ci + 1]) } else null
+                runBatch(b, res)
             }
+        } finally {
+            next?.cancel(true)
+        }
+        return res.map { it!! }
+    }
+
+    private class Batch(val chunk: List<Int>, val maxW: Int, val buf: FloatBuffer)
+
+    private fun batch(crops: List<BgrImage>, chunk: List<Int>): Batch {
+        val widths = chunk.map { recWidth(crops[it]) } // padded width of each crop
+        val maxW = widths.max()
+        val plane = 48 * maxW
+        val buf = direct(chunk.size * 3 * plane) // zero padded, used in place by ORT
+        chunk.forEachIndexed { k, i ->
+            val c = crops[i]
+            val rw = if (widths[k] >= MAX_REC_W) MAX_REC_W else minOf(widths[k], ceil(48.0 * c.width / c.height).toInt())
+            val r = ImageOps.resizeLinear(c, rw.coerceAtLeast(1), 48)
+            val base = k * 3 * plane
+            for (y in 0 until 48) for (x in 0 until r.width) for (ch in 0 until 3) {
+                buf.put(base + ch * plane + y * maxW + x, ((r.data[(y * r.width + x) * 3 + ch].toInt() and 0xFF) / 255f - 0.5f) / 0.5f)
+            }
+        }
+        return Batch(chunk, maxW, buf)
+    }
+
+    private fun runBatch(b: Batch, res: Array<Pair<String, Float>?>) {
+        val chunk = b.chunk
+        val maxW = b.maxW
+        val buf = b.buf
+        run {
             OnnxTensor.createTensor(env, buf, longArrayOf(chunk.size.toLong(), 3, 48, maxW.toLong())).use { x ->
                 // [N, T, 11947] probabilities reach ~115 MB for 6 wide lines. ORT's getFloatBuffer() copies the native output
                 // to the heap, so the output goes into our own direct buffer instead: one copy, not two (code review O-01).
@@ -200,10 +227,12 @@ class PaddleOcrEngine private constructor(
                 }
             }
         }
-        return res.map { it!! }
     }
 
     private val recOutput: String = rec.outputNames.first()
+
+    /** O-09: prepares the next rec batch; daemon so a forgotten close() never keeps the process alive */
+    private val prep = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "ocr-rec-prep").apply { isDaemon = true } }
 
     private fun direct(floats: Int): FloatBuffer =
         java.nio.ByteBuffer.allocateDirect(floats * 4).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()
@@ -239,6 +268,7 @@ class PaddleOcrEngine private constructor(
     }
 
     override fun close() {
+        prep.shutdownNow()
         det.close()
         rec.close()
         runOptions.close()
