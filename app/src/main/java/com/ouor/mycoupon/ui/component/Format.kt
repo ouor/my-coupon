@@ -103,3 +103,15 @@ object ThousandsTransformation : androidx.compose.ui.text.input.VisualTransforma
             })
     }
 }
+
+/**
+ * S14 new backup password (security review S-02; the file key is Argon2id, docs/core/backup-kdf.md): null = fine.
+ * 8+ characters, not digits only, not one character repeated. Spaces count, so a short phrase works.
+ */
+fun backupPasswordProblem(pw: String): String? = when {
+    pw.isEmpty() -> null
+    pw.length < 8 -> "8자 이상이어야 해요"
+    pw.all(Char::isDigit) -> "숫자만으로는 정할 수 없어요. 글자를 섞어 주세요"
+    pw.toSet().size == 1 -> "같은 글자만 되풀이할 수 없어요"
+    else -> null
+}

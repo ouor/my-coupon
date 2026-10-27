@@ -1,5 +1,9 @@
 package com.ouor.mycoupon.ui.settings
 
+import androidx.compose.ui.platform.LocalContext
+import com.ouor.mycoupon.ui.component.backupPasswordProblem
+import android.provider.DocumentsContract
+import androidx.compose.runtime.saveable.rememberSaveable
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,13 +63,17 @@ fun BackupScreen(nav: NavHostController) {
     val st by vm.state.collectAsState()
     val backup by vm.backupUi.collectAsState()
     val snackbar = LocalSnackbar.current
-    var passwordFor by remember { mutableStateOf<String?>(null) } // "export" / "import"
-    var password by remember { mutableStateOf("") }
-    var pendingImport by remember { mutableStateOf<Uri?>(null) }
+    val context = LocalContext.current
+    var passwordFor by rememberSaveable { mutableStateOf<String?>(null) } // "export" / "import"
+    var password by remember { mutableStateOf("") } // never saved: after a process death it is asked again (code review A17)
+    var pendingImport by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var pendingExport by rememberSaveable { mutableStateOf<Uri?>(null) }
     var exporting by remember { mutableStateOf(false) } // which step an IO failure belongs to
     var importing by remember { mutableStateOf(false) } // import is all-or-nothing: no [그만두기]
     val create = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        if (uri != null) { exporting = true; vm.export(uri, password.toCharArray()) }
+        // A17: the process died while the file picker was open, so the password is gone: ask for it again for this file
+        if (uri != null && password.isEmpty()) { pendingExport = uri; passwordFor = "export" }
+        else if (uri != null) { exporting = true; vm.export(uri, password.toCharArray()) }
         password = ""
     }
     val openDoc = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -92,9 +100,17 @@ fun BackupScreen(nav: NavHostController) {
     }
 
     when (passwordFor) {
-        "export" -> PasswordSheet("비밀번호를 정해 주세요", confirm = true, button = "저장할 곳 고르기", onDismiss = { passwordFor = null }) { pw ->
-            password = pw; passwordFor = null
-            create.launch("내쿠폰-백업-${LocalDate.now()}.mcbak")
+        "export" -> PasswordSheet("비밀번호를 정해 주세요", confirm = true, button = if (pendingExport != null) "저장하기" else "저장할 곳 고르기",
+            onDismiss = {
+                passwordFor = null
+                // the empty file the picker already created
+                pendingExport?.let { runCatching { DocumentsContract.deleteDocument(context.contentResolver, it) } }
+                pendingExport = null
+            }) { pw ->
+            passwordFor = null
+            val target = pendingExport
+            if (target != null) { pendingExport = null; exporting = true; vm.export(target, pw.toCharArray()) }
+            else { password = pw; create.launch("내쿠폰-백업-${LocalDate.now()}.mcbak") }
         }
         "import" -> PasswordSheet("비밀번호를 입력해 주세요", confirm = false, button = "열기",
             wrong = backup is BackupUi.WrongPassword,
@@ -151,15 +167,16 @@ private fun PasswordSheet(
     var pw by remember { mutableStateOf("") }
     var pw2 by remember { mutableStateOf("") }
     var show by remember { mutableStateOf(false) }
-    val tooShort = confirm && pw.isNotEmpty() && pw.length < 6
+    // security review S-02: a new password follows backupPasswordProblem(); opening an old file takes any password
+    val problem = if (confirm) backupPasswordProblem(pw) else null
     val mismatch = confirm && pw2.isNotEmpty() && pw != pw2
-    val ok = if (confirm) pw.length >= 6 && pw == pw2 else pw.isNotEmpty()
-    AppSheet(onDismiss, title, if (confirm) "6자 이상으로 정해 주세요" else null) {
+    val ok = if (confirm) pw.isNotEmpty() && problem == null && pw == pw2 else pw.isNotEmpty()
+    AppSheet(onDismiss, title, if (confirm) "8자 이상, 숫자만은 안 돼요. 외우기 쉬운 짧은 문장이 좋아요 (예: 우리집 강아지 초코)" else null) {
         val vt = if (show) VisualTransformation.None else PasswordVisualTransformation()
         val eye: @Composable () -> Unit = {
             IconButton({ show = !show }) { Icon(if (show) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (show) "비밀번호 숨기기" else "비밀번호 보기") }
         }
-        val err = when { wrong -> "비밀번호가 맞지 않아요"; tooShort -> "6자 이상이어야 해요"; else -> null }
+        val err = when { wrong -> "비밀번호가 맞지 않아요"; else -> problem }
         OutlinedTextField(pw, { pw = it }, Modifier.fillMaxWidth(), label = { Text("비밀번호") }, singleLine = true, visualTransformation = vt,
             trailingIcon = eye, isError = err != null, supportingText = err?.let { { Text(it, Modifier.semantics { error(it) }) } },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))

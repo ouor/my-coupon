@@ -91,4 +91,14 @@ class UiFormatTest {
         assertEquals(1, t.offsetMapping.transformedToOriginal(2))
         assertEquals("100", com.ouor.mycoupon.ui.component.ThousandsTransformation.filter(androidx.compose.ui.text.AnnotatedString("100")).text.text)
     }
+
+    @Test fun backupPasswordRule() {
+        val f = { p: String -> com.ouor.mycoupon.ui.component.backupPasswordProblem(p) }
+        assertEquals(null, f(""))
+        assertEquals("8자 이상이어야 해요", f("abc1234"))
+        assertEquals("숫자만으로는 정할 수 없어요. 글자를 섞어 주세요", f("12345678"))
+        assertEquals("같은 글자만 되풀이할 수 없어요", f("aaaaaaaa"))
+        assertEquals(null, f("우리집 강아지 초코"))
+        assertEquals(null, f("coupon2026"))
+    }
 }
