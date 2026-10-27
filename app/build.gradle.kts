@@ -1,3 +1,5 @@
+import java.security.MessageDigest
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -20,6 +22,11 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
+        // code review O-04: expected model hashes, checked at build (verifyOcrModels) and after extraction on the device
+        rootProject.file("gradle/ocr-models.sha256").readLines().filter { it.isNotBlank() }.forEach { l ->
+            val (hash, file) = l.trim().split(Regex("\\s+"))
+            buildConfigField("String", "SHA256_" + file.substringBefore('.').uppercase(), "\"$hash\"")
+        }
         ndk {
             // spec §2.3: arm64 only (APK <= 40MB)
             abiFilters += "arm64-v8a"
@@ -66,6 +73,21 @@ android {
 }
 
 kotlin { jvmToolchain(17) }
+
+// code review O-04: the shipped models must be the ones in gradle/ocr-models.sha256 (docs/core/ocr-runtime.md)
+val verifyOcrModels = tasks.register("verifyOcrModels") {
+    val list = rootProject.file("gradle/ocr-models.sha256")
+    val dir = file("src/main/assets/ocr")
+    inputs.file(list); inputs.dir(dir)
+    doLast {
+        list.readLines().filter { it.isNotBlank() }.forEach { l ->
+            val (hash, name) = l.trim().split(Regex("\\s+"))
+            val got = MessageDigest.getInstance("SHA-256").digest(File(dir, name).readBytes()).joinToString("") { "%02x".format(it) }
+            if (got != hash) throw GradleException("assets/ocr/$name SHA-256 $got != $hash in ${list.name}")
+        }
+    }
+}
+tasks.named("preBuild") { dependsOn(verifyOcrModels) }
 
 // spec §7.1 / code review S-01: the merged manifest must never ask for the network or keep ORT's telemetry initializer
 androidComponents {

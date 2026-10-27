@@ -79,12 +79,13 @@ class CouponRecognizer @Inject constructor(@ApplicationContext private val conte
         fun create(context: Context, options: PaddleOcrEngine.Options): PaddleOcrEngine {
             val dir = File(context.noBackupFilesDir, "ocr").apply { mkdirs() }
             val stamp = File(dir, "version")
-            val version = BuildConfig.VERSION_CODE.toString() + "-" + BuildConfig.BUILD_TYPE
+            // the hashes in the stamp: a model swapped without a versionCode bump is extracted again (O-04)
+            val version = "${BuildConfig.VERSION_CODE}-${BuildConfig.BUILD_TYPE}-${BuildConfig.SHA256_DET}-${BuildConfig.SHA256_REC}"
             if (!stamp.exists() || stamp.readText() != version) {
-                for (name in listOf("det.onnx", "rec.onnx")) {
-                    val tmp = File(dir, "$name.tmp")
-                    context.assets.open("ocr/$name").use { i -> tmp.outputStream().use { i.copyTo(it) } }
-                    tmp.renameTo(File(dir, name))
+                stamp.delete()
+                for ((name, hash) in listOf("det.onnx" to BuildConfig.SHA256_DET, "rec.onnx" to BuildConfig.SHA256_REC)) {
+                    // one retry: a partial write or full disk must not stick until the next app update (O-04)
+                    runCatching { extract(context, dir, name, hash) }.getOrElse { extract(context, dir, name, hash) }
                 }
                 stamp.writeText(version)
             }
@@ -92,6 +93,14 @@ class CouponRecognizer @Inject constructor(@ApplicationContext private val conte
                 File(dir, "det.onnx").path, File(dir, "rec.onnx").path,
                 context.assets.open("ocr/dict.txt").bufferedReader().readLines(), options,
             )
+        }
+
+        /** Copies one model out of the APK and checks the written file's SHA-256 before it replaces the old one. */
+        private fun extract(context: Context, dir: File, name: String, sha256: String) {
+            val tmp = File(dir, "$name.tmp")
+            context.assets.open("ocr/$name").use { i -> tmp.outputStream().use { o -> i.copyTo(o); o.fd.sync() } }
+            if (ImageStore.sha256(tmp) != sha256) { tmp.delete(); throw java.io.IOException("ocr/$name hash mismatch") }
+            if (!tmp.renameTo(File(dir, name))) { tmp.delete(); throw java.io.IOException("ocr/$name rename failed") }
         }
 
         const val THREADS = 4

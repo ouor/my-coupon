@@ -60,6 +60,14 @@ class ImageStore @Inject constructor(@ApplicationContext private val context: Co
 
         fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
+        /** Streams [f] (models are too big to read into the heap at once). */
+        fun sha256(f: File): String {
+            val md = MessageDigest.getInstance("SHA-256")
+            val buf = ByteArray(1 shl 16)
+            f.inputStream().use { i -> while (true) { val n = i.read(buf); if (n < 0) break; md.update(buf, 0, n) } }
+            return md.digest().joinToString("") { "%02x".format(it) }
+        }
+
         /** EXIF orientation as a rotation/flip matrix (cv2.imread applies it; BitmapFactory does not). */
         fun exifMatrix(bytes: ByteArray): Matrix? {
             val o = runCatching { ExifInterface(ByteArrayInputStream(bytes)).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) }.getOrDefault(1)
