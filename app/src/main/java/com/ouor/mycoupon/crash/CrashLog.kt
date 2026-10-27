@@ -77,7 +77,8 @@ class CrashLog @Inject constructor(@ApplicationContext private val context: Cont
             appendLine("thread: $thread")
             var c: Throwable? = e
             var first = true
-            while (c != null) {
+            val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Throwable, Boolean>())
+            while (c != null && seen.add(c)) { // S-07: a cause loop A -> B -> A must end
                 appendLine((if (first) "" else "Caused by: ") + c.javaClass.name + (c.message?.let { ": " + scrub(it) } ?: ""))
                 c.stackTrace.forEach { appendLine("\tat $it") }
                 first = false
@@ -86,16 +87,24 @@ class CrashLog @Inject constructor(@ApplicationContext private val context: Cont
         }
 
         /** Same class name, stack and causes as [e], messages scrubbed. */
-        fun scrubbed(e: Throwable): Throwable = Scrubbed(e.javaClass.name, e.message?.let(::scrub), e.cause?.takeIf { it !== e }?.let(::scrubbed))
-            .apply { stackTrace = e.stackTrace }
+        fun scrubbed(e: Throwable): Throwable = scrubbed(e, java.util.Collections.newSetFromMap(java.util.IdentityHashMap()))
+
+        private fun scrubbed(e: Throwable, seen: MutableSet<Throwable>): Throwable {
+            seen.add(e)
+            val cause = e.cause?.takeIf { it !in seen }?.let { scrubbed(it, seen) }
+            return Scrubbed(e.javaClass.name, e.message?.let(::scrub), cause).apply { stackTrace = e.stackTrace }
+        }
 
         private class Scrubbed(val name: String, msg: String?, cause: Throwable?) : RuntimeException(msg, cause) {
             override fun toString() = if (message == null) name else "$name: $message"
         }
 
-        /** Masks anything that could be coupon content in a message. */
+        /**
+         * Masks anything that could be coupon content in a message: Hangul, and any 4+ character token with a digit
+         * (numbers, "AB12CD34EF56", "123-456-789", "GS25"; S-07). Latin words without digits stay readable.
+         */
         fun scrub(msg: String): String = msg
-            .replace(Regex("\\d{4,}"), "#")
+            .replace(Regex("\\b(?=[0-9A-Za-z-]*\\d)[0-9A-Za-z][0-9A-Za-z-]{3,}"), "#")
             .replace(Regex("[가-힣]+"), "*")
             .take(300)
     }

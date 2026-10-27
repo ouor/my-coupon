@@ -35,6 +35,28 @@ object ImageCodec {
         return md.digest().joinToString("") { "%02x".format(it) }
     }
 
+    /**
+     * Removes location, device, owner and time tags from a JPEG copy that leaves the app (F16 send, security review
+     * S-15). Orientation stays so the receiver shows it upright. The stored original is never changed (F1).
+     */
+    fun stripPrivateExif(jpeg: File) {
+        runCatching {
+            val exif = ExifInterface(jpeg.absolutePath)
+            for (tag in PRIVATE_TAGS) exif.setAttribute(tag, null)
+            exif.saveAttributes()
+        }
+    }
+
+    private val PRIVATE_TAGS = listOf(
+        ExifInterface.TAG_GPS_LATITUDE, ExifInterface.TAG_GPS_LATITUDE_REF, ExifInterface.TAG_GPS_LONGITUDE,
+        ExifInterface.TAG_GPS_LONGITUDE_REF, ExifInterface.TAG_GPS_ALTITUDE, ExifInterface.TAG_GPS_ALTITUDE_REF,
+        ExifInterface.TAG_GPS_TIMESTAMP, ExifInterface.TAG_GPS_DATESTAMP, ExifInterface.TAG_GPS_PROCESSING_METHOD,
+        ExifInterface.TAG_MAKE, ExifInterface.TAG_MODEL, ExifInterface.TAG_SOFTWARE, ExifInterface.TAG_ARTIST,
+        ExifInterface.TAG_COPYRIGHT, "CameraOwnerName", "BodySerialNumber",
+        "LensSerialNumber", ExifInterface.TAG_IMAGE_UNIQUE_ID, ExifInterface.TAG_USER_COMMENT,
+        ExifInterface.TAG_DATETIME, ExifInterface.TAG_DATETIME_ORIGINAL, ExifInterface.TAG_DATETIME_DIGITIZED,
+    )
+
     /** EXIF orientation as a rotation/flip matrix (cv2.imread applies it; BitmapFactory does not). */
     fun exifMatrix(bytes: ByteArray): Matrix? {
         val o = runCatching { ExifInterface(ByteArrayInputStream(bytes)).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) }.getOrDefault(1)

@@ -53,6 +53,7 @@ object Extract {
     private val NON_WORD = re("[\\W_]+")
     private val ALNUM_KO = re("[0-9A-Za-z가-힣]")
     private val WORDS = re("[가-힣A-Za-z0-9]{2,}")
+    private val DIGITS8 = re("\\d{8,}") // O-15: compiled once, not per line
 
     // ---------- geometry / text helpers ----------
 
@@ -85,7 +86,7 @@ object Extract {
         val cx = (b.x0 + b.x1) / 2
         val cy = (b.y0 + b.y1) / 2
         return bars.any { it.x0 <= cx && cx <= it.x1 && it.y0 <= cy && cy <= it.y1 } &&
-            !re("\\d{8,}").containsMatchIn(l.text.replace(" ", ""))
+            !DIGITS8.containsMatchIn(l.text.replace(" ", ""))
     }
 
     private fun rowsOf(runs: List<Run>): List<List<Run>> {

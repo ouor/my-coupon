@@ -148,4 +148,16 @@ class CoreLogicTest {
         assertEquals("java.lang.RuntimeException: pin #", s.cause.toString())
         assertEquals(e.stackTrace.toList(), s.stackTrace.toList())
     }
+
+    /** S-07: mixed codes and grouped numbers are masked; a cause loop ends. */
+    @Test
+    fun scrubMixedCodesAndCauseLoop() {
+        val s = CrashLog.scrub("pin AB12CD34EF56 or 123-456-789 at GS25 code")
+        assertEquals("pin # or # at # code", s)
+        val a = IllegalStateException("a")
+        val b = RuntimeException("b", a)
+        a.initCause(b)
+        assertEquals("java.lang.RuntimeException: b", CrashLog.scrubbed(a).cause.toString())
+        assertTrue(CrashLog.report("main", a, "t").lines().count { it.startsWith("Caused by") } == 1)
+    }
 }

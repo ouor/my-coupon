@@ -18,6 +18,7 @@ object Sharing {
         dir.listFiles().orEmpty().forEach { it.delete() } // only the latest shared copy lives here
         val copy = File(dir, name)
         source.copyTo(copy, overwrite = true)
+        if (mime == "image/jpeg") com.ouor.mycoupon.image.ImageCodec.stripPrivateExif(copy) // S-15
         val uri = FileProvider.getUriForFile(context, context.packageName + ".files", copy)
         val send = Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         // QA R1-15: never offer this app itself as a target (it would re-import the coupon)
