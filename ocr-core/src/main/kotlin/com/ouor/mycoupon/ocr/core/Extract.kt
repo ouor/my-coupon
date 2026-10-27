@@ -7,7 +7,7 @@ import java.time.LocalDate
  * Coupon field extraction from OCR lines + decoded barcodes: a line-for-line port of ocr-lab/extract.py
  * (VERSION "2", rules in docs/ocr/porting-spec.md). Keep it a port: change the Python first, then mirror here;
  * ExtractParityTest compares every key with the goldens.
- * Python `re` is Unicode-aware, hence (?U) on every pattern; lengths count code points like Python len().
+ * Python `re` is Unicode-aware, hence Unicode character classes on every pattern; lengths count code points like Python len().
  */
 object Extract {
     const val VERSION = "2"
@@ -23,7 +23,12 @@ object Extract {
     private const val RIVAL_HEIGHT = 0.8
     private const val RIVAL_DIST = 6.0
 
-    private fun re(p: String) = Regex("(?U)$p")
+    /**
+     * JVM needs (?U) for Unicode \d \w \s like Python; Android's ICU regex is Unicode by default and rejects (?U).
+     */
+    private val UNICODE = if (runCatching { Regex("(?U)a") }.isSuccess) "(?U)" else ""
+
+    private fun re(p: String) = Regex(UNICODE + p)
 
     private val NOTES_HEADER = re("(유의|주의|안내|참고|이용)\\s*(사항|안내|방법)|이용\\s*안내|사용\\s*방법|꼭\\s*확인")
     private val BULLET = re("^\\s*[-·•*※ㆍ]")

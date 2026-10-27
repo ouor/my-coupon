@@ -33,6 +33,13 @@ android {
             // shortcut: release is signed with the debug key until the release keystore exists (spec §8.5)
             signingConfig = signingConfigs.getByName("debug")
         }
+        // non-debuggable release-like build with BenchActivity (src/bench): OCR timings on the device (docs/core/ocr-runtime.md)
+        create("bench") {
+            initWith(getByName("release"))
+            isMinifyEnabled = false
+            isShrinkResources = false
+            matchingFallbacks += "release"
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

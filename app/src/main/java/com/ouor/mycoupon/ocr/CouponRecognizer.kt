@@ -11,6 +11,7 @@ import com.google.zxing.NotFoundException
 import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.ReaderException
 import com.google.zxing.common.HybridBinarizer
+import com.ouor.mycoupon.BuildConfig
 import com.ouor.mycoupon.data.ImageStore
 import com.ouor.mycoupon.ocr.core.Box
 import com.ouor.mycoupon.ocr.core.CodeSource
@@ -27,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -51,15 +53,7 @@ class CouponRecognizer @Inject constructor(@ApplicationContext private val conte
     private val mutex = Mutex()
     private var engine: PaddleOcrEngine? = null
 
-    private fun engine(): PaddleOcrEngine = engine ?: run {
-        val a = context.assets
-        PaddleOcrEngine(
-            a.open("ocr/det.onnx").use { it.readBytes() },
-            a.open("ocr/rec.onnx").use { it.readBytes() },
-            a.open("ocr/dict.txt").bufferedReader().readLines(),
-            PaddleOcrEngine.Options(threads = THREADS, maxSide = MAX_SIDE),
-        ).also { engine = it }
-    }
+    private fun engine(): PaddleOcrEngine = engine ?: create(context, PaddleOcrEngine.Options(threads = THREADS, maxSide = MAX_SIDE)).also { engine = it }
 
     /** Null when the bytes are not a decodable image (S4 "읽지 못했어요"). */
     suspend fun recognize(bytes: ByteArray): Recognition? = withContext(Dispatchers.Default) {
@@ -86,9 +80,31 @@ class CouponRecognizer @Inject constructor(@ApplicationContext private val conte
     suspend fun release() = mutex.withLock { engine?.close(); engine = null }
 
     companion object {
+        /**
+         * Models are compressed in the APK; they are extracted once per app version to no-backup storage and opened
+         * by path, so the weights are never copied through the Java heap.
+         */
+        fun create(context: Context, options: PaddleOcrEngine.Options): PaddleOcrEngine {
+            val dir = File(context.noBackupFilesDir, "ocr").apply { mkdirs() }
+            val stamp = File(dir, "version")
+            val version = BuildConfig.VERSION_CODE.toString() + "-" + BuildConfig.BUILD_TYPE
+            if (!stamp.exists() || stamp.readText() != version) {
+                for (name in listOf("det.onnx", "rec.onnx")) {
+                    val tmp = File(dir, "$name.tmp")
+                    context.assets.open("ocr/$name").use { i -> tmp.outputStream().use { i.copyTo(it) } }
+                    tmp.renameTo(File(dir, name))
+                }
+                stamp.writeText(version)
+            }
+            return PaddleOcrEngine(
+                File(dir, "det.onnx").path, File(dir, "rec.onnx").path,
+                context.assets.open("ocr/dict.txt").bufferedReader().readLines(), options,
+            )
+        }
+
         const val THREADS = 4
         /** Longest side fed to the detector (PaddleX limit_type max). Decided by the POCO benchmark: docs/core/ocr-runtime.md. */
-        const val MAX_SIDE = 4000
+        const val MAX_SIDE = 1280
 
         /** PM decision (spec §9.1.1 Q10): a decoded QR value is always confirmed by the user. */
         fun withAppRules(x: Extraction): Extraction {

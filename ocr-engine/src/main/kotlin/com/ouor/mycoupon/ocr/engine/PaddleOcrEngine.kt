@@ -17,17 +17,31 @@ import kotlin.math.max
  *
  * Not thread-safe; one call at a time.
  */
-class PaddleOcrEngine(
-    detModel: ByteArray,
-    recModel: ByteArray,
+class PaddleOcrEngine private constructor(
+    detSession: (OrtEnvironment, OrtSession.SessionOptions) -> OrtSession,
+    recSession: (OrtEnvironment, OrtSession.SessionOptions) -> OrtSession,
     dict: List<String>,
-    private val options: Options = Options(),
+    private val options: Options,
 ) : AutoCloseable {
+    constructor(detModel: ByteArray, recModel: ByteArray, dict: List<String>, options: Options = Options()) :
+        this({ e, o -> e.createSession(detModel, o) }, { e, o -> e.createSession(recModel, o) }, dict, options)
+
+    /** From model files: no Java-heap copy of the weights (lower peak memory on the phone). */
+    constructor(detPath: String, recPath: String, dict: List<String>, options: Options = Options()) :
+        this({ e, o -> e.createSession(detPath, o) }, { e, o -> e.createSession(recPath, o) }, dict, options)
+
     data class Options(
         val threads: Int = 4,
         /** Longest side fed to the detector (PaddleX max_side_limit). */
         val maxSide: Int = 4000,
         val recBatch: Int = 6,
+        /**
+         * ORT CPU memory arena. Every image has a different input shape, so a plain arena only grows (1.3 GB peak RSS
+         * on the POCO); with [shrinkArena] it is returned after each run but still peaks higher than no arena
+         * (POCO, max side 1280: no arena 428 MB / 908 ms median, arena+shrink 557 MB / 813 ms). Off by default.
+         */
+        val arena: Boolean = false,
+        val shrinkArena: Boolean = true,
     )
 
     data class Timings(val detMs: Long, val recMs: Long, val lines: Int)
@@ -37,6 +51,10 @@ class PaddleOcrEngine(
     private val rec: OrtSession
     private val chars: List<String> = listOf("blank") + dict + " "
 
+    private val runOptions = OrtSession.RunOptions().apply {
+        if (options.arena && options.shrinkArena) addRunConfigEntry("memory.enable_memory_arena_shrinkage", "cpu:0")
+    }
+
     @Volatile
     var lastTimings: Timings? = null
         private set
@@ -45,9 +63,12 @@ class PaddleOcrEngine(
         val so = OrtSession.SessionOptions().apply {
             setIntraOpNumThreads(options.threads)
             setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+            setCPUArenaAllocator(options.arena)
+            setMemoryPatternOptimization(false) // shapes change every call
         }
-        det = env.createSession(detModel, so)
-        rec = env.createSession(recModel, so)
+        det = detSession(env, so)
+        rec = recSession(env, so)
+        so.close()
     }
 
     fun recognize(img: BgrImage): List<OcrLine> {
@@ -95,7 +116,7 @@ class PaddleOcrEngine(
             arr[c * plane + i] = ((r.data[i * 3 + c].toInt() and 0xFF) / 255f - mean[c]) / std[c]
         }
         val pred = OnnxTensor.createTensor(env, buf, longArrayOf(1, 3, rh.toLong(), rw.toLong())).use { x ->
-            det.run(mapOf("x" to x)).use { res ->
+            det.run(mapOf("x" to x), runOptions).use { res ->
                 val t = res[0] as OnnxTensor
                 val fb = t.floatBuffer
                 FloatArray(fb.remaining()).also { fb.get(it) }
@@ -138,13 +159,13 @@ class PaddleOcrEngine(
                 }
             }
             OnnxTensor.createTensor(env, buf, longArrayOf(chunk.size.toLong(), 3, 48, maxW.toLong())).use { x ->
-                rec.run(mapOf("x" to x)).use { out ->
+                rec.run(mapOf("x" to x), runOptions).use { out ->
                     val t = out[0] as OnnxTensor
                     val shape = t.info.shape // [N, T, C]
                     val steps = shape[1].toInt()
                     val classes = shape[2].toInt()
-                    val fb = t.floatBuffer
-                    val probs = FloatArray(fb.remaining()).also { fb.get(it) }
+                    // [N, T, 11947] probabilities can reach ~230 MB for wide lines: read the buffer in place, no extra array
+                    val probs = t.floatBuffer
                     chunk.forEachIndexed { k, i -> res[i] = ctc(probs, k * steps * classes, steps, classes) }
                 }
             }
@@ -162,7 +183,7 @@ class PaddleOcrEngine(
         const val MAX_REC_W = 3200
     }
 
-    private fun ctc(p: FloatArray, off: Int, steps: Int, classes: Int): Pair<String, Float> {
+    private fun ctc(p: FloatBuffer, off: Int, steps: Int, classes: Int): Pair<String, Float> {
         val sb = StringBuilder()
         var sum = 0.0
         var n = 0
@@ -185,5 +206,6 @@ class PaddleOcrEngine(
     override fun close() {
         det.close()
         rec.close()
+        runOptions.close()
     }
 }
