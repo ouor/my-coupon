@@ -1,6 +1,7 @@
 package com.ouor.mycoupon.backup
 
 import android.content.Context
+import com.ouor.mycoupon.image.ImageCodec
 import android.net.Uri
 import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponRepository
@@ -109,7 +110,7 @@ class BackupManager @Inject constructor(
                 for (bc in p.manifest.coupons) {
                     val bytes = read(z, bc.coupon.imagePath, MAX_IMAGE)
                     // S-04: the hash comes from the bytes, never from the file's claim (duplicate check)
-                    val c = BackupFormat.toEntity(bc.coupon, "", "", ImageStore.sha256(bytes))
+                    val c = BackupFormat.toEntity(bc.coupon, "", "", ImageCodec.sha256(bytes))
                     if (repo.findDuplicate(c) != null || !seenKeys.add(c.codeKey ?: ("img:" + c.imageHash))) continue
                     val stored = images.save(bytes)
                     copied += stored.path
@@ -152,13 +153,13 @@ class BackupManager @Inject constructor(
     private fun read(z: ZipFile, name: String, max: Int): ByteArray {
         val e = z.getEntry(name) ?: throw BackupFormatException("missing entry")
         if (e.size > max) throw BackupFormatException("entry too large")
-        return z.getInputStream(e).use { ImageStore.readCapped(it, max) } ?: throw BackupFormatException("entry too large")
+        return z.getInputStream(e).use { ImageCodec.readCapped(it, max) } ?: throw BackupFormatException("entry too large")
     }
 
     private companion object {
         const val MANIFEST = "manifest.json"
         const val MAX_MANIFEST = 16 shl 20
-        const val MAX_IMAGE = ImageStore.MAX_BYTES
+        const val MAX_IMAGE = ImageCodec.MAX_BYTES
         const val MAX_COUPONS = 10_000
     }
 }

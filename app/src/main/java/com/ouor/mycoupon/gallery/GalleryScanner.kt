@@ -1,6 +1,7 @@
 package com.ouor.mycoupon.gallery
 
 import android.Manifest
+import com.ouor.mycoupon.image.ImageCodec
 import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
@@ -10,7 +11,6 @@ import android.os.Build
 import android.provider.MediaStore
 import androidx.core.content.ContextCompat
 import com.ouor.mycoupon.data.CouponRepository
-import com.ouor.mycoupon.data.ImageStore
 import com.ouor.mycoupon.data.ScanResult
 import com.ouor.mycoupon.data.Settings
 import com.ouor.mycoupon.domain.Draft
@@ -123,7 +123,7 @@ class GalleryScanner @Inject constructor(
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         if (bounds.outWidth <= 0) return false
         // ~1200 px long side keeps 1D modules >= ~1.5 px on phone screenshots
-        val bmp = ImageStore.decode(bytes, SCREEN_SIDE) ?: return false
+        val bmp = ImageCodec.decode(bytes, SCREEN_SIDE) ?: return false
         val img = CouponRecognizer.toBgr(bmp)
         bmp.recycle()
         return Barcodes.quickFind(Barcodes.gray(img), img.width, img.height)

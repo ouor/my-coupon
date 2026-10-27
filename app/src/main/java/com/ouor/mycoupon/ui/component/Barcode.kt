@@ -1,6 +1,7 @@
 package com.ouor.mycoupon.ui.component
 
 import android.content.ClipData
+import com.ouor.mycoupon.image.ImageCodec
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
@@ -48,7 +49,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.ouor.mycoupon.data.CodeSource
 import com.ouor.mycoupon.data.Coupon
-import com.ouor.mycoupon.data.ImageStore
 import com.ouor.mycoupon.ui.BarcodeRenderer
 import com.ouor.mycoupon.ui.theme.BarcodeColors
 import com.ouor.mycoupon.ui.theme.CodeTypography
@@ -71,7 +71,7 @@ fun Coupon.codeView(): CodeView = when {
 suspend fun loadImage(path: String, maxSide: Int, box: List<Double>? = null, srcW: Int = 0): Bitmap? = withContext(Dispatchers.IO) {
     val f = File(path)
     if (!f.exists()) return@withContext null
-    val bmp = ImageStore.decode(f.readBytes(), maxSide) ?: return@withContext null
+    val bmp = ImageCodec.decode(f.readBytes(), maxSide) ?: return@withContext null
     if (box == null || box.size < 4 || srcW <= 0) return@withContext bmp
     val k = bmp.width.toDouble() / srcW
     val padX = (box[2] - box[0]) * 0.08 + 12

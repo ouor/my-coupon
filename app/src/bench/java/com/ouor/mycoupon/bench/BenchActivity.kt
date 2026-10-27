@@ -1,10 +1,10 @@
 package com.ouor.mycoupon.bench
 
 import android.app.Activity
+import com.ouor.mycoupon.image.ImageCodec
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
-import com.ouor.mycoupon.data.ImageStore
 import com.ouor.mycoupon.ocr.engine.Barcodes
 import com.ouor.mycoupon.ocr.CouponRecognizer
 import com.ouor.mycoupon.ocr.core.Box
@@ -60,7 +60,7 @@ class BenchActivity : Activity() {
             for (r in 0 until runs) for (f in files) {
                 val a = SystemClock.elapsedRealtime()
                 val bytes = f.readBytes()
-                val bmp = ImageStore.decode(bytes) ?: continue
+                val bmp = ImageCodec.decode(bytes) ?: continue
                 val img = CouponRecognizer.toBgr(bmp)
                 bmp.recycle()
                 val b = SystemClock.elapsedRealtime()

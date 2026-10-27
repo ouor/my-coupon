@@ -1,6 +1,7 @@
 package com.ouor.mycoupon.domain
 
 import android.net.Uri
+import com.ouor.mycoupon.data.Duplicate
 import android.util.Log
 import com.ouor.mycoupon.data.CodeSource
 import com.ouor.mycoupon.data.Coupon
@@ -9,7 +10,7 @@ import com.ouor.mycoupon.data.ImageStore
 import com.ouor.mycoupon.data.ScanResult
 import com.ouor.mycoupon.data.StoredImage
 import com.ouor.mycoupon.di.AppScope
-import com.ouor.mycoupon.gallery.MediaLink
+import com.ouor.mycoupon.data.MediaLink
 import com.ouor.mycoupon.ocr.CouponRecognizer
 import com.ouor.mycoupon.ocr.Recognition
 import com.ouor.mycoupon.data.CouponType
@@ -36,15 +37,6 @@ enum class ImportOrigin { PICKER, SHARE, GALLERY_SCAN }
 
 enum class DraftStage { READING, DONE, FAILED }
 
-/** F4: why a draft starts unchecked. */
-enum class Duplicate {
-    /** same number (or same image) as a coupon already in the app */
-    REGISTERED,
-    /** same number as a coupon already used: stronger warning */
-    USED,
-    /** same number as an earlier image of this batch */
-    IN_BATCH,
-}
 
 /**
  * One S4 card. [coupon] is the editable result (id = 0 until registered); UI edits go through

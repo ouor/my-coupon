@@ -1,11 +1,11 @@
-package com.ouor.mycoupon.gallery
+package com.ouor.mycoupon.data
 
 import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
 import android.provider.OpenableColumns
-import com.ouor.mycoupon.data.ImageStore
+import com.ouor.mycoupon.image.ImageCodec
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -56,7 +56,7 @@ class MediaLink @Inject constructor(@ApplicationContext private val context: Con
 
     /** null = cannot read it (no gallery permission). */
     private fun sameBytes(uri: Uri, hash: String): Boolean? = try {
-        context.contentResolver.openInputStream(uri)?.use { ImageStore.sha256(it.readBytes()) == hash }
+        context.contentResolver.openInputStream(uri)?.use { ImageCodec.sha256(it.readBytes()) == hash }
     } catch (_: SecurityException) {
         null
     } catch (_: java.io.FileNotFoundException) {

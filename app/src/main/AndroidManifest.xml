@@ -50,6 +50,11 @@
                 <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
+        <!-- S-08: reminder / widget / tile enter here (AppIntents); not exported, so other apps cannot send internal extras -->
+        <activity-alias
+            android:name=".ui.InternalEntry"
+            android:exported="false"
+            android:targetActivity=".ui.MainActivity" />
 
         <provider
             android:name="ai.onnxruntime.TelemetryInitializer"

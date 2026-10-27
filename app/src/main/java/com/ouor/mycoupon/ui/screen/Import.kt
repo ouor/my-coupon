@@ -63,7 +63,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.ouor.mycoupon.domain.Draft
 import com.ouor.mycoupon.domain.DraftStage
-import com.ouor.mycoupon.domain.Duplicate
+import com.ouor.mycoupon.data.Duplicate
 import com.ouor.mycoupon.domain.ImportOrigin
 import com.ouor.mycoupon.data.CouponType
 import com.ouor.mycoupon.ui.HomeViewModel

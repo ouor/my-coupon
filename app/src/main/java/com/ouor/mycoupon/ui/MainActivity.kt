@@ -16,6 +16,11 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import com.ouor.mycoupon.AppIntents
+import com.ouor.mycoupon.AppIntents.EXTRA_COUPON_ID
+import com.ouor.mycoupon.AppIntents.EXTRA_FROM_REMINDER
+import com.ouor.mycoupon.AppIntents.EXTRA_FROM_TILE
+import com.ouor.mycoupon.AppIntents.EXTRA_REMINDER_IDS
 import com.ouor.mycoupon.data.Settings
 import com.ouor.mycoupon.domain.ImportOrigin
 import com.ouor.mycoupon.ui.theme.MyCouponTheme
@@ -68,6 +73,8 @@ class MainActivity : ComponentActivity() {
                 nav.navigate(Route.Home) { popUpTo(0) }
                 nav.navigate(Route.Import)
             }
+            // S-08: internal extras only from the app's own non-exported alias, never from a launcher or another app
+            !AppIntents.isInternal(intent) -> Unit
             intent.hasExtra(EXTRA_COUPON_ID) -> {
                 settings.onboarded = true
                 nav.navigate(Route.Home) { popUpTo(0) }
@@ -95,13 +102,5 @@ class MainActivity : ComponentActivity() {
             else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_STREAM))
         }
         return list.filterNotNull().filter { u -> contentResolver.getType(u)?.startsWith("image/") ?: true }
-    }
-
-    companion object {
-        const val EXTRA_COUPON_ID = "coupon_id"
-        const val EXTRA_FROM_REMINDER = "from_reminder"
-        const val EXTRA_FROM_TILE = "from_tile"
-        /** N1 for several coupons: the notified ids (F18) */
-        const val EXTRA_REMINDER_IDS = "reminder_ids"
     }
 }

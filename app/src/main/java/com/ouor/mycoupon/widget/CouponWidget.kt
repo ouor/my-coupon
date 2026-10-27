@@ -5,7 +5,6 @@ import androidx.glance.LocalSize
 import androidx.glance.appwidget.SizeMode
 import com.ouor.mycoupon.reminder.ReminderPlanner
 import android.content.Context
-import android.content.Intent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -39,7 +38,7 @@ import com.ouor.mycoupon.data.CouponChangeListener
 import com.ouor.mycoupon.data.CouponRepository
 import com.ouor.mycoupon.di.AppScope
 import com.ouor.mycoupon.domain.Stats
-import com.ouor.mycoupon.ui.MainActivity
+import com.ouor.mycoupon.AppIntents
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -78,7 +77,7 @@ class CouponWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val repo = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java).repository()
-        val open = Intent(context, MainActivity::class.java)
+        val open = AppIntents.home(context)
         val initial = repo.all()
         provideContent {
             // collected inside the session: updateAll() on a live session only recomposes, it does not re-run provideGlance (QA R1-02)
@@ -103,8 +102,7 @@ class CouponWidget : GlanceAppWidget() {
                         style = TextStyle(fontSize = 15.sp, color = fg))
                 }
                 top.forEach { c ->
-                    val row = Intent(context, MainActivity::class.java).putExtra(MainActivity.EXTRA_COUPON_ID, c.id)
-                        .setAction("open-${c.id}") // distinct intents per row
+                    val row = AppIntents.coupon(context, c.id)
                     val d = Stats.daysLeft(c, today)
                     // review U14: name on its own larger line, brand (+ balance) under it; U1 short name
                     val name = ReminderPlanner.shortName(c.brand, c.productName) ?: c.brand ?: "쿠폰"

@@ -3,7 +3,6 @@ package com.ouor.mycoupon.reminder
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -29,7 +28,7 @@ import kotlinx.coroutines.launch
 import com.ouor.mycoupon.data.CouponStatus
 import com.ouor.mycoupon.data.Settings
 import com.ouor.mycoupon.data.CouponType
-import com.ouor.mycoupon.ui.MainActivity
+import com.ouor.mycoupon.AppIntents
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -187,13 +186,9 @@ class ReminderNotifier @Inject constructor(@ApplicationContext private val conte
     fun show(due: List<Coupon>, today: LocalDate) {
         if (!canPost()) return
         val single = due.size == 1
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            if (single) putExtra(MainActivity.EXTRA_COUPON_ID, due[0].id)
-            else putExtra(MainActivity.EXTRA_REMINDER_IDS, due.map { it.id }.toLongArray())
-            putExtra(MainActivity.EXTRA_FROM_REMINDER, true)
-        }
-        val pi = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val intent = AppIntents.reminder(context, due.map { it.id }.toLongArray())
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val pi = AppIntents.pending(context, AppIntents.REQUEST_REMINDER, intent)
         val publicVersion = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_tile)
             .setContentTitle("만료가 다가오는 쿠폰이 있어요")

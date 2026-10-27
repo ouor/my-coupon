@@ -1,11 +1,11 @@
 package com.ouor.mycoupon.ocr
 
 import android.content.Context
+import com.ouor.mycoupon.image.ImageCodec
 import android.graphics.Bitmap
 import android.os.SystemClock
 import com.google.zxing.BarcodeFormat
 import com.ouor.mycoupon.BuildConfig
-import com.ouor.mycoupon.data.ImageStore
 import com.ouor.mycoupon.ocr.core.CodeSource
 import com.ouor.mycoupon.ocr.core.Extract
 import com.ouor.mycoupon.ocr.core.Extraction
@@ -51,7 +51,7 @@ class CouponRecognizer @Inject constructor(@ApplicationContext private val conte
     suspend fun recognize(bytes: ByteArray): Recognition? = withContext(Dispatchers.Default) {
         mutex.withLock {
             val t0 = SystemClock.elapsedRealtime()
-            val bmp = ImageStore.decode(bytes, DECODE_MAX_SIDE) ?: return@withLock null
+            val bmp = ImageCodec.decode(bytes, DECODE_MAX_SIDE) ?: return@withLock null
             val img = toBgr(bmp)
             bmp.recycle()
             val t1 = SystemClock.elapsedRealtime()
@@ -99,7 +99,7 @@ class CouponRecognizer @Inject constructor(@ApplicationContext private val conte
         private fun extract(context: Context, dir: File, name: String, sha256: String) {
             val tmp = File(dir, "$name.tmp")
             context.assets.open("ocr/$name").use { i -> tmp.outputStream().use { o -> i.copyTo(o); o.fd.sync() } }
-            if (ImageStore.sha256(tmp) != sha256) { tmp.delete(); throw java.io.IOException("ocr/$name hash mismatch") }
+            if (ImageCodec.sha256(tmp) != sha256) { tmp.delete(); throw java.io.IOException("ocr/$name hash mismatch") }
             if (!tmp.renameTo(File(dir, name))) { tmp.delete(); throw java.io.IOException("ocr/$name rename failed") }
         }
 

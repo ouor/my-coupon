@@ -1,7 +1,6 @@
 package com.ouor.mycoupon.data
 
 import androidx.room.withTransaction
-import com.ouor.mycoupon.domain.Duplicate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -12,6 +11,16 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/** F4: why a draft starts unchecked. */
+enum class Duplicate {
+    /** same number (or same image) as a coupon already in the app */
+    REGISTERED,
+    /** same number as a coupon already used: stronger warning */
+    USED,
+    /** same number as an earlier image of this batch */
+    IN_BATCH,
+}
 
 /** S1 filter chips (S13 = PAST). */
 enum class ListFilter { AVAILABLE, PAST }
