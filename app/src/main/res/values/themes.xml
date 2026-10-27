@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- window theme only; screens are Compose Material 3 (ui/theme) -->
-    <style name="Theme.Mycoupon" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Mycoupon" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FFFFFF</item>
+    </style>
 </resources>

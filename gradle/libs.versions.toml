@@ -16,6 +16,9 @@ serializationJson = "1.11.0"
 zxing = "3.5.4"
 onnxruntime = "1.31.0"
 junit = "4.13.2"
+navigation = "2.9.8"
+coil = "3.3.0"
+materialIcons = "1.7.8"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -45,6 +48,9 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxruntime" }
 onnxruntime-jvm = { group = "com.microsoft.onnxruntime", name = "onnxruntime", version.ref = "onnxruntime" }
+navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
+coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
+compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIcons" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

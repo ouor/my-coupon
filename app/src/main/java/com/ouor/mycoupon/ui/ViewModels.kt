@@ -52,6 +52,12 @@ data class HomeState(
     val query: String = "",
     val today: LocalDate = LocalDate.now(),
     val reviewCount: Int = 0,
+    /** S1 chip "사용 가능 12" */
+    val availableCount: Int = 0,
+    /** false until the first DB emission (S1 shows no empty state before it) */
+    val loaded: Boolean = false,
+    /** any coupon at all (S1 first-run empty state vs "쓸 수 있는 쿠폰이 없어요") */
+    val hasCoupons: Boolean = false,
     val newImages: Int = 0,
     val banner: HomeBanner? = null,
 )
@@ -64,6 +70,7 @@ class HomeViewModel @Inject constructor(
     private val crashLog: CrashLog,
     private val notifier: ReminderNotifier,
     private val scanner: GalleryScanner,
+    private val actions: CouponActions,
 ) : ViewModel() {
     val filter = MutableStateFlow(ListFilter.AVAILABLE)
     val sort = MutableStateFlow(ListSort.EXPIRY)
@@ -82,7 +89,8 @@ class HomeViewModel @Inject constructor(
         val review = everything.count { it.needsCheck && it.isAvailable(base.today) }
         val hasCoupons = everything.isNotEmpty()
         base.copy(
-            reviewCount = review, newImages = n,
+            reviewCount = review, newImages = n, loaded = true, hasCoupons = hasCoupons,
+            availableCount = everything.count { it.isAvailable(base.today) },
             banner = when {
                 crash -> HomeBanner.CRASH
                 notifOff && hasCoupons -> HomeBanner.NOTIFICATIONS_OFF
@@ -109,6 +117,18 @@ class HomeViewModel @Inject constructor(
         scanner.sendToReview()
         newImages.value = 0
     }
+
+    /** Snackbar [되돌리기] after S8/F16 (S6's ViewModel is gone by then) and S13 card [되돌리기]. */
+    fun undoUse(id: Long) = viewModelScope.launch { actions.undoUse(id) }
+    fun undoLastBalance(id: Long) = viewModelScope.launch { actions.undoLastBalance(id) }
+
+    /** D8: S1 shows the notification rationale sheet once, after the first registration. */
+    val notificationRationale = MutableStateFlow(false)
+    fun registered() { if (!settings.notificationAsked && !notifier.canPost()) notificationRationale.value = true }
+    fun notificationsAsked() { settings.notificationAsked = true; notificationRationale.value = false }
+
+    /** F19 banner [오류 기록 보내기] shares the newest scrubbed crash file. */
+    fun crashFile(): File? = crashLog.files().firstOrNull()
 
     /** T1: the single available coupon closest to expiry, or null when there are 0 or several (→ S1). */
     suspend fun tileTarget(): Long? {
@@ -171,6 +191,8 @@ data class SettingsState(
     val app: AppSettings = AppSettings(),
     val stats: UsageStats = UsageStats(0, 0),
     val crashFiles: List<File> = emptyList(),
+    /** S14 "쿠폰 12개", S10 wipe dialog */
+    val coupons: Int = 0,
 )
 
 sealed interface BackupUi {
@@ -194,8 +216,8 @@ class SettingsViewModel @Inject constructor(
     private val session: ImportSession,
 ) : ViewModel() {
     private val crash = MutableStateFlow(crashLog.files())
-    val state: StateFlow<SettingsState> = combine(settings.observeApp(), repo.observeAll().map(Stats::of), crash) { a, s, c ->
-        SettingsState(a, s, c)
+    val state: StateFlow<SettingsState> = combine(settings.observeApp(), repo.observeAll(), crash) { a, all, c ->
+        SettingsState(a, Stats.of(all), c, all.size)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsState())
 
     val backupUi = MutableStateFlow<BackupUi>(BackupUi.Idle)
@@ -248,4 +270,10 @@ class GalleryViewModel @Inject constructor(private val scanner: GalleryScanner) 
     }
     fun pause() = job?.cancel()
     fun sendToReview() = scanner.sendToReview()
+
+    /** S9 ② "사진 1,240장": images in the range not checked before. */
+    suspend fun count(range: ScanRange): Int = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val since = java.time.ZonedDateTime.now().minusMonths(range.months).toEpochSecond()
+        runCatching { scanner.query(since).size }.getOrDefault(0)
+    }
 }

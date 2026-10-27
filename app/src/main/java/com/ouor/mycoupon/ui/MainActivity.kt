@@ -6,16 +6,16 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.rememberNavController
 import com.ouor.mycoupon.data.Settings
 import com.ouor.mycoupon.domain.ImportOrigin
 import com.ouor.mycoupon.ui.theme.MyCouponTheme
@@ -23,46 +23,31 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** Minimal navigation (no navigation library): a back stack of screens. The UI developer replaces the screens. */
-sealed interface Screen {
-    data object Onboarding : Screen
-    data object Home : Screen
-    data object Import : Screen
-    /** S5 for an import draft */
-    data class EditDraft(val key: Int) : Screen
-    /** S5 for a stored coupon */
-    data class EditCoupon(val id: Long) : Screen
-    data class Detail(val id: Long, val fromReminder: Boolean = false) : Screen
-    data object Settings : Screen
-    data object Gallery : Screen
-}
-
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var settings: Settings
     private val importVm: ImportViewModel by viewModels()
     private val homeVm: HomeViewModel by viewModels()
-    private val stack = mutableStateListOf<Screen>()
+    /** entry intent (share / notification / widget / tile) waiting for the NavController */
+    private var pending by mutableStateOf<Intent?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        stack += if (settings.onboarded) Screen.Home else Screen.Onboarding
-        if (savedInstanceState == null) handle(intent)
+        if (savedInstanceState == null) pending = intent
+        val start: Any = if (settings.onboarded) Route.Home else Route.Onboarding
         setContent {
-            val top = stack.last()
-            MyCouponTheme(forceLight = top is Screen.Detail) {
-                Surface(Modifier.fillMaxSize().safeDrawingPadding()) {
-                    BackHandler(stack.size > 1) { pop() }
-                    AppScreens(top, ::push, ::pop, ::replaceAll)
-                }
+            val nav = rememberNavController()
+            MyCouponTheme {
+                AppNavHost(nav, start)
             }
+            LaunchedEffect(pending) { pending?.let { handle(it, nav); pending = null } }
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handle(intent)
+        pending = intent
     }
 
     override fun onResume() {
@@ -70,12 +55,7 @@ class MainActivity : ComponentActivity() {
         homeVm.refresh()
     }
 
-    fun push(s: Screen) { stack += s }
-    fun pop() { if (stack.size > 1) stack.removeAt(stack.lastIndex) else finish() }
-    fun replaceAll(s: Screen) { stack.clear(); stack += s }
-
-    private fun handle(intent: Intent?) {
-        intent ?: return
+    private fun handle(intent: Intent, nav: NavHostController) {
         when {
             intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE -> {
                 val uris = sharedUris(intent)
@@ -85,15 +65,18 @@ class MainActivity : ComponentActivity() {
                 }
                 settings.onboarded = true
                 importVm.start(uris, ImportOrigin.SHARE)
-                replaceAll(Screen.Home); push(Screen.Import)
+                nav.navigate(Route.Home) { popUpTo(0) }
+                nav.navigate(Route.Import)
             }
             intent.hasExtra(EXTRA_COUPON_ID) -> {
-                replaceAll(Screen.Home)
-                push(Screen.Detail(intent.getLongExtra(EXTRA_COUPON_ID, 0), intent.getBooleanExtra(EXTRA_FROM_REMINDER, false)))
+                settings.onboarded = true
+                nav.navigate(Route.Home) { popUpTo(0) }
+                nav.navigate(Route.Detail(intent.getLongExtra(EXTRA_COUPON_ID, 0), intent.getBooleanExtra(EXTRA_FROM_REMINDER, false)))
             }
             intent.getBooleanExtra(EXTRA_FROM_TILE, false) -> lifecycleScope.launch {
-                replaceAll(Screen.Home)
-                homeVm.tileTarget()?.let { push(Screen.Detail(it)) }
+                if (!settings.onboarded) return@launch
+                nav.navigate(Route.Home) { popUpTo(0) }
+                homeVm.tileTarget()?.let { nav.navigate(Route.Detail(it)) }
             }
         }
     }

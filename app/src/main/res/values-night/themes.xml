@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- dark window behind Compose: no white flash at start in dark mode -->
+    <style name="Theme.Mycoupon" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#121417</item>
+    </style>
+</resources>
