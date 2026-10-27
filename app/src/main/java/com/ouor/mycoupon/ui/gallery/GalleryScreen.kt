@@ -1,10 +1,10 @@
-package com.ouor.mycoupon.ui.screen
+package com.ouor.mycoupon.ui.gallery
 
-import androidx.activity.compose.LocalActivity
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -51,8 +51,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.ouor.mycoupon.domain.ImportOrigin
 import com.ouor.mycoupon.gallery.ScanRange
-import com.ouor.mycoupon.ui.GalleryViewModel
-import com.ouor.mycoupon.ui.ImportViewModel
+import com.ouor.mycoupon.ui.importing.ImportViewModel
 import com.ouor.mycoupon.ui.MainActivity
 import com.ouor.mycoupon.ui.Route
 import com.ouor.mycoupon.ui.component.AppTopBar
@@ -61,6 +60,7 @@ import com.ouor.mycoupon.ui.component.CouponThumb
 import com.ouor.mycoupon.ui.component.EmptyState
 import com.ouor.mycoupon.ui.component.PrimaryButton
 import com.ouor.mycoupon.ui.component.SecondaryButton
+import com.ouor.mycoupon.ui.onboarding.Promise
 import com.ouor.mycoupon.ui.theme.Spacing
 import java.text.NumberFormat
 import java.util.Locale

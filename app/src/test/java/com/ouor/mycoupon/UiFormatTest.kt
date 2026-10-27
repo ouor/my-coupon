@@ -11,8 +11,8 @@ import com.ouor.mycoupon.ui.component.firstReason
 import com.ouor.mycoupon.ui.component.reasonText
 import com.ouor.mycoupon.ui.component.state
 import com.ouor.mycoupon.ui.component.subject
-import com.ouor.mycoupon.ui.screen.timeLabel
-import com.ouor.mycoupon.ui.screen.usageMessage
+import com.ouor.mycoupon.ui.settings.timeLabel
+import com.ouor.mycoupon.ui.coupon.usageMessage
 import com.ouor.mycoupon.domain.UsageInput
 import com.ouor.mycoupon.domain.UsageInputException
 import org.junit.Assert.assertEquals

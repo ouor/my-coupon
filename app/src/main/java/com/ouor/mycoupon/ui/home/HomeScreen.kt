@@ -1,16 +1,12 @@
-package com.ouor.mycoupon.ui.screen
+package com.ouor.mycoupon.ui.home
 
-import androidx.activity.compose.LocalActivity
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.rounded.CardGiftcard
-import com.ouor.mycoupon.ui.component.title
-import androidx.compose.foundation.lazy.LazyRow
 import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,7 +23,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -35,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.CardGiftcard
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -89,20 +88,19 @@ import com.ouor.mycoupon.data.CouponStatus
 import com.ouor.mycoupon.data.ListFilter
 import com.ouor.mycoupon.data.ListSort
 import com.ouor.mycoupon.domain.ImportOrigin
-import com.ouor.mycoupon.ui.HomeBanner
-import com.ouor.mycoupon.ui.HomeViewModel
-import com.ouor.mycoupon.ui.ImportViewModel
+import com.ouor.mycoupon.ui.importing.ImportViewModel
 import com.ouor.mycoupon.ui.MainActivity
 import com.ouor.mycoupon.ui.Route
 import com.ouor.mycoupon.ui.Sharing
 import com.ouor.mycoupon.ui.component.AppSheet
 import com.ouor.mycoupon.ui.component.CouponCard
 import com.ouor.mycoupon.ui.component.EmptyState
-import com.ouor.mycoupon.ui.component.isLargeFont
 import com.ouor.mycoupon.ui.component.InfoBanner
 import com.ouor.mycoupon.ui.component.LocalSnackbar
 import com.ouor.mycoupon.ui.component.PrimaryButton
 import com.ouor.mycoupon.ui.component.SecondaryButton
+import com.ouor.mycoupon.ui.component.isLargeFont
+import com.ouor.mycoupon.ui.component.title
 import com.ouor.mycoupon.ui.theme.Spacing
 import com.ouor.mycoupon.ui.theme.statusColors
 

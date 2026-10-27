@@ -15,19 +15,19 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.ouor.mycoupon.ui.component.AppSnackbar
 import com.ouor.mycoupon.ui.component.LocalSnackbar
-import com.ouor.mycoupon.ui.screen.BackupScreen
-import com.ouor.mycoupon.ui.screen.BarcodeFullScreen
-import com.ouor.mycoupon.ui.screen.DetailScreen
-import com.ouor.mycoupon.ui.screen.EditCouponScreen
-import com.ouor.mycoupon.ui.screen.EditDraftScreen
-import com.ouor.mycoupon.ui.screen.GalleryScreen
-import com.ouor.mycoupon.ui.screen.HomeScreen
-import com.ouor.mycoupon.ui.screen.ImportScreen
-import com.ouor.mycoupon.ui.screen.LicensesScreen
-import com.ouor.mycoupon.ui.screen.OnboardingScreen
-import com.ouor.mycoupon.ui.screen.PrivacyScreen
-import com.ouor.mycoupon.ui.screen.RemindersScreen
-import com.ouor.mycoupon.ui.screen.SettingsScreen
+import com.ouor.mycoupon.ui.settings.BackupScreen
+import com.ouor.mycoupon.ui.coupon.BarcodeFullScreen
+import com.ouor.mycoupon.ui.coupon.DetailScreen
+import com.ouor.mycoupon.ui.coupon.EditCouponScreen
+import com.ouor.mycoupon.ui.coupon.EditDraftScreen
+import com.ouor.mycoupon.ui.gallery.GalleryScreen
+import com.ouor.mycoupon.ui.home.HomeScreen
+import com.ouor.mycoupon.ui.importing.ImportScreen
+import com.ouor.mycoupon.ui.settings.LicensesScreen
+import com.ouor.mycoupon.ui.onboarding.OnboardingScreen
+import com.ouor.mycoupon.ui.settings.PrivacyScreen
+import com.ouor.mycoupon.ui.settings.RemindersScreen
+import com.ouor.mycoupon.ui.settings.SettingsScreen
 import kotlinx.serialization.Serializable
 
 /** Type-safe routes (screen ids from docs/design/screens.md). */

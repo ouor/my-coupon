@@ -1,42 +1,26 @@
-package com.ouor.mycoupon.ui.screen
+package com.ouor.mycoupon.ui.coupon
 
-import androidx.activity.compose.LocalActivity
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import kotlinx.coroutines.delay
-import androidx.compose.material3.ExperimentalMaterial3Api
-import com.ouor.mycoupon.ui.component.ThousandsTransformation
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import com.ouor.mycoupon.ui.component.title
 import android.app.Activity
-import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.view.WindowManager
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
-import androidx.compose.material.icons.rounded.SearchOff
-import com.ouor.mycoupon.ui.component.EmptyState
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,10 +30,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
@@ -61,17 +45,14 @@ import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
@@ -94,76 +75,62 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
-import com.ouor.mycoupon.data.AppSettings
-import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponStatus
-import com.ouor.mycoupon.data.UsageLog
+import com.ouor.mycoupon.data.CouponType
 import com.ouor.mycoupon.data.UsedReason
 import com.ouor.mycoupon.domain.Stats
-import com.ouor.mycoupon.domain.UsageError
-import com.ouor.mycoupon.domain.UsageInput
-import com.ouor.mycoupon.domain.UsageInputException
-import com.ouor.mycoupon.data.CouponType
-import com.ouor.mycoupon.ui.CouponViewModel
-import com.ouor.mycoupon.ui.HomeViewModel
+import com.ouor.mycoupon.ui.home.HomeViewModel
 import com.ouor.mycoupon.ui.MainActivity
 import com.ouor.mycoupon.ui.Route
 import com.ouor.mycoupon.ui.Sharing
 import com.ouor.mycoupon.ui.component.AppSheet
 import com.ouor.mycoupon.ui.component.AppTopBar
 import com.ouor.mycoupon.ui.component.BarcodeBlock
-import com.ouor.mycoupon.ui.component.BarcodeImage
 import com.ouor.mycoupon.ui.component.BottomCta
-import com.ouor.mycoupon.ui.component.Chip
-import com.ouor.mycoupon.ui.component.CodeNumber
-import com.ouor.mycoupon.ui.component.CodeView
 import com.ouor.mycoupon.ui.component.CouponState
 import com.ouor.mycoupon.ui.component.CouponThumb
 import com.ouor.mycoupon.ui.component.DdayBadge
+import com.ouor.mycoupon.ui.component.EmptyState
 import com.ouor.mycoupon.ui.component.LocalSnackbar
 import com.ouor.mycoupon.ui.component.PrimaryButton
 import com.ouor.mycoupon.ui.component.SecondaryButton
-import com.ouor.mycoupon.ui.component.StatusChip
-import com.ouor.mycoupon.ui.component.codeView
 import com.ouor.mycoupon.ui.component.dotted
 import com.ouor.mycoupon.ui.component.epochDay
 import com.ouor.mycoupon.ui.component.isLargeFont
 import com.ouor.mycoupon.ui.component.loadImage
 import com.ouor.mycoupon.ui.component.monthDay
 import com.ouor.mycoupon.ui.component.state
+import com.ouor.mycoupon.ui.component.title
 import com.ouor.mycoupon.ui.component.won
-import com.ouor.mycoupon.ui.theme.BarcodeColors
-import com.ouor.mycoupon.ui.theme.CodeTypography
 import com.ouor.mycoupon.ui.theme.MyCouponTheme
 import com.ouor.mycoupon.ui.theme.Spacing
 import com.ouor.mycoupon.ui.theme.statusColors
 import com.ouor.mycoupon.ui.toHome
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.LocalDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** F6: max brightness + keep-on for this window while [on]; restored on leave. Bars follow the system theme (S6 is no longer forced light, U11). */
 @Composable
-private fun CheckoutWindow(on: Boolean) {
+internal fun CheckoutWindow(on: Boolean) {
     val activity = LocalActivity.current as Activity
     // counted: S6 and S7 overlap during the navigation transition, the last one out restores
     DisposableEffect(on) {
@@ -398,7 +365,7 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
     )
 }
 
-private fun leave(nav: NavHostController, snackbar: com.ouor.mycoupon.ui.component.AppSnackbar, homeVm: HomeViewModel, id: Long, msg: String) {
+internal fun leave(nav: NavHostController, snackbar: com.ouor.mycoupon.ui.component.AppSnackbar, homeVm: HomeViewModel, id: Long, msg: String) {
     nav.toHome()
     snackbar.show(msg, "되돌리기") { homeVm.undoUse(id) }
 }
@@ -420,21 +387,6 @@ private fun QuickAction(icon: ImageVector, label: String, modifier: Modifier, on
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(icon, null, Modifier.size(20.dp))
             Text(label, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
-        }
-    }
-}
-
-@Composable
-private fun UsageHistory(usage: List<UsageLog>, onUndoLast: () -> Unit) {
-    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.medium).padding(Spacing.m)) {
-        usage.forEachIndexed { i, u ->
-            val d = epochDay(u.at)
-            Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${d.monthValue}.${"%02d".format(d.dayOfMonth)} · ${u.spent?.let(::won) ?: "-"} 사용 · 잔액 ${u.balanceAfter?.let(::won) ?: "-"}",
-                    Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"))
-                if (i == 0) TextButton(onUndoLast) { Text("기록 지우기") }
-            }
-            if (i < usage.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
@@ -463,138 +415,6 @@ fun ImageViewer(bmp: Bitmap, onClose: () -> Unit) {
                 Modifier.fillMaxSize().transformable(tf).graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y },
                 contentScale = ContentScale.Fit)
             IconButton(onClose, Modifier.align(Alignment.TopEnd).padding(Spacing.l)) { Icon(Icons.Rounded.Close, "닫기", tint = Color.White) }
-        }
-    }
-}
-
-/** S8 (amount only): spent (default) or remaining amount with live preview and range check. Exchange coupons are marked from the CTA (U5). */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun UseSheet(c: Coupon, onDismiss: () -> Unit, onRemaining: (Long) -> Unit) {
-    val bal = c.balance ?: c.faceValue ?: 0
-    var text by remember { mutableStateOf("") }
-    var spentMode by remember { mutableStateOf(true) } // matches [쓴 금액 입력]
-    val n = text.toLongOrNull()
-    // C1: the core's own rule decides; the sheet only words it
-    val check = n?.let { v -> runCatching { if (spentMode) UsageInput.spent(bal, v) else UsageInput.remaining(bal, v) } }
-    val remaining = check?.getOrNull()
-    val refusal = check?.exceptionOrNull() as? UsageInputException
-    // "잔액이 그대로예요" / "쓴 금액을 입력해 주세요" only disable the button; range errors are said out loud
-    val error = refusal?.takeIf { it.error == UsageError.OVER_BALANCE || it.error == UsageError.NEGATIVE }?.let { usageMessage(it, bal, spentMode) }
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    AppSheet(onDismiss, if (spentMode) "얼마 썼나요?" else "얼마 남았나요?", "지금 잔액 ${won(bal)}") {
-        // review U4: the mode is a visible two-way choice, not a link whose meaning flips
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(bottom = Spacing.m)) {
-            listOf(true to "쓴 금액", false to "남은 금액").forEachIndexed { i, (mode, label) ->
-                SegmentedButton(spentMode == mode, { if (spentMode != mode) { spentMode = mode; text = "" } },
-                    SegmentedButtonDefaults.itemShape(i, 2), Modifier.heightIn(min = Spacing.touch)) { Text(label) }
-            }
-        }
-        OutlinedTextField(
-            text, { v -> text = v.filter(Char::isDigit).take(9) }, Modifier.fillMaxWidth().focusRequester(focus),
-            label = { Text(if (spentMode) "쓴 금액" else "남은 금액") }, suffix = { Text("원") },
-            textStyle = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"), singleLine = true,
-            isError = error != null, supportingText = error?.let { { Text(it, Modifier.semantics { error(it) }) } },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), visualTransformation = ThousandsTransformation,
-        )
-        if (remaining != null) Text(
-            if (spentMode) "남는 금액 ${won(bal - n)}" else "이번에 쓴 금액 ${won(bal - n)}",
-            Modifier.padding(vertical = Spacing.s), style = MaterialTheme.typography.bodyLarge)
-        Spacer(Modifier.height(Spacing.s))
-        PrimaryButton(if (remaining == 0L) "다 썼어요 · 사용 완료" else "기록하기", { remaining?.let(onRemaining) },
-            enabled = remaining != null)
-        SecondaryButton("취소", onDismiss)
-    }
-}
-
-/** S8 copy per refusal (screens.md S8); unknown kinds fall back to the core's Korean message. */
-fun usageMessage(e: UsageInputException, balance: Long, spentMode: Boolean): String = when (e.error) {
-    UsageError.OVER_BALANCE -> if (spentMode) "남은 ${won(balance)}보다 많이 쓸 수 없어요" else "잔액 ${won(balance)}보다 클 수 없어요"
-    UsageError.NO_CHANGE -> "잔액이 그대로예요. 쓴 금액이 있을 때 기록해 주세요"
-    UsageError.SPENT_ZERO -> "쓴 금액을 입력해 주세요"
-    UsageError.NEGATIVE -> "0원보다 적게 입력할 수 없어요"
-    UsageError.NOT_AMOUNT -> e.message ?: "금액권만 잔액을 기록할 수 있어요"
-}
-
-/** S12 (null = follow the app setting). */
-@Composable
-private fun ReminderSheet(c: Coupon, onDismiss: () -> Unit, onSave: (List<Int>?) -> Unit) {
-    var follow by remember { mutableStateOf(c.reminderOffsets == null) }
-    var sel by remember { mutableStateOf(c.reminderOffsets ?: AppSettings().reminderOffsets) }
-    val defaults = (LocalActivity.current as MainActivity).settings.app.reminderOffsets
-    AppSheet(onDismiss, "이 쿠폰 알림", if (c.expiryDate == null) "유효기간이 없어 알림을 보내지 않아요" else null) {
-        val enabled = c.expiryDate != null
-        ChoiceRow("기본 설정 따르기 (${offsetsLabel(defaults)})", follow, enabled) { follow = true }
-        ChoiceRow("이 쿠폰만 따로 정하기", !follow, enabled) { follow = false }
-        if (!follow) OffsetChecks(sel, enabled) { sel = it }
-        Spacer(Modifier.height(Spacing.m))
-        PrimaryButton("저장", { onSave(if (follow) null else sel) }, enabled = enabled && (follow || sel.isNotEmpty()))
-        SecondaryButton("취소", onDismiss)
-    }
-}
-
-@Composable
-private fun ChoiceRow(text: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = Spacing.touch).selectable(selected, enabled, Role.RadioButton, onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected, null, enabled = enabled)
-        Spacer(Modifier.width(Spacing.m))
-        Text(text, style = MaterialTheme.typography.bodyLarge)
-    }
-}
-
-fun offsetLabel(d: Int) = if (d == 0) "당일" else "${d}일 전"
-fun offsetsLabel(list: List<Int>) = if (list.isEmpty()) "알림 없음" else list.sortedDescending().joinToString(" · ", transform = ::offsetLabel)
-
-/** S11/S12 offsets: vertical rows, never chips in a row (200 % font). */
-@Composable
-fun OffsetChecks(sel: List<Int>, enabled: Boolean = true, onChange: (List<Int>) -> Unit) {
-    AppSettings.OFFSET_CHOICES.forEach { d ->
-        Row(Modifier.fillMaxWidth().heightIn(min = Spacing.touch)
-            .selectable(d in sel, enabled, Role.Checkbox) { onChange(if (d in sel) sel - d else sel + d) },
-            verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(d in sel, null, enabled = enabled)
-            Spacer(Modifier.width(Spacing.m))
-            Text(offsetLabel(d), style = MaterialTheme.typography.bodyLarge)
-        }
-    }
-}
-
-/** S7: landscape, white, immersive; tap anywhere to close. */
-@Composable
-fun BarcodeFullScreen(id: Long, nav: NavHostController) = MyCouponTheme(forceLight = true) {
-    val vm: CouponViewModel = hiltViewModel()
-    LaunchedEffect(id) { vm.load(id) }
-    val c by vm.coupon.collectAsState()
-    val activity = LocalActivity.current as Activity
-    CheckoutWindow(on = true)
-    DisposableEffect(Unit) {
-        val before = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        val ctl = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
-        ctl.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        ctl.hide(WindowInsetsCompat.Type.systemBars())
-        onDispose {
-            ctl.show(WindowInsetsCompat.Type.systemBars())
-            activity.requestedOrientation = before
-        }
-    }
-    val coupon = c ?: return@MyCouponTheme
-    Box(
-        Modifier.fillMaxSize().background(BarcodeColors.background)
-            .clickable(onClickLabel = "닫기") { nav.popBackStack() }
-            .semantics(mergeDescendants = true) { contentDescription = "바코드 크게 보기, 두 번 탭하면 닫기"; onClick("닫기") { nav.popBackStack(); true } },
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(Modifier.padding(horizontal = Spacing.xl), horizontalAlignment = Alignment.CenterHorizontally) {
-            if (coupon.codeView() != CodeView.PIN) BarcodeImage(coupon)
-            coupon.code?.let {
-                Spacer(Modifier.height(Spacing.m))
-                CodeNumber(it, if (coupon.codeView() == CodeView.PIN) CodeTypography.codePin else CodeTypography.codeLarge, Modifier.fillMaxWidth())
-            }
-            Spacer(Modifier.height(Spacing.m))
-            Text("아무 곳이나 누르면 닫혀요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

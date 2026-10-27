@@ -1,8 +1,8 @@
-package com.ouor.mycoupon.ui.screen
+package com.ouor.mycoupon.ui.coupon
 
-import androidx.activity.compose.LocalActivity
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -40,7 +40,6 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -51,9 +50,6 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import com.ouor.mycoupon.ui.toHome
-import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -62,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,8 +80,7 @@ import androidx.navigation.NavHostController
 import com.ouor.mycoupon.data.CodeSource
 import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponType
-import com.ouor.mycoupon.ui.CouponViewModel
-import com.ouor.mycoupon.ui.ImportViewModel
+import com.ouor.mycoupon.ui.importing.ImportViewModel
 import com.ouor.mycoupon.ui.MainActivity
 import com.ouor.mycoupon.ui.component.AppTopBar
 import com.ouor.mycoupon.ui.component.BottomCta
@@ -97,11 +93,13 @@ import com.ouor.mycoupon.ui.component.reasonText
 import com.ouor.mycoupon.ui.component.subject
 import com.ouor.mycoupon.ui.theme.Spacing
 import com.ouor.mycoupon.ui.theme.statusColors
+import com.ouor.mycoupon.ui.toHome
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @Composable
 fun EditDraftScreen(key: Int, nav: NavHostController) {
