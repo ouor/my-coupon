@@ -139,4 +139,13 @@ class CoreLogicTest {
         assertEquals(com.ouor.mycoupon.domain.UsageError.SPENT_ZERO, err { u.spent(30000, 0) })
         assertEquals(com.ouor.mycoupon.domain.UsageError.OVER_BALANCE, err { u.spent(30000, 30001) })
     }
+
+    @Test
+    fun scrubbedThrowableForSystemHandler() {
+        val e = IllegalStateException("code 1234567890 스타벅스", RuntimeException("pin 98765"))
+        val s = CrashLog.scrubbed(e)
+        assertEquals("java.lang.IllegalStateException: code # *", s.toString())
+        assertEquals("java.lang.RuntimeException: pin #", s.cause.toString())
+        assertEquals(e.stackTrace.toList(), s.stackTrace.toList())
+    }
 }

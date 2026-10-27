@@ -65,8 +65,8 @@ object BackupCrypto {
     private fun nonce(prefix: ByteArray, counter: Int, last: Boolean) =
         ByteBuffer.allocate(12).put(prefix).putInt(counter).put(if (last) 1 else 0).array()
 
-    /** Encrypts [input] to [output] with [password]. */
-    fun encrypt(input: InputStream, output: OutputStream, password: CharArray, iterations: Int = ITERATIONS, random: SecureRandom = SecureRandom()) {
+    /** Encrypts [input] to [output] with [password]. [checkpoint] runs before each segment (throw there to stop). */
+    fun encrypt(input: InputStream, output: OutputStream, password: CharArray, iterations: Int = ITERATIONS, random: SecureRandom = SecureRandom(), checkpoint: () -> Unit = {}) {
         val salt = ByteArray(16).also(random::nextBytes)
         val prefix = ByteArray(7).also(random::nextBytes)
         val header = ByteBuffer.allocate(HEADER).put(MAGIC).put(VERSION).putInt(iterations).put(salt).put(prefix).array()
@@ -76,6 +76,7 @@ object BackupCrypto {
         var cur = readFully(input, SEGMENT)
         var counter = 0
         while (true) {
+            checkpoint()
             val next = if (cur.size == SEGMENT) readFully(input, SEGMENT) else ByteArray(0)
             val last = next.isEmpty()
             cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(TAG * 8, nonce(prefix, counter, last)))
@@ -89,10 +90,11 @@ object BackupCrypto {
     }
 
     /**
-     * Decrypts to [output]; throws [BackupAuthException] on a wrong password or damage. Segments are verified one
+     * Decrypts to [output]; throws [BackupAuthException] when the first segment fails (wrong password, or damage there:
+     * indistinguishable) and [BackupFormatException] for a bad header or a later segment failing / missing (cut or damaged file). Segments are verified one
      * by one, so callers decrypt into a temp file and use it only after this returns.
      */
-    fun decrypt(input: InputStream, output: OutputStream, password: CharArray) {
+    fun decrypt(input: InputStream, output: OutputStream, password: CharArray, checkpoint: () -> Unit = {}) {
         val din = DataInputStream(input)
         val header = ByteArray(HEADER)
         try {
@@ -113,7 +115,8 @@ object BackupCrypto {
         var counter = 0
         try {
             while (true) {
-                if (cur.size < TAG) throw BackupAuthException()
+                checkpoint()
+                if (cur.size < TAG) throw BackupFormatException("truncated")
                 val next = if (cur.size == SEGMENT + TAG) readFully(din, SEGMENT + TAG) else ByteArray(0)
                 val last = next.isEmpty()
                 cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG * 8, nonce(prefix, counter, last)))
@@ -124,7 +127,8 @@ object BackupCrypto {
                 counter++
             }
         } catch (_: AEADBadTagException) {
-            throw BackupAuthException()
+            // the first segment is what a wrong password breaks; a later one failing means the key was right and the file is cut or damaged (QA R1-03)
+            if (counter == 0) throw BackupAuthException() else throw BackupFormatException("damaged at segment $counter")
         }
         output.flush()
     }

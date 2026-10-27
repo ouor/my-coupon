@@ -7,6 +7,7 @@ import com.ouor.mycoupon.data.CouponRepository
 import com.ouor.mycoupon.data.ImageStore
 import com.ouor.mycoupon.data.ScanResult
 import com.ouor.mycoupon.di.AppScope
+import com.ouor.mycoupon.gallery.MediaLink
 import com.ouor.mycoupon.ocr.CouponRecognizer
 import com.ouor.mycoupon.ocr.Recognition
 import com.ouor.mycoupon.ocr.core.CouponType
@@ -81,6 +82,7 @@ class ImportSession @Inject constructor(
     private val images: ImageStore,
     private val repo: CouponRepository,
     private val registrar: CouponRegistrar,
+    private val media: MediaLink,
     @AppScope private val scope: CoroutineScope,
 ) {
     private val _state = MutableStateFlow(ImportState())
@@ -170,15 +172,18 @@ class ImportSession @Inject constructor(
 
     /** Copies and recognises one image; [earlier] = coupons met before it in the same batch (F4 AC3). */
     suspend fun readDraft(key: Int, s: Source, earlier: List<Coupon> = emptyList()): Draft {
-        val base = Draft(key, sourceUri = s.mediaUri, mediaId = s.mediaId)
-        val bytes = images.read(s.uri) ?: return base.copy(stage = DraftStage.FAILED)
+        val bytes = images.read(s.uri) ?: return Draft(key, sourceUri = s.mediaUri, mediaId = s.mediaId, stage = DraftStage.FAILED)
         val stored = images.save(bytes)
+        // picker / share: find the gallery original while the uri grant is valid (F10 trash, F9 skip; QA R1-06)
+        val link = if (s.mediaId == null) runCatching { media.resolve(s.uri, stored.hash) }.getOrNull() else null
+        val src = s.mediaUri ?: link?.uri?.toString()
+        val base = Draft(key, sourceUri = src, mediaId = s.mediaId ?: link?.id)
         val thumb = images.saveThumb(bytes)
         val r = runCatching { recognizer.recognize(bytes) }.getOrNull()
         val coupon = if (r == null) {
-            Coupon(imagePath = stored.path, thumbPath = thumb, imageHash = stored.hash, sourceUri = s.mediaUri)
+            Coupon(imagePath = stored.path, thumbPath = thumb, imageHash = stored.hash, sourceUri = src)
         } else {
-            toCoupon(r, stored.path, thumb, stored.hash, s.mediaUri)
+            toCoupon(r, stored.path, thumb, stored.hash, src)
         }
         val dup = duplicateOf(coupon, earlier)
         val isCoupon = r?.extraction?.isCoupon == true

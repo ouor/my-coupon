@@ -48,15 +48,23 @@ class BackupCryptoTest {
     @Test(expected = BackupAuthException::class)
     fun wrongPassword() { dec(enc(ByteArray(100)), "other".toCharArray()) }
 
-    @Test(expected = BackupAuthException::class)
+    @Test(expected = BackupFormatException::class)
     fun truncatedAtSegmentBoundary() {
         val f = enc(Random(3).nextBytes(2 * BackupCrypto.SEGMENT + 10))
         dec(f.copyOf(f.size - (10 + 16))) // drops the last segment exactly: the previous one is not flagged last
     }
 
+    /** One-segment file cut: the only segment fails, which a wrong password also does (reported as auth). */
     @Test(expected = BackupAuthException::class)
-    fun truncatedInside() {
+    fun truncatedInsideSingleSegment() {
         val f = enc(Random(4).nextBytes(5000))
+        dec(f.copyOf(f.size / 2))
+    }
+
+    /** QA R1-03: a large backup cut in half with the right password is "damaged", not "wrong password". */
+    @Test(expected = BackupFormatException::class)
+    fun truncatedHalfMultiSegment() {
+        val f = enc(Random(5).nextBytes(3 * BackupCrypto.SEGMENT + 123))
         dec(f.copyOf(f.size / 2))
     }
 

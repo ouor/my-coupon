@@ -23,7 +23,8 @@ class CrashLog @Inject constructor(@ApplicationContext private val context: Cont
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             runCatching { write(t.name, e) }
-            prev?.uncaughtException(t, e)
+            // the system handler logs the message to the crash log buffer: hand it the scrubbed copy (QA R1-19)
+            prev?.uncaughtException(t, runCatching { scrubbed(e) }.getOrDefault(e))
         }
     }
 
@@ -82,6 +83,14 @@ class CrashLog @Inject constructor(@ApplicationContext private val context: Cont
                 first = false
                 c = c.cause.takeIf { it !== c }
             }
+        }
+
+        /** Same class name, stack and causes as [e], messages scrubbed. */
+        fun scrubbed(e: Throwable): Throwable = Scrubbed(e.javaClass.name, e.message?.let(::scrub), e.cause?.takeIf { it !== e }?.let(::scrubbed))
+            .apply { stackTrace = e.stackTrace }
+
+        private class Scrubbed(val name: String, msg: String?, cause: Throwable?) : RuntimeException(msg, cause) {
+            override fun toString() = if (message == null) name else "$name: $message"
         }
 
         /** Masks anything that could be coupon content in a message. */

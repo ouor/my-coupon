@@ -23,6 +23,9 @@ import com.ouor.mycoupon.data.AppSettings
 import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponChangeListener
 import com.ouor.mycoupon.data.CouponRepository
+import com.ouor.mycoupon.di.AppScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import com.ouor.mycoupon.data.CouponStatus
 import com.ouor.mycoupon.data.Settings
 import com.ouor.mycoupon.ocr.core.CouponType
@@ -89,6 +92,8 @@ object ReminderPlanner {
 class ReminderScheduler @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settings: Settings,
+    private val repo: dagger.Lazy<CouponRepository>, // Lazy: the repository holds this listener
+    @AppScope private val scope: CoroutineScope,
 ) : CouponChangeListener {
     private val wm get() = WorkManager.getInstance(context)
 
@@ -102,7 +107,12 @@ class ReminderScheduler @Inject constructor(
 
     override fun onCouponsChanged() = ensure()
 
+    /** The daily job exists only while there is an active coupon (F14 AC1: none left after wipe, QA R1-18). */
     internal fun enqueue(policy: ExistingWorkPolicy) {
+        scope.launch { if (repo.get().active().isEmpty()) cancel() else enqueueNow(policy) }
+    }
+
+    private fun enqueueNow(policy: ExistingWorkPolicy) {
         val now = LocalDateTime.now()
         val next = ReminderPlanner.nextRun(now, settings.app.reminderTime)
         val req = OneTimeWorkRequestBuilder<ReminderWorker>()
@@ -135,7 +145,8 @@ class ReminderWorker @AssistedInject constructor(
         }
         // shortcut: W1 D-day refreshes here (reminder time) and on app open, not exactly at midnight
         runCatching { com.ouor.mycoupon.widget.CouponWidget().updateAll(applicationContext) }
-        // chain the next day; REPLACE from inside the running work is safe for a unique OneTimeWork
+        // chain the next day; REPLACE from inside the running work is safe for a unique OneTimeWork. No active coupon: stop the chain
+        if (repo.active().isEmpty()) return Result.success()
         val now = LocalDateTime.now()
         val next = ReminderPlanner.nextRun(now.plusMinutes(1), settings.app.reminderTime)
         WorkManager.getInstance(applicationContext).enqueueUniqueWork(

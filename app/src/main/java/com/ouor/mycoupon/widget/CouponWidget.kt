@@ -5,6 +5,8 @@ import android.content.Intent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.glance.GlanceModifier
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -69,12 +71,14 @@ interface WidgetEntryPoint {
 class CouponWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val repo = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java).repository()
-        val today = LocalDate.now()
-        val all = repo.all()
-        val top = WidgetData.top(all, today)
-        val more = all.count { it.isAvailable(today) } - top.size
         val open = Intent(context, MainActivity::class.java)
+        val initial = repo.all()
         provideContent {
+            // collected inside the session: updateAll() on a live session only recomposes, it does not re-run provideGlance (QA R1-02)
+            val all by repo.observeAll().collectAsState(initial)
+            val today = LocalDate.now()
+            val top = WidgetData.top(all, today)
+            val more = all.count { it.isAvailable(today) } - top.size
             // W1 (screens.md): system day/night colors from the design tokens; never a barcode or number here
             val bg = ColorProvider(day = Color.White, night = Color(0xFF121417))
             val fg = ColorProvider(day = Color(0xFF191F28), night = Color(0xFFE9ECF1))

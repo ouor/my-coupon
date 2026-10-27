@@ -12,6 +12,9 @@ import com.ouor.mycoupon.reminder.ReminderScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
+import android.provider.DocumentsContract
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -61,11 +64,13 @@ class BackupManager @Inject constructor(
     /** Writes an encrypted backup of every coupon (fields, image copies, history, per-coupon reminders) and settings. Returns the coupon count. */
     suspend fun export(target: Uri, password: CharArray): Int = withContext(Dispatchers.IO) {
         val zip = File.createTempFile("export", ".zip", tmpDir)
+        val job = coroutineContext.job
         try {
             val coupons = repo.all()
             val usage = repo.allUsage().groupBy { it.couponId }
             ZipOutputStream(zip.outputStream().buffered()).use { z ->
                 val entries = coupons.mapIndexed { i, c ->
+                    job.ensureActive()
                     val name = "images/$i"
                     z.putNextEntry(ZipEntry(name))
                     File(c.imagePath).inputStream().use { it.copyTo(z) }
@@ -76,10 +81,15 @@ class BackupManager @Inject constructor(
                 z.write(json.encodeToString(BackupManifest.serializer(), BackupManifest(createdAt = System.currentTimeMillis(), settings = settings.app, coupons = entries)).toByteArray())
                 z.closeEntry()
             }
+            job.ensureActive()
             val out = context.contentResolver.openOutputStream(target, "wt") ?: error("cannot open target")
-            out.use { o -> zip.inputStream().buffered().use { BackupCrypto.encrypt(it, o, password) } }
+            out.use { o -> zip.inputStream().buffered().use { BackupCrypto.encrypt(it, o, password, checkpoint = job::ensureActive) } }
             settings.lastBackupAt = System.currentTimeMillis()
             coupons.size
+        } catch (e: Exception) {
+            // [그만두기] or a write error: never leave a half-written backup behind (QA R1-04)
+            runCatching { DocumentsContract.deleteDocument(context.contentResolver, target) } // the empty file SAF created for this export
+            throw e
         } finally {
             zip.delete()
         }
@@ -90,7 +100,8 @@ class BackupManager @Inject constructor(
         val zip = File.createTempFile("import", ".zip", tmpDir)
         try {
             val input = context.contentResolver.openInputStream(source) ?: throw BackupFormatException("cannot open file")
-            input.use { i -> zip.outputStream().buffered().use { BackupCrypto.decrypt(i.buffered(), it, password) } }
+            val job = coroutineContext.job
+            input.use { i -> zip.outputStream().buffered().use { BackupCrypto.decrypt(i.buffered(), it, password, checkpoint = job::ensureActive) } }
             val manifest = ZipFile(zip).use { z ->
                 val e = z.getEntry(MANIFEST) ?: throw BackupFormatException("no manifest")
                 json.decodeFromString(BackupManifest.serializer(), z.getInputStream(e).readBytes().decodeToString())

@@ -73,7 +73,8 @@ class CouponRepository @Inject constructor(
 
     suspend fun addUsage(l: UsageLog) = usage.insert(l)
     suspend fun removeUsage(l: UsageLog) = usage.delete(l)
-    suspend fun <T> transaction(block: suspend () -> T): T = db.withTransaction { block() }
+    /** Listeners run again after the commit: [update]/[delete] inside the block notify before it, when readers still see old rows (QA R1-02). */
+    suspend fun <T> transaction(block: suspend () -> T): T = db.withTransaction { block() }.also { changed() }
 
     /** F4: same number as a stored coupon (USED wins), or the same image bytes when there is no number. */
     suspend fun findDuplicate(c: Coupon): Duplicate? {
