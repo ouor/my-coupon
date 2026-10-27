@@ -63,6 +63,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handle(intent: Intent, nav: NavHostController) {
+        // C2-10: that day's N1 was tapped, so the S1 "오늘·내일 끝나는 쿠폰" banner stays hidden today
+        if (AppIntents.isInternal(intent) && intent.getBooleanExtra(EXTRA_FROM_REMINDER, false)) settings.hideExpiringBanner()
         when {
             intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE -> {
                 val uris = sharedUris(intent)

@@ -130,5 +130,19 @@ class CouponRepository @Inject constructor(
                 else shown.sortedWith(compareBy<Coupon> { it.expiryDate == null }.thenBy { it.expiryDate }.thenByDescending { it.createdAt })
             }
         }
+
+        /** C2-10: available coupons that end today or tomorrow, soonest first (the banner count and its tap filter). */
+        fun endingSoon(all: List<Coupon>, today: LocalDate): List<Coupon> =
+            all.filter { it.isAvailable(today) && it.expiryDate != null && it.expiryDate <= today.plusDays(1) }.sortedBy { it.expiryDate }
+
+        /**
+         * C2-15 brand chips: brands of available coupons; the brand of the latest [사용 완료] (not a give-away) first,
+         * then more available coupons first, then name.
+         */
+        fun brandOrder(all: List<Coupon>, today: LocalDate): List<String> {
+            val available = all.filter { it.isAvailable(today) && !it.brand.isNullOrBlank() }.groupingBy { it.brand!! }.eachCount()
+            val last = all.filter { it.usedReason == UsedReason.USED && it.brand != null }.maxByOrNull { it.usedAt ?: 0 }?.brand
+            return available.keys.sortedWith(compareByDescending<String> { it == last }.thenByDescending { available[it] }.thenBy { it })
+        }
     }
 }

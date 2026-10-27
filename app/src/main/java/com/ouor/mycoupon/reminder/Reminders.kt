@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.glance.appwidget.updateAll
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
+import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -91,6 +92,13 @@ object ReminderPlanner {
         return "${title(c)}$money · " + if (days == 0L) "오늘까지" else "${days}일 남음"
     }
 
+    /**
+     * C2-08: N1 multi lines with the same title, balance and expiry merged: "CU 10,000원권 6장 · 7일 남음". Order of [due]
+     * (first coupon of each group).
+     */
+    fun lines(due: List<Coupon>, today: LocalDate): List<String> =
+        due.groupBy { line(it, today) }.map { (l, g) -> if (g.size == 1) l else l.replaceFirst(" · ", " ${g.size}장 · ") }
+
     /** Next run at [time]: today if still ahead, else tomorrow. */
     fun nextRun(now: LocalDateTime, time: LocalTime): LocalDateTime {
         val t = now.toLocalDate().atTime(time)
@@ -130,9 +138,7 @@ class ReminderScheduler @Inject constructor(
     private fun enqueueNow(policy: ExistingWorkPolicy) {
         val now = LocalDateTime.now()
         val next = ReminderPlanner.nextRun(now, settings.app.reminderTime)
-        val req = OneTimeWorkRequestBuilder<ReminderWorker>()
-            .setInitialDelay(Duration.between(now, next).toMillis(), TimeUnit.MILLISECONDS)
-            .build()
+        val req = ReminderWorker.request(now, next)
         wm.enqueueUniqueWork(WORK, policy, req)
     }
 
@@ -150,7 +156,7 @@ class ReminderWorker @AssistedInject constructor(
     private val notifier: ReminderNotifier,
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val today = LocalDate.now()
+        val today = day(inputData.getLong(KEY_DAY, Long.MIN_VALUE), LocalDate.now())
         val prefs = applicationContext.getSharedPreferences("reminder", Context.MODE_PRIVATE)
         // at most one notification a day (spec F8), even if the job runs twice
         if (prefs.getLong("last_day", -1) != today.toEpochDay()) {
@@ -164,11 +170,25 @@ class ReminderWorker @AssistedInject constructor(
         if (repo.active().isEmpty()) return Result.success()
         val now = LocalDateTime.now()
         val next = ReminderPlanner.nextRun(now.plusMinutes(1), settings.app.reminderTime)
-        WorkManager.getInstance(applicationContext).enqueueUniqueWork(
-            ReminderScheduler.WORK, ExistingWorkPolicy.APPEND_OR_REPLACE,
-            OneTimeWorkRequestBuilder<ReminderWorker>().setInitialDelay(Duration.between(now, next).toMillis(), TimeUnit.MILLISECONDS).build(),
-        )
+        WorkManager.getInstance(applicationContext).enqueueUniqueWork(ReminderScheduler.WORK, ExistingWorkPolicy.APPEND_OR_REPLACE, request(now, next))
         return Result.success()
+    }
+
+    companion object {
+        private const val KEY_DAY = "day"
+
+        /** The run for [next]; its date travels in inputData (code review A15). */
+        fun request(now: LocalDateTime, next: LocalDateTime) = OneTimeWorkRequestBuilder<ReminderWorker>()
+            .setInitialDelay(Duration.between(now, next).toMillis(), TimeUnit.MILLISECONDS)
+            .setInputData(Data.Builder().putLong(KEY_DAY, next.toLocalDate().toEpochDay()).build())
+            .build()
+
+        /**
+         * A15: a run delayed past midnight (Doze, a late reminder time) still sends the planned day's reminders instead of
+         * skipping them; more than a day late, or no planned day (older job), it is today.
+         */
+        fun day(planned: Long, now: LocalDate): LocalDate =
+            if (planned == now.toEpochDay() - 1) LocalDate.ofEpochDay(planned) else now
     }
 }
 
@@ -201,9 +221,10 @@ class ReminderNotifier @Inject constructor(@ApplicationContext private val conte
             .setPublicVersion(publicVersion)
         if (single) {
             b.setContentTitle(ReminderPlanner.title(due[0])).setContentText(ReminderPlanner.body(due[0], today))
+                .addAction(0, context.getString(R.string.notification_open_barcode), pi) // C2-27
         } else {
             val style = NotificationCompat.InboxStyle()
-            due.take(5).forEach { style.addLine(ReminderPlanner.line(it, today)) }
+            ReminderPlanner.lines(due, today).take(5).forEach { style.addLine(it) }
             b.setContentTitle("오늘 챙길 쿠폰 ${due.size}개")
                 .setContentText("${ReminderPlanner.title(due[0])} 외 ${due.size - 1}개")
                 .setStyle(style)
@@ -213,6 +234,14 @@ class ReminderNotifier @Inject constructor(@ApplicationContext private val conte
         } catch (_: SecurityException) {
             // permission revoked between the check and the call
         }
+    }
+
+    /** C2-08 [알림 소리 바꾸기]: the system settings of the "만료 알림" channel. */
+    fun channelSettingsIntent(): Intent {
+        createChannel()
+        return Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+            .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, CHANNEL)
     }
 
     /** F14 wipe: posted N1 notifications (brand, name, balance) and the once-a-day state go too (S-03). */

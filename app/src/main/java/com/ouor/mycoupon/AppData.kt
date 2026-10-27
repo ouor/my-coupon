@@ -12,6 +12,8 @@ import com.ouor.mycoupon.reminder.ReminderNotifier
 import com.ouor.mycoupon.reminder.ReminderScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -43,6 +45,7 @@ class AppData @Inject constructor(
         crashLog.clear()
         backup.clearTemp()
         File(context.cacheDir, "share").deleteRecursively()
+        File(context.cacheDir, ImageStore.CAPTURE_DIR).deleteRecursively()
         settings.resetForWipe()
         reminders.reschedule()
     }
@@ -54,8 +57,19 @@ class AppData @Inject constructor(
      */
     suspend fun cleanUp(before: Long) {
         backup.clearTemp()
+        File(context.cacheDir, ImageStore.CAPTURE_DIR).listFiles()?.filter { it.lastModified() < before }?.forEach { it.delete() } // C2-24
         // A8: copies of a batch the previous process left open stay for S4's SavedState restore
         val keep = repo.all().flatMap { listOf(it.imagePath, it.thumbPath) }.toSet() + session.pendingPaths()
         images.removeOrphans(keep, before)
+    }
+
+    /** C2-16 "앱이 쓰는 공간 ○○MB (쿠폰 이미지 N장)": everything under the app's data dir, as the system app info counts it. */
+    data class Storage(val bytes: Long, val images: Int)
+
+    suspend fun storage(): Storage = withContext(Dispatchers.IO) {
+        val bytes = context.dataDir.walkTopDown()
+            .onEnter { !java.nio.file.Files.isSymbolicLink(it.toPath()) } // data/<pkg>/lib may link to the APK's libs
+            .filter { it.isFile }.sumOf { it.length() }
+        Storage(bytes, images.imageDir.listFiles()?.size ?: 0)
     }
 }

@@ -6,6 +6,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import java.time.LocalDate
 import java.time.LocalTime
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -76,10 +77,51 @@ class Settings @Inject constructor(@ApplicationContext context: Context) {
 
     fun observeLastBackup(): Flow<Long> = observe { lastBackupAt }
 
+    /** C2-10: epoch day the S1 "오늘·내일 끝나는 쿠폰" banner was closed or that day's N1 was tapped; hidden for that day only. */
+    var expiringBannerHiddenDay: Long
+        get() = prefs.getLong(K_EXPIRING_HIDDEN, Long.MIN_VALUE)
+        set(v) = prefs.edit().putLong(K_EXPIRING_HIDDEN, v).apply()
+
+    fun hideExpiringBanner(today: LocalDate = LocalDate.now()) { expiringBannerHiddenDay = today.toEpochDay() }
+
+    fun observeExpiringBannerHiddenDay(): Flow<Long> = observe { expiringBannerHiddenDay }
+
+    /** C2-15: S8 opens with the input the user used last; false = "남은 금액" (the first default). */
+    var amountInputSpent: Boolean
+        get() = prefs.getBoolean(K_AMOUNT_SPENT, false)
+        set(v) = prefs.edit().putBoolean(K_AMOUNT_SPENT, v).apply()
+
+    /**
+     * C2-17 "아까 썼어요?": the last coupon S6 showed for [LINGER_MS]+ and left without a use. One pending at a time; a coupon is
+     * asked about once ([answerUseAsk]); older than a day it is not asked.
+     */
+    fun recordLinger(id: Long, shownMs: Long, now: Long = System.currentTimeMillis()) {
+        if (shownMs < LINGER_MS || id.toString() in asked()) return
+        prefs.edit().putLong(K_LINGER_ID, id).putLong(K_LINGER_AT, now).apply()
+    }
+
+    /** The coupon id to ask about, or null. The caller still checks that the coupon is available. */
+    fun pendingUseAsk(now: Long = System.currentTimeMillis()): Long? {
+        val id = prefs.getLong(K_LINGER_ID, 0)
+        val at = prefs.getLong(K_LINGER_AT, 0)
+        return id.takeIf { it > 0 && now - at in 0..DAY_MS && it.toString() !in asked() }
+    }
+
+    fun observePendingUseAsk(): Flow<Long?> = observe { pendingUseAsk() }
+
+    /** Banner answered ([썼어요] / [아니요] / closed): never ask about [id] again. */
+    fun answerUseAsk(id: Long) {
+        val set = (asked() + id.toString()).toList().takeLast(MAX_ASKED).toSet()
+        prefs.edit().putStringSet(K_ASKED, set).remove(K_LINGER_ID).remove(K_LINGER_AT).apply()
+    }
+
+    private fun asked(): Set<String> = prefs.getStringSet(K_ASKED, null).orEmpty()
+
     /** F14 wipe (lead decision 2026-10-28: everything goes): reminder settings back to defaults, last backup time cleared. */
     fun resetForWipe() {
         app = AppSettings()
         lastBackupAt = 0
+        prefs.edit().remove(K_EXPIRING_HIDDEN).remove(K_AMOUNT_SPENT).remove(K_LINGER_ID).remove(K_LINGER_AT).remove(K_ASKED).apply()
     }
 
     fun clear() = prefs.edit().clear().apply()
@@ -91,13 +133,23 @@ class Settings @Inject constructor(@ApplicationContext context: Context) {
         awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(l) }
     }
 
-    private companion object {
-        const val K_OFFSETS = "reminder_offsets"
-        const val K_MINUTE = "reminder_minute"
-        const val K_ONBOARDED = "onboarded"
-        const val K_NOTIF_ASKED = "notification_asked"
-        const val K_LAST_SCAN = "last_gallery_scan_sec"
-        const val K_CRASH_SEEN = "crash_banner_seen"
-        const val K_LAST_BACKUP = "last_backup_at"
+    companion object {
+        /** C2-17: S6 time that counts as "was at the counter" */
+        const val LINGER_MS = 15_000L
+        private const val DAY_MS = 24 * 3600_000L
+        /** ids are kept only to not ask twice; a short tail is enough (ids are never reused) */
+        private const val MAX_ASKED = 200
+        private const val K_EXPIRING_HIDDEN = "expiring_banner_hidden_day"
+        private const val K_AMOUNT_SPENT = "amount_input_spent"
+        private const val K_LINGER_ID = "linger_id"
+        private const val K_LINGER_AT = "linger_at"
+        private const val K_ASKED = "use_asked_ids"
+        private const val K_OFFSETS = "reminder_offsets"
+        private const val K_MINUTE = "reminder_minute"
+        private const val K_ONBOARDED = "onboarded"
+        private const val K_NOTIF_ASKED = "notification_asked"
+        private const val K_LAST_SCAN = "last_gallery_scan_sec"
+        private const val K_CRASH_SEEN = "crash_banner_seen"
+        private const val K_LAST_BACKUP = "last_backup_at"
     }
 }

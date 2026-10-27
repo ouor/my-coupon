@@ -1,6 +1,7 @@
 package com.ouor.mycoupon.domain
 
 import java.io.File
+import java.time.LocalDate
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 import android.net.Uri
@@ -37,7 +38,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Where an import batch came from (S4 differs slightly for F9). */
-enum class ImportOrigin { PICKER, SHARE, GALLERY_SCAN }
+enum class ImportOrigin { PICKER, SHARE, GALLERY_SCAN, CAMERA }
 
 enum class DraftStage { READING, DONE, FAILED }
 
@@ -72,7 +73,39 @@ data class ImportState(
     val done get() = drafts.count { it.stage != DraftStage.READING }
     val total get() = drafts.size
     val checkedCount get() = drafts.count { it.checked && it.stage != DraftStage.READING }
+
+    /** C2-09 S4 title "새 쿠폰 N개 · 이미 등록 M · 만료 K" (finished cards only; a card counts once, in this order). */
+    fun counts(today: LocalDate = LocalDate.now()): ImportCounts {
+        val read = drafts.filter { it.stage == DraftStage.DONE && it.coupon != null }
+        val registered = read.count { it.duplicate != null }
+        val expired = read.count { it.duplicate == null && it.coupon!!.expiryDate?.isBefore(today) == true }
+        val notCoupon = read.count { it.duplicate == null && it.coupon!!.expiryDate?.isBefore(today) != true && !it.isCoupon }
+        return ImportCounts(read.size - registered - expired - notCoupon, registered, expired, notCoupon, drafts.count { it.stage == DraftStage.FAILED })
+    }
+
+    /**
+     * C2-09 [모두 맞아요] rows: 2+ finished cards with equal brand, product, expiry and type that all need a check on the
+     * same field (AC3: any other difference, no group). Card order; a card can be in one group per field.
+     */
+    fun reviewGroups(): List<ReviewGroup> {
+        val read = drafts.filter { it.stage == DraftStage.DONE && it.coupon != null }
+        val fields = read.flatMap { it.coupon!!.needsReview.keys }.distinct()
+        return fields.flatMap { f ->
+            read.filter { f in it.coupon!!.needsReview }
+                .groupBy { val c = it.coupon!!; listOf(c.brand, c.productName, c.expiryDate, c.type) }
+                .values.filter { it.size >= 2 }
+                .map { g -> val c = g.first().coupon!!; ReviewGroup(f, c.brand, c.productName, c.expiryDate, c.type, g.map { it.key }) }
+        }
+    }
 }
+
+/** C2-09 / C2-11 counts. [fresh] = would be registered by default (a coupon, new, not expired). */
+data class ImportCounts(val fresh: Int, val registered: Int, val expired: Int, val notCoupon: Int, val failed: Int)
+
+/** C2-09: cards [keys] share these values and all need a check on [field] (porting-spec key). */
+data class ReviewGroup(
+    val field: String, val brand: String?, val productName: String?, val expiryDate: LocalDate?, val type: CouponType, val keys: List<Int>,
+)
 
 /**
  * S3/S4 batch (F1-F4): reads images one by one, publishes each result as soon as it is ready,
@@ -93,7 +126,10 @@ class ImportSession @Inject constructor(
     private val registering = Mutex()
 
     /** Input image: content uri (+ MediaStore id when it is a gallery image). */
-    data class Source(val uri: Uri, val mediaUri: String? = null, val mediaId: Long? = null)
+    data class Source(val uri: Uri, val mediaUri: String? = null, val mediaId: Long? = null, val capture: File? = null)
+
+    /** C2-24: one photo the system camera wrote to [ImageStore.newCapture]; every field starts as needing a check. */
+    fun startCapture(file: File, uri: Uri) = start(listOf(Source(uri, capture = file)), ImportOrigin.CAMERA)
 
     /** Starts a new batch, discarding any unregistered previous one. */
     fun start(sources: List<Source>, origin: ImportOrigin) {
@@ -149,6 +185,14 @@ class ImportSession @Inject constructor(
     fun stopReading() {
         job?.cancel()
         _state.update { st -> st.copy(running = false, drafts = st.drafts.filter { it.stage != DraftStage.READING }) }
+    }
+
+    /** C2-09 [모두 맞아요]: clears [ReviewGroup.field] on its cards only. */
+    fun confirmGroup(g: ReviewGroup) = _state.update { st ->
+        st.copy(drafts = st.drafts.map { d ->
+            val c = d.coupon
+            if (d.key in g.keys && c != null) d.copy(coupon = c.copy(needsReview = c.needsReview - g.field)) else d
+        })
     }
 
     fun setChecked(key: Int, checked: Boolean) = _state.update { st ->
@@ -214,7 +258,7 @@ class ImportSession @Inject constructor(
 
     /** Copies and recognises one image; [earlier] = coupons met before it in the same batch (F4 AC3). */
     suspend fun readDraft(key: Int, s: Source, earlier: List<Coupon> = emptyList()): Draft {
-        val bytes = images.read(s.uri) ?: return Draft(key, sourceUri = s.mediaUri, mediaId = s.mediaId, stage = DraftStage.FAILED)
+        val bytes = (if (s.capture != null) images.readCapture(s.capture) else images.read(s.uri)) ?: return Draft(key, sourceUri = s.mediaUri, mediaId = s.mediaId, stage = DraftStage.FAILED)
         val stored = images.save(bytes)
         val thumb = images.saveThumb(bytes)
         try {
@@ -227,7 +271,7 @@ class ImportSession @Inject constructor(
 
     private suspend fun readStored(key: Int, s: Source, earlier: List<Coupon>, bytes: ByteArray, stored: StoredImage, thumb: String): Draft {
         // picker / share: find the gallery original while the uri grant is valid (F10 trash, F9 skip; QA R1-06)
-        val link = if (s.mediaId == null) runCatching { media.resolve(s.uri, stored.hash) }.getOrNull() else null
+        val link = if (s.mediaId == null && s.capture == null) runCatching { media.resolve(s.uri, stored.hash) }.getOrNull() else null
         val src = s.mediaUri ?: link?.uri?.toString()
         val base = Draft(key, sourceUri = src, mediaId = s.mediaId ?: link?.id)
         val r = try {
@@ -242,7 +286,7 @@ class ImportSession @Inject constructor(
         val coupon = if (r == null) {
             Coupon(imagePath = stored.path, thumbPath = thumb, imageHash = stored.hash, sourceUri = src)
         } else {
-            toCoupon(r, stored.path, thumb, stored.hash, src)
+            toCoupon(r, stored.path, thumb, stored.hash, src).let { if (s.capture != null) captured(it) else it }
         }
         val dup = duplicateOf(coupon, earlier)
         val isCoupon = r?.extraction?.isCoupon == true
@@ -272,6 +316,18 @@ class ImportSession @Inject constructor(
         /** F1: up to 30 images at once */
         const val MAX_IMAGES = 30
 
+        /** C2-24 reason on a camera photo: no accuracy target for paper photos, so the user checks every field. */
+        const val CAPTURED = "CAPTURED"
+
+        /** Every recognised field (porting-spec keys) gets [CAPTURED] first; faceValue only on an amount voucher. */
+        fun captured(c: Coupon): Coupon {
+            val fields = listOf("brand", "productName", "code", "expiryDate") + (if (c.type == CouponType.AMOUNT) listOf("faceValue") else emptyList())
+            return c.copy(needsReview = c.needsReview + fields.associateWith { f -> listOf(CAPTURED) + c.needsReview[f].orEmpty().filter { it != CAPTURED } })
+        }
+
+        /** C2-18: fieldBoxes key of the row an expiry candidate was read from ("expiryDate@2027-03-31"). */
+        fun candidateBoxKey(d: LocalDate) = "expiryDate@$d"
+
         fun toCoupon(r: Recognition, path: String, thumb: String, hash: String, sourceUri: String?): Coupon {
             val x: Extraction = r.extraction
             return Coupon(
@@ -290,7 +346,8 @@ class ImportSession @Inject constructor(
                 notes = x.notes,
                 memo = x.sender,
                 needsReview = x.needsReview.entries.associate { (k, v) -> k.key to v.map { it.name } },
-                fieldBoxes = x.fieldBoxes.entries.associate { (k, b) -> k.key to listOf(b.x0, b.y0, b.x1, b.y1) },
+                fieldBoxes = x.fieldBoxes.entries.associate { (k, b) -> k.key to listOf(b.x0, b.y0, b.x1, b.y1) } +
+                    x.expiryCandidateBoxes.entries.associate { (d, b) -> candidateBoxKey(d) to listOf(b.x0, b.y0, b.x1, b.y1) },
                 imagePath = path,
                 thumbPath = thumb,
                 imageWidth = r.width,

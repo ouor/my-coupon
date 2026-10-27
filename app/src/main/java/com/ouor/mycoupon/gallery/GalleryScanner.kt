@@ -50,6 +50,9 @@ data class ScanProgress(
     val resumedFrom: Int = 0,
     /** images that passed screening and full recognition says are coupons */
     val found: List<Draft> = emptyList(),
+    /** C2-11 zero-result copy: images of this run that were coupons already in the app / not coupons */
+    val registered: Int = 0,
+    val notCoupon: Int = 0,
     val running: Boolean = false,
     val finished: Boolean = false,
 )
@@ -149,7 +152,8 @@ class GalleryScanner @Inject constructor(
         val resumed = if (prev.range == range && !prev.finished && prev.checked > 0) prev.checked else 0
         _progress.update {
             it.copy(range = range, inRange = all.size, alreadyChecked = all.size - media.size, total = resumed + media.size,
-                checked = resumed, resumedFrom = resumed, running = true, finished = false)
+                checked = resumed, resumedFrom = resumed, running = true, finished = false,
+                registered = if (resumed > 0) it.registered else 0, notCoupon = if (resumed > 0) it.notCoupon else 0)
         }
         var checked = resumed
         try {
@@ -202,12 +206,14 @@ class GalleryScanner @Inject constructor(
         val pass = runCatching { screen(m.uri) }.getOrDefault(false)
         if (!pass) {
             repo.markScan(m.id, ScanResult.NOT_COUPON)
+            _progress.update { it.copy(notCoupon = it.notCoupon + 1) }
             return null
         }
         val d = import.readDraft(0, ImportSession.Source(m.uri, m.uri.toString(), m.id), _progress.value.found.mapNotNull { it.coupon })
         if (!d.isCoupon || d.duplicate != null) { // already registered images are not suggested again
             import.dropFiles(d)
             repo.markScan(m.id, if (d.isCoupon) ScanResult.REGISTERED else ScanResult.NOT_COUPON)
+            _progress.update { if (d.isCoupon) it.copy(registered = it.registered + 1) else it.copy(notCoupon = it.notCoupon + 1) }
             return null
         }
         repo.markScan(m.id, ScanResult.COUPON)

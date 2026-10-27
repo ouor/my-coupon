@@ -3,6 +3,7 @@ package com.ouor.mycoupon.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.core.content.FileProvider
 import com.ouor.mycoupon.image.ImageCodec
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -30,6 +31,27 @@ class ImageStore @Inject constructor(@ApplicationContext private val context: Co
         if (uri.scheme != "content" || uri.authority.orEmpty().startsWith(context.packageName)) return null
         context.contentResolver.openInputStream(uri)?.use { ImageCodec.readCapped(it, ImageCodec.MAX_BYTES) }
     }.getOrNull()
+
+    /**
+     * C2-24: a new empty file for the system camera app plus its FileProvider uri (pass it to
+     * ActivityResultContracts.TakePicture). The photo never reaches the gallery; [readCapture] reads and deletes it.
+     */
+    fun newCapture(): Pair<File, Uri> {
+        val dir = File(context.cacheDir, CAPTURE_DIR).apply { mkdirs() }
+        dir.listFiles()?.forEach { it.delete() } // one capture at a time; an abandoned one goes now
+        val f = File(dir, UUID.randomUUID().toString() + ".jpg")
+        return f to FileProvider.getUriForFile(context, context.packageName + ".files", f)
+    }
+
+    /** Bytes of a [newCapture] file (null if the camera wrote nothing or too much); the file is deleted either way. */
+    fun readCapture(file: File): ByteArray? = try {
+        if (file.parentFile?.name != CAPTURE_DIR || !file.isFile || file.length() == 0L) null
+        else file.inputStream().use { ImageCodec.readCapped(it, ImageCodec.MAX_BYTES) }
+    } catch (_: java.io.IOException) {
+        null
+    } finally {
+        file.delete()
+    }
 
     /** Copies bytes into the image folder. */
     fun save(bytes: ByteArray): StoredImage {
@@ -63,5 +85,6 @@ class ImageStore @Inject constructor(@ApplicationContext private val context: Co
 
     companion object {
         const val THUMB_PX = 320
+        const val CAPTURE_DIR = "capture"
     }
 }

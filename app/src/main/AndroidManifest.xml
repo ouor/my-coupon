@@ -16,6 +16,13 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
+    <!-- C2-24: see whether a camera app exists (the item is hidden otherwise); the app itself never asks for CAMERA -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
+
     <application
         android:name=".MyCouponApp"
         android:allowBackup="false"

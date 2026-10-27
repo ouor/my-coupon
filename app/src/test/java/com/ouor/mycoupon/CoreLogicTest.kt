@@ -15,6 +15,7 @@ import com.ouor.mycoupon.ocr.core.Extraction
 import com.ouor.mycoupon.ocr.core.Field
 import com.ouor.mycoupon.ocr.core.ReviewReason
 import com.ouor.mycoupon.reminder.ReminderPlanner
+import com.ouor.mycoupon.reminder.ReminderWorker
 import com.ouor.mycoupon.widget.WidgetData
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -159,5 +160,38 @@ class CoreLogicTest {
         a.initCause(b)
         assertEquals("java.lang.RuntimeException: b", CrashLog.scrubbed(a).cause.toString())
         assertTrue(CrashLog.report("main", a, "t").lines().count { it.startsWith("Caused by") } == 1)
+    }
+
+    /** C2-08 AC4: 6 of the same product + 1 other on the same day = two lines. */
+    @Test
+    fun reminderLinesMergeSameProduct() {
+        val same = List(6) { c(today.plusDays(7), brand = "CU", product = "10,000원권") }
+        val lines = ReminderPlanner.lines(same + c(today.plusDays(7), brand = "GS", product = "커피"), today)
+        assertEquals(listOf("CU 10,000원권 6장 · 7일 남음", "GS 커피 · 7일 남음"), lines)
+    }
+
+    /** C2-10 banner list, C2-15 AC4 brand chip order. */
+    @Test
+    fun endingSoonAndBrandOrder() {
+        val t = c(today, brand = "A")
+        val tm = c(today.plusDays(1), brand = "A")
+        val later = c(today.plusDays(2), brand = "B")
+        val b2 = c(today.plusDays(9), brand = "B")
+        val used = c(today.plusDays(9), brand = "C", status = CouponStatus.USED)
+        val usedC = used.copy(usedReason = UsedReason.USED, usedAt = 5)
+        val c1 = c(today.plusDays(9), brand = "C")
+        val gone = c(today.minusDays(1), brand = "A")
+        val all = listOf(later, tm, t, b2, usedC, c1, gone)
+        assertEquals(listOf(t, tm), CouponRepository.endingSoon(all, today))
+        assertEquals(listOf("C", "A", "B"), CouponRepository.brandOrder(all, today)) // C just used; then A(2) = B(2) by name
+    }
+
+    /** A15: a run that slipped past midnight keeps its planned day; older or missing plans use today. */
+    @Test
+    fun reminderRunDay() {
+        assertEquals(today.minusDays(1), ReminderWorker.day(today.minusDays(1).toEpochDay(), today))
+        assertEquals(today, ReminderWorker.day(today.toEpochDay(), today))
+        assertEquals(today, ReminderWorker.day(today.minusDays(2).toEpochDay(), today))
+        assertEquals(today, ReminderWorker.day(Long.MIN_VALUE, today))
     }
 }

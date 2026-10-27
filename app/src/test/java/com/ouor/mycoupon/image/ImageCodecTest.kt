@@ -33,4 +33,25 @@ class ImageCodecTest {
         assertEquals(ExifInterface.ORIENTATION_ROTATE_90, e.getAttributeInt(ExifInterface.TAG_ORIENTATION, 0))
         f.delete()
     }
+
+    /** O-17: each of the 8 EXIF orientations maps the x and y unit vectors as the EXIF spec says (null = identity). */
+    @Test
+    fun exifMatrixAllOrientations() {
+        // orientation -> where (1,0) and (0,1) go, in y-down screen coordinates
+        val expected = mapOf(
+            2 to listOf(-1f, 0f, 0f, 1f), 3 to listOf(-1f, 0f, 0f, -1f), 4 to listOf(1f, 0f, 0f, -1f), 5 to listOf(0f, 1f, 1f, 0f),
+            6 to listOf(0f, 1f, -1f, 0f), 7 to listOf(0f, -1f, -1f, 0f), 8 to listOf(0f, -1f, 1f, 0f),
+        )
+        for (o in 1..8) {
+            val f = File.createTempFile("exif$o", ".jpg")
+            ImageIO.write(BufferedImage(8, 4, BufferedImage.TYPE_INT_RGB), "jpg", f)
+            ExifInterface(f.absolutePath).apply { setAttribute(ExifInterface.TAG_ORIENTATION, o.toString()); saveAttributes() }
+            val m = ImageCodec.exifMatrix(f.readBytes())
+            f.delete()
+            if (o == 1) { assertNull(m); continue }
+            val v = floatArrayOf(1f, 0f, 0f, 1f)
+            m!!.mapVectors(v)
+            assertEquals("orientation $o", expected[o], v.map { Math.round(it).toFloat() + 0f }) // + 0f: -0.0 equals 0.0
+        }
+    }
 }

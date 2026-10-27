@@ -37,6 +37,10 @@ object AppIntents {
 
     fun tile(context: Context): Intent = home(context).putExtra(EXTRA_FROM_TILE, true)
 
+    /** C2-24 AC4: [카메라로 찍기] only when a camera app answers ACTION_IMAGE_CAPTURE (manifest `<queries>`). */
+    fun canCapture(context: Context): Boolean =
+        Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).resolveActivity(context.packageManager) != null
+
     fun pending(context: Context, requestCode: Int, intent: Intent): PendingIntent =
         PendingIntent.getActivity(context, requestCode, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 }

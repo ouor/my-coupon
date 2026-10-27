@@ -2,4 +2,6 @@
 <paths>
     <!-- only the outgoing share folder is exposed: copies made at share time -->
     <cache-path name="share" path="share/" />
+    <!-- C2-24: the system camera app writes one photo here (ACTION_IMAGE_CAPTURE); read once, then deleted -->
+    <cache-path name="capture" path="capture/" />
 </paths>

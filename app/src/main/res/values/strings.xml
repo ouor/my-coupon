@@ -3,4 +3,5 @@
     <string name="tile_label">내 쿠폰</string>
     <string name="widget_label">만료 임박 쿠폰</string>
     <string name="channel_expiry">만료 알림</string>
+    <string name="notification_open_barcode">바코드 열기</string>
 </resources>
