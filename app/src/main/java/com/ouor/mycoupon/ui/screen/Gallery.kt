@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.screen
 
+import androidx.activity.compose.LocalActivity
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -41,7 +42,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -70,7 +70,7 @@ private fun n(v: Int) = NumberFormat.getNumberInstance(Locale.KOREA).format(v)
 /** S9 (F9): ① permission rationale → ② range → ③ progress, one screen. Leaving pauses (the ViewModel cancels the scan). */
 @Composable
 fun GalleryScreen(nav: NavHostController) {
-    val activity = LocalContext.current as MainActivity
+    val activity = LocalActivity.current as MainActivity
     val vm: GalleryViewModel = hiltViewModel()
     val importVm: ImportViewModel = hiltViewModel(activity)
     val p by vm.progress.collectAsState()

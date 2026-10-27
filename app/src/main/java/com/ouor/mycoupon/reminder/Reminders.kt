@@ -177,10 +177,8 @@ class ReminderWorker @AssistedInject constructor(
 @Singleton
 class ReminderNotifier @Inject constructor(@ApplicationContext private val context: Context) {
     fun createChannel() {
-        if (Build.VERSION.SDK_INT >= 26) {
-            val ch = NotificationChannel(CHANNEL, context.getString(R.string.channel_expiry), NotificationManager.IMPORTANCE_DEFAULT)
-            context.getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
-        }
+        val ch = NotificationChannel(CHANNEL, context.getString(R.string.channel_expiry), NotificationManager.IMPORTANCE_DEFAULT)
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
     }
 
     fun canPost(): Boolean = NotificationManagerCompat.from(context).areNotificationsEnabled() &&

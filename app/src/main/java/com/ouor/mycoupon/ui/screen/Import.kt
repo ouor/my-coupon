@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.screen
 
+import androidx.activity.compose.LocalActivity
 import com.ouor.mycoupon.ui.component.name
 import com.ouor.mycoupon.ui.component.codeTail
 import androidx.compose.foundation.layout.heightIn
@@ -52,7 +53,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -97,7 +97,7 @@ private fun order(d: Draft): Int = when {
 /** S3 + S4 (F2-F4). */
 @Composable
 fun ImportScreen(nav: NavHostController) {
-    val activity = LocalContext.current as MainActivity
+    val activity = LocalActivity.current as MainActivity
     val vm: ImportViewModel = hiltViewModel(activity)
     val homeVm: HomeViewModel = hiltViewModel(activity)
     val st by vm.state.collectAsState()

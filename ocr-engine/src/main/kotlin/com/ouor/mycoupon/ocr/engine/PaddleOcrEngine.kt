@@ -46,7 +46,7 @@ class PaddleOcrEngine private constructor(
 
     data class Timings(val detMs: Long, val recMs: Long, val lines: Int)
 
-    private val env = OrtEnvironment.getEnvironment()
+    private val env = OrtEnvironment.getEnvironment().apply { runCatching { setTelemetry(false) } } // no telemetry, ever (code review S-01)
     private val det: OrtSession
     private val rec: OrtSession
     private val chars: List<String> = listOf("blank") + dict + " "

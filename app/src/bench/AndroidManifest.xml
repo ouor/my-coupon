@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
-        <!-- bench build type only; started over adb -->
+        <!-- bench build type only, never distributed; DUMP = startable from adb shell only (code review S-16) -->
         <activity
             android:name=".bench.BenchActivity"
             android:exported="true"
+            android:permission="android.permission.DUMP"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     </application>
 </manifest>

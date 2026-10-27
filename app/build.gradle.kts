@@ -15,7 +15,8 @@ android {
 
     defaultConfig {
         applicationId = "com.ouor.mycoupon"
-        minSdk = 24
+        // 26: java.time without desugaring (code review A1, lead decision 2026-10-28)
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
@@ -50,6 +51,12 @@ android {
         compose = true
         buildConfig = true
     }
+    lint {
+        // part of `check`: NewApi / ContextCastToActivity and every other error fail the build (code review A1/A12)
+        abortOnError = true
+        checkReleaseBuilds = true
+        warningsAsErrors = false
+    }
     packaging {
         resources.excludes += setOf("META-INF/*.version", "META-INF/LICENSE*", "META-INF/NOTICE*", "DebugProbesKt.bin")
         // spec §2.3 APK <= 40MB: libonnxruntime.so is 34MB stored, 13MB deflated. Costs install-time extraction.
@@ -59,6 +66,26 @@ android {
 }
 
 kotlin { jvmToolchain(17) }
+
+// spec §7.1 / code review S-01: the merged manifest must never ask for the network or keep ORT's telemetry initializer
+androidComponents {
+    onVariants { variant ->
+        val name = variant.name.replaceFirstChar { it.uppercase() }
+        val manifest = variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST)
+        val variantName = variant.name
+        val check = tasks.register("verifyNoNetwork$name") {
+            inputs.file(manifest)
+            doLast {
+                val text = manifest.get().asFile.readText()
+                val bad = listOf("android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE", "ai.onnxruntime.TelemetryInitializer")
+                    .filter { it in text }
+                if (bad.isNotEmpty()) throw GradleException("merged manifest of $variantName contains $bad")
+            }
+        }
+        tasks.named("check") { dependsOn(check) }
+        tasks.matching { it.name == "assemble$name" }.configureEach { dependsOn(check) }
+    }
+}
 
 dependencies {
     implementation(project(":ocr-engine"))

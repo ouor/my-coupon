@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.screen
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.rounded.CardGiftcard
 import com.ouor.mycoupon.ui.component.title
@@ -113,7 +114,7 @@ fun openNotificationSettings(context: Context) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(nav: NavHostController) {
-    val activity = LocalContext.current as MainActivity
+    val activity = LocalActivity.current as MainActivity
     val vm: HomeViewModel = hiltViewModel(activity)
     val importVm: ImportViewModel = hiltViewModel(activity)
     val st by vm.state.collectAsState()

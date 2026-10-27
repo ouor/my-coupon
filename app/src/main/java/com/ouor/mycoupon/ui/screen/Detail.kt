@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.screen
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.ui.input.pointer.pointerInput
@@ -94,7 +95,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
@@ -164,7 +164,7 @@ import java.time.LocalDate
 /** F6: max brightness + keep-on for this window while [on]; restored on leave. Bars follow the system theme (S6 is no longer forced light, U11). */
 @Composable
 private fun CheckoutWindow(on: Boolean) {
-    val activity = LocalContext.current as Activity
+    val activity = LocalActivity.current as Activity
     // counted: S6 and S7 overlap during the navigation transition, the last one out restores
     DisposableEffect(on) {
         val w = activity.window
@@ -189,7 +189,7 @@ private object Checkout {
 /** S6 (F6, F7, F12, F16) with S8, S12, F10 trash suggestion. Follows the system theme; only the barcode card is always white (D6, revised by review U11). */
 @Composable
 fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCouponTheme {
-    val activity = LocalContext.current as MainActivity
+    val activity = LocalActivity.current as MainActivity
     val vm: CouponViewModel = hiltViewModel()
     val homeVm: HomeViewModel = hiltViewModel(activity)
     LaunchedEffect(id) { vm.load(id, fromReminder) }
@@ -522,7 +522,7 @@ fun usageMessage(e: UsageInputException, balance: Long, spentMode: Boolean): Str
 private fun ReminderSheet(c: Coupon, onDismiss: () -> Unit, onSave: (List<Int>?) -> Unit) {
     var follow by remember { mutableStateOf(c.reminderOffsets == null) }
     var sel by remember { mutableStateOf(c.reminderOffsets ?: AppSettings().reminderOffsets) }
-    val defaults = (LocalContext.current as MainActivity).settings.app.reminderOffsets
+    val defaults = (LocalActivity.current as MainActivity).settings.app.reminderOffsets
     AppSheet(onDismiss, "이 쿠폰 알림", if (c.expiryDate == null) "유효기간이 없어 알림을 보내지 않아요" else null) {
         val enabled = c.expiryDate != null
         ChoiceRow("기본 설정 따르기 (${offsetsLabel(defaults)})", follow, enabled) { follow = true }
@@ -567,7 +567,7 @@ fun BarcodeFullScreen(id: Long, nav: NavHostController) = MyCouponTheme(forceLig
     val vm: CouponViewModel = hiltViewModel()
     LaunchedEffect(id) { vm.load(id) }
     val c by vm.coupon.collectAsState()
-    val activity = LocalContext.current as Activity
+    val activity = LocalActivity.current as Activity
     CheckoutWindow(on = true)
     DisposableEffect(Unit) {
         val before = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED

@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.screen
 
+import androidx.activity.compose.LocalActivity
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
@@ -72,7 +73,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
@@ -105,7 +105,7 @@ import java.util.Locale
 
 @Composable
 fun EditDraftScreen(key: Int, nav: NavHostController) {
-    val vm: ImportViewModel = hiltViewModel(LocalContext.current as MainActivity)
+    val vm: ImportViewModel = hiltViewModel(LocalActivity.current as MainActivity)
     val st by vm.state.collectAsState()
     val brands by vm.brands.collectAsState()
     val d = st.drafts.firstOrNull { it.key == key }?.coupon

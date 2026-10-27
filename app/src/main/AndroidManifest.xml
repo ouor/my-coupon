@@ -5,6 +5,7 @@
     <!-- spec §7.1: no network, ever. Strip it if any library adds it. -->
     <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+    <!-- ONNX Runtime ships a 1DS telemetry initializer (code review S-01): never run it. Also disabled in MyCouponApp. -->
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -49,6 +50,11 @@
                 <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
+
+        <provider
+            android:name="ai.onnxruntime.TelemetryInitializer"
+            android:authorities="${applicationId}.onnxruntime_telemetry_initializer"
+            tools:node="remove" />
 
         <!-- F16 / F19: hand files to the system share sheet -->
         <provider

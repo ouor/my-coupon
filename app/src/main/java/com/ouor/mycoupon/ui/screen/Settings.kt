@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.screen
 
+import androidx.activity.compose.LocalActivity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -179,7 +180,7 @@ private fun ignoresBattery(context: Context): Boolean =
 @Composable
 fun RemindersScreen(nav: NavHostController) {
     val vm: SettingsViewModel = hiltViewModel()
-    val activity = LocalContext.current as MainActivity
+    val activity = LocalActivity.current as MainActivity
     val homeVm: HomeViewModel = hiltViewModel(activity)
     val homeState by homeVm.state.collectAsState()
     val st by vm.state.collectAsState()

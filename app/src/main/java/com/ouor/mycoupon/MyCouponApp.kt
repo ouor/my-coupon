@@ -19,6 +19,12 @@ class MyCouponApp : Application(), Configuration.Provider {
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
 
+    override fun attachBaseContext(base: android.content.Context) {
+        // ONNX Runtime telemetry off before the native library can load (code review S-01; the initializer provider is removed too)
+        runCatching { android.system.Os.setenv("ORT_DISABLE_TELEMETRY", "1", true) }
+        super.attachBaseContext(base)
+    }
+
     override fun onCreate() {
         super.onCreate()
         crashLog.install()
