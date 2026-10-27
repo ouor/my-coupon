@@ -1,6 +1,6 @@
 """Run PP-OCRv5 (Paddle) over the .test set and dump one jsonl per run.
 
-usage: python run_ocr.py <tag> [--det mobile|server] [--device gpu|cpu]
+usage: python run_ocr.py <tag> [--det mobile|server] [--device gpu|cpu] [--onnx]
                          [--limit-type min|max] [--limit-side N] [--thresh F] [--box-thresh F] [--unclip F]
 default = the reference config (mobile det + korean mobile rec, PaddleOCR defaults: limit min 64).
 Output: out/<tag>.jsonl, one image per line: {file, w, h, ms, lines:[{text, score, poly}]}.
@@ -24,9 +24,14 @@ ap.add_argument("--limit-side", type=int, default=None)
 ap.add_argument("--thresh", type=float, default=None)
 ap.add_argument("--box-thresh", type=float, default=None)
 ap.add_argument("--unclip", type=float, default=None)
+ap.add_argument("--onnx", action="store_true", help="ONNX Runtime engine on models/onnx/* (paddle2onnx of the same models)")
 a = ap.parse_args()
 
+MODELS = Path(__file__).resolve().parent / "models" / "onnx"
+extra = dict(engine="onnxruntime", text_detection_model_dir=str(MODELS / DET[a.det]),
+             text_recognition_model_dir=str(MODELS / "korean_PP-OCRv5_mobile_rec")) if a.onnx else {}
 ocr = PaddleOCR(
+    **extra,
     text_detection_model_name=DET[a.det],
     text_recognition_model_name="korean_PP-OCRv5_mobile_rec",
     use_doc_orientation_classify=False,

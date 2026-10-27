@@ -1,0 +1,191 @@
+{
+ "input": {
+  "lines": [
+   {
+    "text": "빵집E",
+    "score": 0.99,
+    "poly": [
+     [
+      300,
+      100
+     ],
+     [
+      500,
+      100
+     ],
+     [
+      500,
+      150
+     ],
+     [
+      300,
+      150
+     ]
+    ]
+   },
+   {
+    "text": "빵집E 크루아상 세트",
+    "score": 0.99,
+    "poly": [
+     [
+      200,
+      200
+     ],
+     [
+      700,
+      200
+     ],
+     [
+      700,
+      260
+     ],
+     [
+      200,
+      260
+     ]
+    ]
+   },
+   {
+    "text": "유효기간: 2026.12.31",
+    "score": 0.82,
+    "poly": [
+     [
+      200,
+      300
+     ],
+     [
+      700,
+      300
+     ],
+     [
+      700,
+      340
+     ],
+     [
+      200,
+      340
+     ]
+    ]
+   },
+   {
+    "text": "7777 8888 9999",
+    "score": 0.99,
+    "poly": [
+     [
+      250,
+      600
+     ],
+     [
+      650,
+      600
+     ],
+     [
+      650,
+      640
+     ],
+     [
+      250,
+      640
+     ]
+    ]
+   }
+  ],
+  "barcodes": [],
+  "width": 900,
+  "height": 900
+ },
+ "expected": {
+  "version": "1",
+  "isCoupon": true,
+  "brand": "빵집E",
+  "productName": "빵집E 크루아상 세트",
+  "type": "EXCHANGE",
+  "faceValue": null,
+  "code": "777788889999",
+  "codeFormat": "NONE",
+  "codeSource": "OCR",
+  "expiryDate": "2026-12-31",
+  "expiryCandidates": [
+   "2026-12-31"
+  ],
+  "issuer": null,
+  "sender": null,
+  "notes": null,
+  "needsReview": {
+   "code": [
+    "CODE_NOT_DECODED"
+   ],
+   "expiryDate": [
+    "LOW_CONFIDENCE"
+   ]
+  },
+  "fieldBoxes": {
+   "code": [
+    250,
+    600,
+    650,
+    640
+   ],
+   "expiryDate": [
+    200,
+    300,
+    700,
+    340
+   ],
+   "productName": [
+    200,
+    200,
+    700,
+    260
+   ],
+   "brand": [
+    300,
+    100,
+    500,
+    150
+   ]
+  },
+  "rows": [
+   {
+    "text": "빵집E",
+    "box": [
+     300,
+     100,
+     500,
+     150
+    ],
+    "notes": false
+   },
+   {
+    "text": "빵집E 크루아상 세트",
+    "box": [
+     200,
+     200,
+     700,
+     260
+    ],
+    "notes": false
+   },
+   {
+    "text": "유효기간: 2026.12.31",
+    "box": [
+     200,
+     300,
+     700,
+     340
+    ],
+    "notes": false
+   },
+   {
+    "text": "7777 8888 9999",
+    "box": [
+     250,
+     600,
+     650,
+     640
+    ],
+    "notes": false
+   }
+  ]
+ }
+}

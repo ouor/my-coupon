@@ -17,7 +17,7 @@ ROW_OVERLAP = 0.5      # step 2: vertical overlap / smaller box height to share 
 JOIN_GAP = 1.0         # step 2: boxes in a row closer than this many line heights are one text run
 WRAP_GAP = 0.5         # step 3: max gap between wrapped lines, in line heights
 WRAP_HEIGHT = 0.8      # step 3: min height ratio of wrapped lines
-WRAP_HEIGHT_BRACKET = 0.6  # step 3: same, when line 1 leaves a bracket open and line 2 closes it
+WRAP_HEIGHT_CUE = 0.6  # step 3: same, when the text itself says the line continues (open bracket, "+" at the seam)
 WRAP_WIDTH = 0.75      # step 3: the first line must span this share of the widest line
 REVIEW_SCORE = 0.9     # a field read from a run below this OCR confidence is flagged LOW_CONFIDENCE
 
@@ -27,6 +27,7 @@ BULLET = re.compile(r"^\s*[-·•*※ㆍ]")
 LABEL_TAIL = re.compile(r"(기간|기한|처|명|번호|일|일시|금액|수량|매장|장소|종류|가격|상품|브랜드)$")
 DATE_KEYWORDS = ("유효", "사용", "까지", "기간", "만료", "~")
 NOTE_DATE_KEYWORDS = ("유효", "사용", "만료")
+VALIDITY = re.compile(r"유효|기한|기간|까지|만료")  # coupon decision: the date row must read as a deadline
 NOT_EXPIRY = re.compile(r"발급|발행|주문|결제|구매|승인|거래|발송|등록")
 NOT_CODE = re.compile(r"주문|승인|사업자|전화|TEL|tel|Tel|카드|가맹|고객센터|문의|계좌|운송장")
 BRAND_LABEL = re.compile(r"^(교환처|사용처|브랜드명?|매장명?|사용\s*매장|사용\s*브랜드|가맹점명?)$")
@@ -101,6 +102,18 @@ def join_runs(row):  # the detector sometimes splits one text line into touching
     return out
 
 
+def continues(a, b):
+    """Text cue that line b continues line a: a bracket left open and closed next, or a joining symbol at the seam."""
+    bracket = a.count("(") > a.count(")") and b.count(")") > b.count("(")
+    return bracket or a.rstrip().endswith(("+", "&", ",", "(", "/")) or b.lstrip().startswith(("+", "&", ")"))
+
+
+def repeats(a, b):
+    """A subtitle repeats words of the title ("싱글킹 아이스크림 교환권" under "배스킨라빈스 싱글킹 아이스크림"); a wrap does not."""
+    words = set(re.findall(r"[가-힣A-Za-z0-9]{2,}", a))
+    return any(w in words for w in re.findall(r"[가-힣A-Za-z0-9]{2,}", b))
+
+
 def merge_wraps(rows):
     widest = max((b["x1"] - b["x0"] for r in rows for b in r), default=1)
     out = []
@@ -109,10 +122,9 @@ def merge_wraps(rows):
             a, b = out[-1][0], r[0]
             ha, hb = a.get("lh", a["h"]), b["h"]  # compare against the last physical line
             wa, wb = a.get("lw", a["x1"] - a["x0"]), b["x1"] - b["x0"]
-            # an unclosed bracket closed on the next line is a wrap even when box heights differ (")" pads the box)
-            bracket = a["text"].count("(") > a["text"].count(")") and b["text"].count(")") > b["text"].count("(")
             if (b["y0"] - a["y1"] <= WRAP_GAP * min(ha, hb)
-                    and min(ha, hb) / max(ha, hb) >= (WRAP_HEIGHT_BRACKET if bracket else WRAP_HEIGHT)
+                    and min(ha, hb) / max(ha, hb) >= (WRAP_HEIGHT_CUE if continues(a["text"], b["text"]) else WRAP_HEIGHT)
+                    and not repeats(a["text"], b["text"])
                     and wa >= WRAP_WIDTH * widest and wb <= wa
                     and not BULLET.match(b["text"])
                     and not any(FULL.search(t) or NUM.search(t) for t in (a["text"], b["text"]))):  # a date or code line is its own field
@@ -368,10 +380,15 @@ def brand_near_product(rows, pi, prod):
         gap = p[1] - r["box"][3]
         if (not r["notes"] and len(r["cells"]) == 1 and r["cells"][0]["label"] is None
                 and gap <= 1.5 * prod["h"] and len(norm(r["text"])) <= 15
-                and not FULL.search(r["text"]) and not NUM.search(r["text"]) and hangul(r["text"]) + len(re.findall(r"[A-Za-z]", r["text"])) >= 2
-                and not re.search(r"선물하기$", r["text"])):
+                and not FULL.search(r["text"]) and not NUM.search(r["text"]) and hangul(r["text"]) + len(re.findall(r"[A-Za-z]", r["text"])) >= 2):
+            # "메가MGC커피 선물하기" header above the title -> brand 메가MGC커피 (guide §3); clean_brand drops the suffix
             c = r["cells"][0]
             return clean_brand(c["value"]), c["vbox"], c["score"], norm(c["value"]) in norm(prod["value"])
+    for r in rows[:pi]:  # a short line elsewhere above the title whose text the title repeats
+        c = r["cells"][0]
+        if (not r["notes"] and len(r["cells"]) == 1 and c["label"] is None and 2 <= len(norm(c["value"])) <= 15
+                and norm(c["value"]) in norm(prod["value"]) and not NUM.search(c["value"])):
+            return clean_brand(c["value"]), c["vbox"], c["score"], True
     m = re.match(r"^\s*[\[(]([^\])]{1,15})[\])]", prod["value"])
     if m and not TAGS.match(m.group(1).strip()):
         return m.group(1).strip(), prod["vbox"], prod["score"], True
@@ -406,13 +423,14 @@ def pick_type(rows, product):
     return "AMOUNT", vals[0], box, review
 
 
-def pick_issuer(rows, brand):
+def pick_issuer(rows, brand, limit_y):
+    """"카카오톡 선물하기"-style channel line. A "<brand> 선물하기" header is the brand's own corner, not an issuer."""
     for r in rows:
-        if r["notes"]:
+        if r["notes"] or r["box"][3] <= limit_y and brand and norm(brand) in norm(r["text"]):
             continue
         m = re.fullmatch(r"\s*(\S.{0,14}?)\s*선물하기\s*", r["text"])
         if m and not (brand and norm(m.group(1)) == norm(brand)):
-            return r["text"].strip(), r["box"]
+            return m.group(1).strip() + " 선물하기", r["box"]
     return None, None
 
 
@@ -431,6 +449,7 @@ def extract(lines, barcodes, width, height):
         boxes["code"] = code_box
 
     expiry, exp_cands, exp_box, rv = pick_expiry(rows)
+    exp_row = next((r["text"] for r in rows if exp_box is not None and r["box"] == exp_box), None)
     if rv:
         review["expiryDate"] = rv
     if exp_box:
@@ -470,7 +489,7 @@ def extract(lines, barcodes, width, height):
     if face_box:
         boxes["faceValue"] = face_box
 
-    issuer, ibox = pick_issuer(rows, brand)
+    issuer, ibox = pick_issuer(rows, brand, limit_y)
     if ibox:
         boxes["issuer"] = ibox
     sender = None
@@ -485,7 +504,7 @@ def extract(lines, barcodes, width, height):
 
     # coupon or not: a scannable code + a validity date + coupon vocabulary
     words = any(COUPON_WORDS.search(r["text"]) for r in rows)
-    keyed_expiry = expiry is not None and "NO_KEYWORD" not in review.get("expiryDate", [])
+    keyed_expiry = expiry is not None and exp_row is not None and VALIDITY.search(exp_row) is not None
     is_coupon = code is not None and keyed_expiry and words
 
     return {

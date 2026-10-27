@@ -1,0 +1,210 @@
+{
+ "input": {
+  "lines": [
+   {
+    "text": "가게G 쿠폰",
+    "score": 0.99,
+    "poly": [
+     [
+      100,
+      50
+     ],
+     [
+      500,
+      50
+     ],
+     [
+      500,
+      100
+     ],
+     [
+      100,
+      100
+     ]
+    ]
+   },
+   {
+    "text": "2026.05.05",
+    "score": 0.99,
+    "poly": [
+     [
+      100,
+      200
+     ],
+     [
+      400,
+      200
+     ],
+     [
+      400,
+      240
+     ],
+     [
+      100,
+      240
+     ]
+    ]
+   },
+   {
+    "text": "2026.06.30",
+    "score": 0.99,
+    "poly": [
+     [
+      100,
+      260
+     ],
+     [
+      400,
+      260
+     ],
+     [
+      400,
+      300
+     ],
+     [
+      100,
+      300
+     ]
+    ]
+   },
+   {
+    "text": "5555 6666 7777",
+    "score": 0.99,
+    "poly": [
+     [
+      100,
+      600
+     ],
+     [
+      500,
+      600
+     ],
+     [
+      500,
+      640
+     ],
+     [
+      100,
+      640
+     ]
+    ]
+   }
+  ],
+  "barcodes": [
+   {
+    "value": "555566667777",
+    "format": "Code128",
+    "box": [
+     [
+      100,
+      400
+     ],
+     [
+      500,
+      400
+     ],
+     [
+      500,
+      580
+     ],
+     [
+      100,
+      580
+     ]
+    ]
+   }
+  ],
+  "width": 600,
+  "height": 700
+ },
+ "expected": {
+  "version": "1",
+  "isCoupon": false,
+  "brand": null,
+  "productName": "가게G 쿠폰",
+  "type": "EXCHANGE",
+  "faceValue": null,
+  "code": "555566667777",
+  "codeFormat": "Code128",
+  "codeSource": "DECODED",
+  "expiryDate": "2026-06-30",
+  "expiryCandidates": [
+   "2026-05-05",
+   "2026-06-30"
+  ],
+  "issuer": null,
+  "sender": null,
+  "notes": null,
+  "needsReview": {
+   "expiryDate": [
+    "NO_KEYWORD",
+    "MULTIPLE_CANDIDATES"
+   ],
+   "brand": [
+    "NOT_FOUND"
+   ]
+  },
+  "fieldBoxes": {
+   "code": [
+    100,
+    400,
+    500,
+    580
+   ],
+   "expiryDate": [
+    100,
+    260,
+    400,
+    300
+   ],
+   "productName": [
+    100,
+    50,
+    500,
+    100
+   ]
+  },
+  "rows": [
+   {
+    "text": "가게G 쿠폰",
+    "box": [
+     100,
+     50,
+     500,
+     100
+    ],
+    "notes": false
+   },
+   {
+    "text": "2026.05.05",
+    "box": [
+     100,
+     200,
+     400,
+     240
+    ],
+    "notes": false
+   },
+   {
+    "text": "2026.06.30",
+    "box": [
+     100,
+     260,
+     400,
+     300
+    ],
+    "notes": false
+   },
+   {
+    "text": "5555 6666 7777",
+    "box": [
+     100,
+     600,
+     500,
+     640
+    ],
+    "notes": false
+   }
+  ]
+ }
+}

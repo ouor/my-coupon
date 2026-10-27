@@ -52,7 +52,7 @@ def evaluate(results):
         c["n"] += 1
         c["recall"] += got["isCoupon"]
         c["exp_review"] += "expiryDate" in got["needsReview"]
-        c["issuer"] += (got["issuer"] or None) == lab["issuer"]
+        c["issuer"] += norm(got["issuer"] or "") == norm(lab["issuer"] or "")
         for f in FIELDS:
             if f == "face" and lab["coupon_type"] != "amount":
                 continue
