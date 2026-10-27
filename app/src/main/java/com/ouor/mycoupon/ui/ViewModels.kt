@@ -8,6 +8,7 @@ import com.ouor.mycoupon.backup.BackupFormatException
 import com.ouor.mycoupon.backup.BackupManager
 import com.ouor.mycoupon.backup.BackupPreview
 import com.ouor.mycoupon.crash.CrashLog
+import com.ouor.mycoupon.AppData
 import com.ouor.mycoupon.data.AppSettings
 import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponRepository
@@ -82,7 +83,8 @@ class HomeViewModel @Inject constructor(
     val filter = MutableStateFlow(ListFilter.AVAILABLE)
     val sort = MutableStateFlow(ListSort.EXPIRY)
     val query = MutableStateFlow("")
-    private val newImages = MutableStateFlow(0)
+    /** unreviewed gallery finds (F9 new-image check and S9 share one list); 0 again after review or wipe */
+    private val newImages = scanner.progress.map { it.found.size }
     private val crashPending = MutableStateFlow(crashLog.files().firstOrNull()?.name?.let { it != settings.crashBannerSeen } ?: false)
     private val notificationsOff = MutableStateFlow(false)
 
@@ -114,7 +116,7 @@ class HomeViewModel @Inject constructor(
     /** Call from onResume: permission state can change outside the app. Also runs the F9 new-image check. */
     fun refresh() {
         notificationsOff.value = !notifier.canPost()
-        viewModelScope.launch { newImages.value = runCatching { scanner.checkNew() }.getOrDefault(0) }
+        viewModelScope.launch { runCatching { scanner.checkNew() } }
     }
 
     fun crashBannerShown() {
@@ -125,7 +127,6 @@ class HomeViewModel @Inject constructor(
     /** "새 쿠폰 이미지 N장" tap → S4 */
     fun reviewNewImages() {
         scanner.sendToReview()
-        newImages.value = 0
     }
 
     /** N1 with several coupons opens S1: each notified coupon counts for F18 "알림 받고 쓴 쿠폰". */
@@ -247,7 +248,7 @@ class SettingsViewModel @Inject constructor(
     private val crashLog: CrashLog,
     private val reminders: ReminderScheduler,
     private val backup: BackupManager,
-    private val session: ImportSession,
+    private val data: AppData,
 ) : ViewModel() {
     private val crash = MutableStateFlow(crashLog.files())
     val state: StateFlow<SettingsState> = combine(settings.observeApp(), repo.observeAll(), crash, settings.observeLastBackup()) { a, all, c, last ->
@@ -263,14 +264,14 @@ class SettingsViewModel @Inject constructor(
 
     /** F14 [모든 데이터 삭제] (after the 2-step confirmation in the UI). Gallery originals are untouched. */
     fun wipeAll(done: () -> Unit) = viewModelScope.launch {
-        session.discard()
-        repo.wipe()
-        reminders.cancel()
-        crashLog.clear()
+        data.wipeAll()
         crash.value = emptyList()
-        settings.app = AppSettings()
-        reminders.reschedule()
         done()
+    }
+
+    /** A6: leaving S14 with a restore preview open must not leave the decrypted ZIP in the cache. */
+    override fun onCleared() {
+        (backupUi.value as? BackupUi.Preview)?.let { backup.cancel(it.p) }
     }
 
     fun export(target: Uri, password: CharArray) = backupJob { BackupUi.Exported(backup.export(target, password)) }

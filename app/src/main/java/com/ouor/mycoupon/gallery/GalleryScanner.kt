@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.ZonedDateTime
 import javax.inject.Inject
@@ -67,6 +69,11 @@ class GalleryScanner @Inject constructor(
 ) {
     private val _progress = MutableStateFlow(ScanProgress())
     val progress: StateFlow<ScanProgress> = _progress.asStateFlow()
+    /** [scan] and [checkNew] never overlap: both add to [ScanProgress.found] (code review A3: the same photo twice) */
+    private val lock = Mutex()
+
+    /** F14 wipe: unreviewed finds point at deleted image copies. */
+    fun reset() { _progress.value = ScanProgress() }
 
     /** Full or partial (Android 14 "selected photos") access. */
     fun hasPermission(): Boolean {
@@ -130,7 +137,9 @@ class GalleryScanner @Inject constructor(
     }
 
     /** S9 ③. Results accumulate in [progress]; [ImportSession.startWith] hands them to S4. */
-    suspend fun scan(range: ScanRange) = withContext(Dispatchers.Default) {
+    suspend fun scan(range: ScanRange) = withContext(Dispatchers.Default) { lock.withLock { scanLocked(range) } }
+
+    private suspend fun scanLocked(range: ScanRange) {
         val done = repo.scannedIds()
         val prev = _progress.value
         val known = prev.found.mapNotNull { it.mediaId }.toSet()
@@ -159,17 +168,28 @@ class GalleryScanner @Inject constructor(
 
     /** S1 "새 쿠폰 이미지 N장" (F9): only images newer than the last look; no notification. Returns the found count. */
     suspend fun checkNew(): Int = withContext(Dispatchers.Default) {
-        if (!hasPermission()) return@withContext 0
+        // a scan or another check is running (onResume again after the picker): it covers these images
+        if (!lock.tryLock()) return@withContext _progress.value.found.size
+        try {
+            checkNewLocked()
+        } finally {
+            lock.unlock()
+        }
+    }
+
+    private suspend fun checkNewLocked(): Int {
+        if (!hasPermission()) return 0
         val last = settings.lastGalleryScanSec
         if (last == 0L) { // first time: start from now, do not suggest the whole gallery
             settings.lastGalleryScanSec = System.currentTimeMillis() / 1000
-            return@withContext 0
+            return 0
         }
         val done = repo.scannedIds()
-        val media = query(last).filter { it.id !in done }
+        val known = _progress.value.found.mapNotNull { it.mediaId }.toSet()
+        val media = query(last).filter { it.id !in done && it.id !in known }
         for (m in media) check(m)?.let { d -> _progress.update { it.copy(found = it.found + d) } }
         settings.lastGalleryScanSec = maxOf(last, media.maxOfOrNull { it.addedSec } ?: last)
-        _progress.value.found.size
+        return _progress.value.found.size
     }
 
     /** Hands found coupons to S4 and clears them here. */

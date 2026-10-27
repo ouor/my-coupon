@@ -107,6 +107,8 @@ class CouponRepository @Inject constructor(
             db.scans().deleteAll()
         }
         images.wipe()
+        // deleted rows must not linger in the WAL file (secure_delete zeroes them in the DB file, AppModule)
+        db.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE)").use { it.moveToFirst() }
         changed()
     }
 

@@ -2,6 +2,8 @@ package com.ouor.mycoupon.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.ouor.mycoupon.data.AppDatabase
 import com.ouor.mycoupon.data.CouponChangeListener
 import com.ouor.mycoupon.reminder.ReminderScheduler
@@ -29,7 +31,14 @@ annotation class AppScope
 object AppModule {
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "mycoupon.db").build()
+        Room.databaseBuilder(context, AppDatabase::class.java, "mycoupon.db")
+            // S-03: deleted coupons are overwritten with zeros, not left in free pages
+            .addCallback(object : RoomDatabase.Callback() {
+                override fun onOpen(db: SupportSQLiteDatabase) {
+                    db.query("PRAGMA secure_delete=ON").use { it.moveToFirst() }
+                }
+            })
+            .build()
 
     @Provides @Singleton @AppScope
     fun appScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

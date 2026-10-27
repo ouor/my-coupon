@@ -50,6 +50,12 @@ class ImageStore @Inject constructor(@ApplicationContext private val context: Co
 
     fun delete(vararg paths: String?) = paths.filterNotNull().forEach { File(it).delete() }
 
+    /** Deletes copies not in [keep] and last modified before [before] (code review A4). Returns how many. */
+    fun removeOrphans(keep: Set<String>, before: Long): Int =
+        listOf(imageDir, thumbDir).flatMap { it.listFiles().orEmpty().asList() }
+            .filter { it.absolutePath !in keep && it.lastModified() < before }
+            .count { it.delete() }
+
     fun wipe() {
         imageDir.deleteRecursively(); imageDir.mkdirs()
         thumbDir.deleteRecursively(); thumbDir.mkdirs()

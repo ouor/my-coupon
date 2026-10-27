@@ -215,6 +215,12 @@ class ReminderNotifier @Inject constructor(@ApplicationContext private val conte
         }
     }
 
+    /** F14 wipe: posted N1 notifications (brand, name, balance) and the once-a-day state go too (S-03). */
+    fun clear() {
+        NotificationManagerCompat.from(context).cancelAll()
+        context.getSharedPreferences("reminder", Context.MODE_PRIVATE).edit().clear().apply()
+    }
+
     companion object {
         const val CHANNEL = "expiry"
         const val NOTIFICATION_ID = 1

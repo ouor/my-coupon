@@ -4,9 +4,13 @@ import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.ouor.mycoupon.crash.CrashLog
+import com.ouor.mycoupon.di.AppScope
 import com.ouor.mycoupon.reminder.ReminderNotifier
 import com.ouor.mycoupon.reminder.ReminderScheduler
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -15,6 +19,8 @@ class MyCouponApp : Application(), Configuration.Provider {
     @Inject lateinit var crashLog: CrashLog
     @Inject lateinit var notifier: ReminderNotifier
     @Inject lateinit var reminders: ReminderScheduler
+    @Inject lateinit var data: AppData
+    @Inject @AppScope lateinit var scope: CoroutineScope
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
@@ -31,5 +37,7 @@ class MyCouponApp : Application(), Configuration.Provider {
         runCatching { crashLog.recordNativeCrashes() }
         notifier.createChannel()
         reminders.ensure()
+        val started = System.currentTimeMillis()
+        scope.launch(Dispatchers.IO) { runCatching { data.cleanUp(started) } }
     }
 }
