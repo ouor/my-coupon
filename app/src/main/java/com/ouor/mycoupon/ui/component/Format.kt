@@ -77,3 +77,9 @@ val fieldLabel = mapOf(
     "brand" to "브랜드", "productName" to "상품명", "faceValue" to "금액", "code" to "번호",
     "expiryDate" to "유효기간", "issuer" to "발급처", "sender" to "메모",
 )
+
+/** Subject particle by the last syllable's final consonant: "번호가", "상품명이" (QA R1-10). */
+fun String.subject(): String {
+    val ch = lastOrNull() ?: return this
+    return if (ch in '가'..'힣' && (ch - '가') % 28 != 0) "${this}이" else "${this}가"
+}

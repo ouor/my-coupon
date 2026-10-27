@@ -192,8 +192,8 @@ class ImportSession @Inject constructor(
             coupon = coupon,
             isCoupon = isCoupon,
             duplicate = dup,
-            // spec F3/F4: not-a-coupon and duplicates start unchecked (forced registration stays possible)
-            checked = isCoupon && dup == null,
+            // spec F3/F4: not-a-coupon and duplicates start unchecked (forced registration stays possible); QA R1-16: so do expired ones
+            checked = isCoupon && dup == null && coupon.expiryDate?.isBefore(java.time.LocalDate.now()) != true,
             totalMs = r?.timings?.totalMs ?: 0,
         )
     }

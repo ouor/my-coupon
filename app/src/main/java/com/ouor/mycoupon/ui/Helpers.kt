@@ -20,7 +20,9 @@ object Sharing {
         source.copyTo(copy, overwrite = true)
         val uri = FileProvider.getUriForFile(context, context.packageName + ".files", copy)
         val send = Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        // QA R1-15: never offer this app itself as a target (it would re-import the coupon)
         return Intent.createChooser(send, null)
+            .putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, arrayOf(android.content.ComponentName(context, com.ouor.mycoupon.ui.MainActivity::class.java)))
     }
 
     fun imageMime(file: File): String {

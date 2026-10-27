@@ -91,6 +91,7 @@ import com.ouor.mycoupon.ui.component.fieldLabel
 import com.ouor.mycoupon.ui.component.firstReason
 import com.ouor.mycoupon.ui.component.loadImage
 import com.ouor.mycoupon.ui.component.reasonText
+import com.ouor.mycoupon.ui.component.subject
 import com.ouor.mycoupon.ui.theme.Spacing
 import com.ouor.mycoupon.ui.theme.statusColors
 import java.text.NumberFormat
@@ -316,7 +317,7 @@ private fun ReviewLine(field: String, reasons: List<String>?, onConfirm: () -> U
             Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (reason != "NOT_FOUND") TextButton({ onConfirm(); justConfirmed = true }, Modifier.heightIn(min = Spacing.touch)
-            .semantics { contentDescription = "${fieldLabel[field] ?: ""}이 맞아요" }) { Text("맞아요", style = MaterialTheme.typography.labelLarge) }
+            .semantics { contentDescription = "${(fieldLabel[field] ?: "").subject()} 맞아요" }) { Text("맞아요", style = MaterialTheme.typography.labelLarge) }
     }
 }
 

@@ -10,6 +10,7 @@ import com.ouor.mycoupon.ui.component.dotted
 import com.ouor.mycoupon.ui.component.firstReason
 import com.ouor.mycoupon.ui.component.reasonText
 import com.ouor.mycoupon.ui.component.state
+import com.ouor.mycoupon.ui.component.subject
 import com.ouor.mycoupon.ui.screen.timeLabel
 import com.ouor.mycoupon.ui.screen.usageMessage
 import com.ouor.mycoupon.domain.UsageInput
@@ -54,5 +55,12 @@ class UiFormatTest {
         assertEquals("남은 30,000원보다 많이 쓸 수 없어요", usageMessage(over, 30000, true))
         val same = runCatching { UsageInput.remaining(30000, 30000) }.exceptionOrNull() as UsageInputException
         assertEquals("잔액이 그대로예요. 쓴 금액이 있을 때 기록해 주세요", usageMessage(same, 30000, false))
+    }
+
+    @Test fun subjectParticle() {
+        assertEquals("번호가", "번호".subject())
+        assertEquals("상품명이", "상품명".subject())
+        assertEquals("금액이", "금액".subject())
+        assertEquals("메모가", "메모".subject())
     }
 }

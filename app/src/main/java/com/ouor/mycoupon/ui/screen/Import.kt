@@ -186,6 +186,7 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
     val readingNow = d.stage == DraftStage.READING
     val review = d.stage == DraftStage.DONE && d.isCoupon && d.duplicate == null && c?.needsCheck == true
     val large = isLargeFont()
+    val expired = c?.expiryDate?.isBefore(java.time.LocalDate.now()) == true
     val spoken = when {
         readingNow -> "읽는 중"
         d.stage == DraftStage.FAILED -> "읽지 못했어요, 직접 입력"
@@ -195,6 +196,7 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
             "확인 필요".takeIf { review },
             when (d.duplicate) { Duplicate.USED -> "이미 사용한 쿠폰이에요"; Duplicate.REGISTERED, Duplicate.IN_BATCH -> "이미 등록된 쿠폰"; null -> null },
             "쿠폰이 아닌 것 같아요".takeIf { !d.isCoupon },
+            "이미 만료됐어요".takeIf { expired && d.isCoupon && d.duplicate == null },
         ).joinToString(", ")
     }
     Card(
@@ -235,6 +237,9 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
                                     null -> if (!d.isCoupon) {
                                         StatusChip(Chip.NOT_COUPON)
                                         Text("쿠폰이 맞으면 체크해 주세요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    } else if (expired) {
+                                        StatusChip(Chip.EXPIRED_DRAFT)
+                                        Text("등록하면 지난 쿠폰으로 가요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                                 c?.brand?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -251,7 +256,7 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
                     if (c.needsReview.containsKey("expiryDate") && review) ReviewMark()
                     val other = c.needsReview.keys.any { it != "expiryDate" }
                     val line = listOfNotNull(
-                        c.code?.let { "번호 끝 ${it.filter(Char::isLetterOrDigit).takeLast(4)}" } ?: "번호 없음",
+                        c.code?.let { "번호 끝 ${it.filter(Char::isLetterOrDigit).takeLast(4)}" } ?: "번호를 찾지 못했어요 · 핀번호면 직접 입력해 주세요",
                         if (c.type == CouponType.AMOUNT) "금액권" + (c.faceValue?.let { " ${won(it)}" } ?: "") else "교환·할인권",
                     ).joinToString(" · ")
                     Text(line, Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

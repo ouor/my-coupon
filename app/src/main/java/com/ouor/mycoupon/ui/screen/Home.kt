@@ -11,6 +11,8 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -91,6 +93,7 @@ import com.ouor.mycoupon.ui.Sharing
 import com.ouor.mycoupon.ui.component.AppSheet
 import com.ouor.mycoupon.ui.component.CouponCard
 import com.ouor.mycoupon.ui.component.EmptyState
+import com.ouor.mycoupon.ui.component.isLargeFont
 import com.ouor.mycoupon.ui.component.InfoBanner
 import com.ouor.mycoupon.ui.component.LocalSnackbar
 import com.ouor.mycoupon.ui.component.PrimaryButton
@@ -116,6 +119,10 @@ fun HomeScreen(nav: NavHostController) {
     var searching by rememberSaveable { mutableStateOf(st.query.isNotEmpty()) }
     val listState = rememberLazyListState()
     val atTop by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+    // QA R1-01: a banner inserted above the first visible item stays off screen; scroll it in when the user was at the top
+    LaunchedEffect(st.banner, searching) {
+        if (st.banner != null && !searching && listState.firstVisibleItemIndex <= 1) listState.animateScrollToItem(0)
+    }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { uris ->
         if (uris.isNotEmpty()) {
@@ -151,9 +158,13 @@ fun HomeScreen(nav: NavHostController) {
     ) { pad ->
         if (!st.loaded) return@Scaffold // no empty-state flash before the first DB emission
         if (!st.hasCoupons) {
-            Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) {
-                EmptyState(Icons.Rounded.ConfirmationNumber, "아직 쿠폰이 없어요", "쿠폰 사진을 고르면 알아서 읽어 등록해요",
-                    primary = "사진에서 추가" to pickPhotos, secondary = "갤러리에서 쿠폰 찾기" to { nav.navigate(Route.Gallery) })
+            Column(Modifier.padding(pad).fillMaxSize().padding(horizontal = Spacing.l)) {
+                // QA R1-17: new-images / notification banners matter most when the list is empty
+                st.banner?.let { b -> HomeBannerView(b, st.reviewCount, st.newImages, vm, nav, notifPermission::launch) }
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    EmptyState(Icons.Rounded.ConfirmationNumber, "아직 쿠폰이 없어요", "쿠폰 사진을 고르면 알아서 읽어 등록해요",
+                        primary = "사진에서 추가" to pickPhotos, secondary = "갤러리에서 쿠폰 찾기" to { nav.navigate(Route.Gallery) })
+                }
             }
             return@Scaffold
         }
@@ -162,12 +173,13 @@ fun HomeScreen(nav: NavHostController) {
             verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
             if (!searching) st.banner?.let { b -> item(key = "banner") { HomeBannerView(b, st.reviewCount, st.newImages, vm, nav, notifPermission::launch) } }
             item(key = "filters") {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                // QA R1-05: at 200 % the chips leave no room, so the sort button gets its own line (FlowRow wraps it)
+                FlowRow(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(Spacing.s), itemVerticalAlignment = Alignment.CenterVertically) {
                     FilterChip(!past, { vm.filter.value = ListFilter.AVAILABLE }, { Text("사용 가능 ${st.availableCount}", style = MaterialTheme.typography.labelLarge) },
                         Modifier.heightIn(min = Spacing.touch))
                     FilterChip(past, { vm.filter.value = ListFilter.PAST }, { Text("지난 쿠폰", style = MaterialTheme.typography.labelLarge) },
                         Modifier.heightIn(min = Spacing.touch))
-                    Spacer(Modifier.weight(1f))
+                    if (!isLargeFont()) Spacer(Modifier.weight(1f))
                     if (!past) SortMenu(st.sort) { vm.sort.value = it }
                 }
             }
@@ -254,7 +266,7 @@ private fun HomeBannerView(b: HomeBanner, review: Int, newImages: Int, vm: HomeV
                 } else openNotificationSettings(context)
             }) { Text("켜기") }
         }
-        HomeBanner.NEEDS_REVIEW -> InfoBanner(Icons.Rounded.ErrorOutline, "날짜를 확인할 쿠폰이 ${review}개 있어요", s.reviewContainer, cs.onSurface,
+        HomeBanner.NEEDS_REVIEW -> InfoBanner(Icons.Rounded.ErrorOutline, "확인할 쿠폰이 ${review}개 있어요", s.reviewContainer, cs.onSurface,
             onClick = { vm.state.value.firstReviewId?.let { nav.navigate(Route.EditCoupon(it)) } })
         HomeBanner.NEW_IMAGES -> InfoBanner(Icons.Rounded.ImageSearch, "새 쿠폰 이미지 ${newImages}장이 있어요", cs.primaryContainer, cs.onPrimaryContainer) {
             TextButton({ vm.reviewNewImages(); nav.navigate(Route.Import) }) { Text("확인하기") }

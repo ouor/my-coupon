@@ -46,12 +46,13 @@ fun StatusChip(text: String, icon: ImageVector, fg: Color, container: Color, mod
 }
 
 /** Chips for the ended states and the S4 verdicts. */
-enum class Chip { EXPIRED, USED, GIVEN, NOT_COUPON, REGISTERED, ALREADY_USED, AVAILABLE }
+enum class Chip { EXPIRED_DRAFT, EXPIRED, USED, GIVEN, NOT_COUPON, REGISTERED, ALREADY_USED, AVAILABLE }
 
 @Composable
 fun StatusChip(kind: Chip, modifier: Modifier = Modifier, suffix: String = "") {
     val s = MaterialTheme.statusColors
     val (text, icon, colors) = when (kind) {
+        Chip.EXPIRED_DRAFT -> Triple("이미 만료됐어요", Icons.Rounded.EventBusy, s.soon to s.soonContainer)
         Chip.EXPIRED -> Triple("만료", Icons.Rounded.EventBusy, s.ended to s.endedContainer)
         Chip.USED -> Triple("사용 완료", Icons.Rounded.TaskAlt, s.ended to s.endedContainer)
         Chip.GIVEN -> Triple("넘김", Icons.AutoMirrored.Rounded.Send, s.ended to s.endedContainer)

@@ -177,8 +177,12 @@ class CouponViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val brands: StateFlow<List<String>> = repo.observeBrands().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** QA R1-09: an old notification/widget link to a deleted (or re-imported) coupon id */
+    val missing = MutableStateFlow(false)
+
     fun load(couponId: Long, fromReminder: Boolean = false) {
         id.value = couponId
+        viewModelScope.launch { missing.value = repo.get(couponId) == null }
         if (fromReminder) viewModelScope.launch { actions.openedFromReminder(couponId) }
     }
 

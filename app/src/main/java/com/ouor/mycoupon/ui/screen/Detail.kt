@@ -19,6 +19,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.material.icons.rounded.SearchOff
+import com.ouor.mycoupon.ui.component.EmptyState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -205,6 +211,16 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
     val share = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { askGiven = true }
     val trash = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { vm.trashAnswered(); finishing?.let { leave(nav, snackbar, homeVm, id, it) } }
 
+    val missing by vm.missing.collectAsState()
+    if (c == null && missing) {
+        Scaffold(topBar = { AppTopBar("", onBack = { nav.toHome() }) }) { pad ->
+            Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) {
+                EmptyState(Icons.Rounded.SearchOff, "이 쿠폰을 찾을 수 없어요", "지웠거나 백업에서 다시 불러온 쿠폰이에요. 목록에서 찾아 주세요",
+                    primary = "내 쿠폰 목록" to { nav.toHome() })
+            }
+        }
+        return@MyCouponTheme
+    }
     val coupon = c ?: return@MyCouponTheme
     val today = LocalDate.now()
     val state = coupon.state(today)
@@ -275,13 +291,18 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
 
             if (coupon.type == CouponType.AMOUNT) {
                 val bal = coupon.balance ?: coupon.faceValue
-                Row(Modifier.fillMaxWidth().heightIn(min = Spacing.touch).clickable(enabled = usage.isNotEmpty()) { history = !history },
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text("잔액 ", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(bal?.let(::won) ?: "-", style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"))
-                    coupon.faceValue?.let { Text(" / ${won(it)}", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                // QA R1-05: FlowRow so "사용 기록 N건" drops to its own line at 200 % instead of being squeezed letter by letter
+                FlowRow(Modifier.fillMaxWidth().heightIn(min = Spacing.touch).clickable(enabled = usage.isNotEmpty()) { history = !history }
+                    .padding(bottom = Spacing.l), itemVerticalAlignment = Alignment.CenterVertically) {
+                    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+                    val big = MaterialTheme.typography.titleLarge.toSpanStyle()
+                    Text(buildAnnotatedString {
+                        withStyle(SpanStyle(color = muted)) { append("잔액 ") }
+                        withStyle(big) { append(bal?.let(::won) ?: "-") }
+                        coupon.faceValue?.let { withStyle(SpanStyle(color = muted)) { append(" / ${won(it)}") } }
+                    }, style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"))
                     Spacer(Modifier.weight(1f))
-                    if (usage.isNotEmpty()) {
+                    if (usage.isNotEmpty()) Row(Modifier.heightIn(min = Spacing.touch), verticalAlignment = Alignment.CenterVertically) {
                         Text("사용 기록 ${usage.size}건", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                         Icon(if (history) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = MaterialTheme.colorScheme.primary)
                     }
