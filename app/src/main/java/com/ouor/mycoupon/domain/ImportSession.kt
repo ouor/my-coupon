@@ -27,6 +27,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -125,7 +126,8 @@ class ImportSession @Inject constructor(
 
     init {
         scope.launch {
-            _state.collect { st ->
+            // drop(1): the empty start state of a new process must not erase the list before AppData.cleanUp reads it
+            _state.drop(1).collect { st ->
                 val paths = st.drafts.mapNotNull { it.coupon }.flatMap { listOf(it.imagePath, it.thumbPath) }
                 runCatching { if (paths.isEmpty()) pending.delete() else pending.writeText(paths.joinToString("\n")) }
             }
