@@ -55,6 +55,10 @@ class PaddleOcrEngine private constructor(
         if (options.arena && options.shrinkArena) addRunConfigEntry("memory.enable_memory_arena_shrinkage", "cpu:0")
     }
 
+    /** Rec batches that could not use the pinned output (T formula did not hold); tests expect 0. */
+    var pinnedMisses = 0
+        private set
+
     @Volatile
     var lastTimings: Timings? = null
         private set
@@ -67,8 +71,19 @@ class PaddleOcrEngine private constructor(
             setMemoryPatternOptimization(false) // shapes change every call
         }
         det = detSession(env, so)
-        rec = recSession(env, so)
-        so.close()
+        rec = try {
+            recSession(env, so)
+        } catch (e: Exception) {
+            det.close() // no leaked det session when rec fails (code review O-04)
+            throw e
+        } finally {
+            so.close()
+        }
+        val classes = (rec.outputInfo.values.first().info as ai.onnxruntime.TensorInfo).shape.last()
+        if (classes != chars.size.toLong()) {
+            close()
+            throw IllegalStateException("rec model has $classes classes, dict gives ${chars.size}") // O-11: wrong dict = silently wrong text
+        }
     }
 
     fun recognize(img: BgrImage): List<OcrLine> {
@@ -108,18 +123,17 @@ class PaddleOcrEngine private constructor(
         val (rh, rw) = detResize(img.height, img.width)
         val r = ImageOps.resizeLinear(img, rw, rh)
         val plane = rh * rw
-        val buf = FloatBuffer.allocate(3 * plane)
+        val buf = direct(3 * plane) // direct: ORT uses it in place instead of copying it (code review O-03)
         val mean = floatArrayOf(0.485f, 0.456f, 0.406f)
         val std = floatArrayOf(0.229f, 0.224f, 0.225f)
-        val arr = buf.array()
         for (i in 0 until plane) for (c in 0 until 3) {
-            arr[c * plane + i] = ((r.data[i * 3 + c].toInt() and 0xFF) / 255f - mean[c]) / std[c]
+            buf.put(c * plane + i, ((r.data[i * 3 + c].toInt() and 0xFF) / 255f - mean[c]) / std[c])
         }
         val pred = OnnxTensor.createTensor(env, buf, longArrayOf(1, 3, rh.toLong(), rw.toLong())).use { x ->
             det.run(mapOf("x" to x), runOptions).use { res ->
-                val t = res[0] as OnnxTensor
-                val fb = t.floatBuffer
-                FloatArray(fb.remaining()).also { fb.get(it) }
+                val fb = (res[0] as OnnxTensor).floatBuffer // already a heap copy: take its array, no second copy
+                if (fb.hasArray() && fb.arrayOffset() == 0 && fb.position() == 0 && fb.remaining() == fb.array().size) fb.array()
+                else FloatArray(fb.remaining()).also { fb.get(it) }
             }
         }
         return DbPostprocess.boxes(pred, rw, rh, img.width, img.height)
@@ -147,31 +161,46 @@ class PaddleOcrEngine private constructor(
             val widths = chunk.map { recWidth(crops[it]) } // padded width of each crop
             val maxW = widths.max()
             val plane = 48 * maxW
-            val buf = FloatBuffer.allocate(chunk.size * 3 * plane) // zero padded
-            val arr = buf.array()
+            val buf = direct(chunk.size * 3 * plane) // zero padded, used in place by ORT
             chunk.forEachIndexed { k, i ->
                 val c = crops[i]
                 val rw = if (widths[k] >= MAX_REC_W) MAX_REC_W else minOf(widths[k], ceil(48.0 * c.width / c.height).toInt())
                 val r = ImageOps.resizeLinear(c, rw.coerceAtLeast(1), 48)
                 val base = k * 3 * plane
                 for (y in 0 until 48) for (x in 0 until r.width) for (ch in 0 until 3) {
-                    arr[base + ch * plane + y * maxW + x] = ((r.data[(y * r.width + x) * 3 + ch].toInt() and 0xFF) / 255f - 0.5f) / 0.5f
+                    buf.put(base + ch * plane + y * maxW + x, ((r.data[(y * r.width + x) * 3 + ch].toInt() and 0xFF) / 255f - 0.5f) / 0.5f)
                 }
             }
             OnnxTensor.createTensor(env, buf, longArrayOf(chunk.size.toLong(), 3, 48, maxW.toLong())).use { x ->
-                rec.run(mapOf("x" to x), runOptions).use { out ->
-                    val t = out[0] as OnnxTensor
-                    val shape = t.info.shape // [N, T, C]
-                    val steps = shape[1].toInt()
-                    val classes = shape[2].toInt()
-                    // [N, T, 11947] probabilities can reach ~230 MB for wide lines: read the buffer in place, no extra array
-                    val probs = t.floatBuffer
+                // [N, T, 11947] probabilities reach ~115 MB for 6 wide lines. ORT's getFloatBuffer() copies the native output
+                // to the heap, so the output goes into our own direct buffer instead: one copy, not two (code review O-01).
+                val steps = (maxW + 3) / 8 // PP-OCRv5 rec: T = floor((W + 3) / 8), checked for W 320..720 and 3150..3200
+                val classes = chars.size
+                val probs = direct(chunk.size * steps * classes)
+                val pinned = runCatching {
+                    OnnxTensor.createTensor(env, probs, longArrayOf(chunk.size.toLong(), steps.toLong(), classes.toLong()))
+                }.getOrNull()
+                val ran = pinned?.use { o ->
+                    runCatching { rec.run(mapOf("x" to x), emptySet(), mapOf(recOutput to o), runOptions).close() }.isSuccess
+                } == true
+                if (ran) {
                     chunk.forEachIndexed { k, i -> res[i] = ctc(probs, k * steps * classes, steps, classes) }
+                } else rec.run(mapOf("x" to x), runOptions).use { out -> // a model whose T differs: the copying path
+                    pinnedMisses++
+                    val t = out[0] as OnnxTensor
+                    val shape = t.info.shape
+                    val p = t.floatBuffer
+                    chunk.forEachIndexed { k, i -> res[i] = ctc(p, k * shape[1].toInt() * shape[2].toInt(), shape[1].toInt(), shape[2].toInt()) }
                 }
             }
         }
         return res.map { it!! }
     }
+
+    private val recOutput: String = rec.outputNames.first()
+
+    private fun direct(floats: Int): FloatBuffer =
+        java.nio.ByteBuffer.allocateDirect(floats * 4).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()
 
     private fun recWidth(c: BgrImage): Int {
         val ratio = max(320.0 / 48, c.width.toDouble() / c.height)
