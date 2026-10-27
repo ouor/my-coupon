@@ -28,7 +28,7 @@ CASES = [
             L("메신저 선물하기", 301, 1524, 554, 1570),
         ],
         "barcodes": [BC("111122223333", 167, 946, 632, 1093)], "width": 800, "height": 1670,
-    }, {"isCoupon": True, "brand": "영화관A", "productName": "콤보세트(팝콘L 1개 +음료M 2 개)", "type": "EXCHANGE",
+    }, {"isCoupon": True, "brand": "영화관A", "productName": "콤보세트(팝콘L 1개 +음료M 2개)", "type": "EXCHANGE",
         "code": "111122223333", "codeSource": "DECODED", "expiryDate": "2027-01-05", "issuer": "메신저 선물하기",
         "needsReview": {}}),
 
@@ -43,7 +43,7 @@ CASES = [
             L("ShopLogo", 415, 2008, 674, 2091),
         ],
         "barcodes": [BC("444455556666", 230, 1480, 850, 1660)], "width": 1080, "height": 2157,
-    }, {"isCoupon": True, "brand": "카페B", "productName": "(카페B)(ICE)바닐라라 떼", "expiryDate": "2026-11-20",
+    }, {"isCoupon": True, "brand": "카페B", "productName": "(카페B) (ICE)바닐라라떼", "expiryDate": "2026-11-20",
         "needsReview": {}}),
 
     ("amount_voucher", {
@@ -159,4 +159,30 @@ CASES = [
         ],
         "barcodes": [BC("666677778888", 150, 400, 650, 580)], "width": 800, "height": 700,
     }, {"expiryDate": None, "needsReview": {"expiryDate": ["NOT_FOUND"], "brand": ["NOT_FOUND"]}}),
+
+    # v3: a big "500원 할인" block under the full title is a highlight; the longer title is the product
+    ("discount_block_under_title", {
+        "lines": [
+            L("편의점M", 60, 40, 200, 80),
+            L("편의점M 500원 할인", 200, 150, 600, 195),
+            L("500원 할인", 220, 230, 580, 330),
+            L("사용기간", 40, 400, 150, 440), L("2026.09.01 ~ 2026.09.30", 400, 400, 760, 440),
+            L("1212 3434 5656 7878", 200, 800, 600, 840),
+            L("쿠폰 유의사항", 40, 900, 200, 940),
+            L("-3,000원 이상 구매 시 사용 가능", 60, 960, 600, 990),
+        ],
+        "barcodes": [BC("1212343456567878", 150, 600, 650, 790)], "width": 800, "height": 1100,
+    }, {"isCoupon": True, "brand": "편의점M", "productName": "편의점M 500원 할인", "type": "EXCHANGE", "faceValue": None,
+        "expiryDate": "2026-09-30", "needsReview": {}}),
+
+    # v3 seam: a first line with spaces keeps a space at the wrap; "[EVENT]" prefix gets its space back
+    ("wrap_spaced_title_keeps_space", {
+        "lines": [
+            L("사용처", 40, 700, 150, 740), L("분식N 매장", 500, 700, 700, 740),
+            L("[EVENT]분식N 치즈 떡볶이 세트와", 60, 400, 740, 450),
+            L("튀김 모둠", 300, 458, 500, 505),
+            L("2026.10.31까지 사용", 250, 560, 650, 600),
+        ],
+        "barcodes": [BC("998877665544", 150, 800, 650, 950)], "width": 800, "height": 1000,
+    }, {"brand": "분식N", "productName": "[EVENT] 분식N 치즈 떡볶이 세트와 튀김 모둠", "needsReview": {}}),
 ]

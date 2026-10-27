@@ -10,7 +10,7 @@ relative geometry (in line heights / image width), generic Korean coupon vocabul
 import datetime as dt
 import re
 
-VERSION = "2"
+VERSION = "3"
 
 MIN_SCORE = 0.6        # step 1: lines below this are noise
 ROW_OVERLAP = 0.5      # step 2: vertical overlap / smaller box height to share a row
@@ -116,6 +116,24 @@ def repeats(a, b):
     return any(w in words for w in re.findall(r"[가-힣A-Za-z0-9]{2,}", b))
 
 
+def seam(a, b):
+    """What joins a wrapped line to the next (v3). Without a lexicon we cannot tell a word break from a break inside
+    a word, so only follow what the text itself shows:
+    - "+" or an opening bracket/slash at the seam: no space ("콜라R" + "+쉐이킹…")
+    - a numeral followed by Hangul (a counter, "1" + "개)"): no space, as Korean writes "1개"
+    - the first line, past its leading bracket prefixes, has no space at all: the title is set without spaces,
+      so a break inside that run is inside a word ("(ICE)아메" + "리카노")
+    otherwise one space."""
+    if b.startswith("+") or a.endswith(("+", "(", "/")):
+        return ""
+    if re.search(r"\d$", a) and re.match(r"[가-힣]", b):
+        return ""
+    body = re.sub(r"^(\s*[\[(][^\])]*[\])])+", "", a)
+    if body and not re.search(r"\s", body) and re.search(r"[가-힣]$", a) and re.match(r"[가-힣]", b):
+        return ""
+    return " "
+
+
 def merge_wraps(rows):
     widest = max((b["x1"] - b["x0"] for r in rows for b in r), default=1)
     out = []
@@ -130,7 +148,7 @@ def merge_wraps(rows):
                     and wa >= WRAP_WIDTH * widest and wb <= wa
                     and not BULLET.match(b["text"])
                     and not any(FULL.search(t) or NUM.search(t) for t in (a["text"], b["text"]))):  # a date or code line is its own field
-                glue = "" if b["text"].startswith("+") or a["text"].endswith(("+", "(", "/")) else " "
+                glue = seam(a["text"], b["text"])
                 m = run(a["text"] + glue + b["text"], union([rbox(a), rbox(b)]), min(a["score"], b["score"]), a["h"])
                 m.update(lh=hb, lw=wb)
                 out[-1] = [m]
@@ -352,9 +370,11 @@ def pick_product(rows, limit_y, brand):
     if not cands:
         return None
     _, _, c, i = max(cands, key=lambda x: (x[0], x[1]))
-    # a big brand title right above a title that repeats it ("버거킹" / "(버거킹)치즈와퍼…"): the longer line is the product
-    for _, _, d, j in sorted(cands, key=lambda x: x[3]):
-        if i < j <= i + 2 and norm(c["value"]) in norm(d["value"]) and len(norm(d["value"])) > len(norm(c["value"])):
+    # the biggest line is repeated inside a longer title within 2 rows: it is a highlight of that title, the longer
+    # line is the product. Below: a brand title over "(버거킹)치즈와퍼…". Above (v3): a big "500원 할인" block under
+    # "편의점D 500원 할인". Nearest row first, then the upper one.
+    for _, _, d, j in sorted(cands, key=lambda x: (abs(x[3] - i), x[3])):
+        if j != i and abs(j - i) <= 2 and norm(c["value"]) in norm(d["value"]) and len(norm(d["value"])) > len(norm(c["value"])):
             return d, j, [x[2] for x in cands]
     return c, i, [x[2] for x in cands]
 
@@ -392,6 +412,15 @@ def repeated_fix(text, rows):
         return m.group(0)
 
     return re.sub(r"([(\[])([^()\[\]]{3,})([)\]])", fix, text)
+
+
+def prefix_space(text, brand):
+    """Display (v3): a leading "[EVENT]" tag or "(<brand>)" prefix is followed by one space; OCR tends to drop the
+    narrow space after a closing bracket. Other brackets ("(ICE)아메리카노") are left as read."""
+    m = re.match(r"^(\s*[\[(]([^\])]{1,15})[\])])\s*(?=\S)", text)
+    if m and (TAGS.match(m.group(2).strip()) or (brand and norm(m.group(2)) == norm(brand))):
+        return m.group(1).strip() + " " + text[m.end():]
+    return text
 
 
 def brand_near_product(rows, pi, prod):
@@ -494,6 +523,7 @@ def extract(lines, barcodes, width, height):
             brand, boxes["brand"], bscore = labelled
         elif near:
             brand, boxes["brand"], bscore = near
+        product = prefix_space(product, brand)
         rv = (["AMBIGUOUS"] if ambiguous(prod, cands, brand) else []) + (["LOW_CONFIDENCE"] if prod["score"] < REVIEW_SCORE else [])
         if rv:
             review["productName"] = rv

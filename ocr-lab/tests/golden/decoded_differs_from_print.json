@@ -140,7 +140,7 @@
   "height": 700
  },
  "expected": {
-  "version": "2",
+  "version": "3",
   "isCoupon": true,
   "brand": "분식F",
   "productName": "분식F 떡볶이",

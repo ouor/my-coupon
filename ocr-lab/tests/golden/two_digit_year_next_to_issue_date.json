@@ -118,7 +118,7 @@
   "height": 700
  },
  "expected": {
-  "version": "2",
+  "version": "3",
   "isCoupon": false,
   "brand": null,
   "productName": "카페K 라떼",

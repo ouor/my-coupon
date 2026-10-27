@@ -294,10 +294,10 @@
   "height": 1670
  },
  "expected": {
-  "version": "2",
+  "version": "3",
   "isCoupon": true,
   "brand": "영화관A",
-  "productName": "콤보세트(팝콘L 1개 +음료M 2 개)",
+  "productName": "콤보세트(팝콘L 1개 +음료M 2개)",
   "type": "EXCHANGE",
   "faceValue": null,
   "code": "111122223333",
@@ -355,7 +355,7 @@
     "notes": false
    },
    {
-    "text": "콤보세트(팝콘L 1개 +음료M 2 개)",
+    "text": "콤보세트(팝콘L 1개 +음료M 2개)",
     "box": [
      70,
      801,

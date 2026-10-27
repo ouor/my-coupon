@@ -140,7 +140,7 @@
   "height": 700
  },
  "expected": {
-  "version": "2",
+  "version": "3",
   "isCoupon": true,
   "brand": "카페H",
   "productName": "카페H 아메리카노",

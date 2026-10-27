@@ -95,7 +95,7 @@
   "height": 900
  },
  "expected": {
-  "version": "2",
+  "version": "3",
   "isCoupon": true,
   "brand": "빵집E",
   "productName": "빵집E 크루아상 세트",

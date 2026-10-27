@@ -162,7 +162,7 @@
   "height": 900
  },
  "expected": {
-  "version": "2",
+  "version": "3",
   "isCoupon": true,
   "brand": null,
   "productName": "딸기 케이크 조각",

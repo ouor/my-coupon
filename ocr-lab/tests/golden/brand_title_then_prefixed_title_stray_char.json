@@ -184,10 +184,10 @@
   "height": 2157
  },
  "expected": {
-  "version": "2",
+  "version": "3",
   "isCoupon": true,
   "brand": "카페B",
-  "productName": "(카페B)(ICE)바닐라라 떼",
+  "productName": "(카페B) (ICE)바닐라라떼",
   "type": "EXCHANGE",
   "faceValue": null,
   "code": "444455556666",
@@ -239,7 +239,7 @@
     "notes": false
    },
    {
-    "text": "(카페BI)(ICE)바닐라라 떼",
+    "text": "(카페BI)(ICE)바닐라라떼",
     "box": [
      243,
      1167,

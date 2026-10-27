@@ -272,10 +272,10 @@
   "height": 1562
  },
  "expected": {
-  "version": "2",
+  "version": "3",
   "isCoupon": true,
   "brand": "버거C",
-  "productName": "[EVENT]버거C 모바일금액권 5만원권",
+  "productName": "[EVENT] 버거C 모바일금액권 5만원권",
   "type": "AMOUNT",
   "faceValue": 50000,
   "code": "1234567890123456",
