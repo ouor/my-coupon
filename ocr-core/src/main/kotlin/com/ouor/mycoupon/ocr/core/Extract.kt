@@ -5,12 +5,12 @@ import java.time.LocalDate
 
 /**
  * Coupon field extraction from OCR lines + decoded barcodes: a line-for-line port of ocr-lab/extract.py
- * (VERSION "2", rules in docs/ocr/porting-spec.md). Keep it a port: change the Python first, then mirror here;
+ * (VERSION "3", rules in docs/ocr/porting-spec.md). Keep it a port: change the Python first, then mirror here;
  * ExtractParityTest compares every key with the goldens.
  * Python `re` is Unicode-aware, hence Unicode character classes on every pattern; lengths count code points like Python len().
  */
 object Extract {
-    const val VERSION = "2"
+    const val VERSION = "3"
 
     private const val MIN_SCORE = 0.6
     private const val ROW_OVERLAP = 0.5
@@ -148,7 +148,7 @@ object Extract {
                     !BULLET.containsMatchIn(b.text) &&
                     listOf(a.text, b.text).none { FULL.containsMatchIn(it) || NUM.containsMatchIn(it) }
                 ) {
-                    val glue = if (b.text.startsWith("+") || listOf("+", "(", "/").any { a.text.endsWith(it) }) "" else " "
+                    val glue = seam(a.text, b.text)
                     val m = run(a.text + glue + b.text, union(listOf(a.box, b.box)), minOf(a.score, b.score), a.h)
                     out[out.size - 1] = listOf(Run(m.text, m.x0, m.y0, m.x1, m.y1, m.h, m.score, lh = hb, lw = wb))
                     continue
@@ -374,6 +374,32 @@ object Extract {
         return !COUPON_WORDS.matches(norm(v))
     }
 
+    private val DIGIT_END = re("\\d$")
+    private val HANGUL_START = re("^[가-힣]")
+    private val HANGUL_END = re("[가-힣]$")
+    private val BRACKET_PREFIXES = re("^(\\s*[\\[(][^\\])]*[\\])])+")
+    private val SPACE = re("\\s")
+    private val PREFIX = re("^(\\s*[\\[(]([^\\])]{1,15})[\\])])\\s*(?=\\S)")
+
+    /** v3: what joins a wrapped line to the next (porting-spec step 3 `seam`). */
+    private fun seam(a: String, b: String): String {
+        if (b.startsWith("+") || listOf("+", "(", "/").any { a.endsWith(it) }) return ""
+        if (DIGIT_END.containsMatchIn(a) && HANGUL_START.containsMatchIn(b)) return ""
+        val body = BRACKET_PREFIXES.replaceFirst(a, "")
+        if (body.isNotEmpty() && !SPACE.containsMatchIn(body) && HANGUL_END.containsMatchIn(a) && HANGUL_START.containsMatchIn(b)) return ""
+        return " "
+    }
+
+    /** v3 display: one space after a leading tag or brand bracket prefix. */
+    private fun prefixSpace(text: String, brand: String?): String {
+        val m = PREFIX.find(text) ?: return text
+        val inner = m.groupValues[2]
+        if (TAGS.containsMatchIn(strip(inner)) || (!brand.isNullOrEmpty() && norm(inner) == norm(brand))) {
+            return strip(m.groupValues[1]) + " " + text.substring(m.range.last + 1)
+        }
+        return text
+    }
+
     private class Product(val cell: Cell, val index: Int, val cands: List<Cell>)
 
     private fun pickProduct(rows: List<Row>, limitY: Double, brand: String?): Product? {
@@ -391,10 +417,11 @@ object Extract {
         val best = cands.maxWith(compareBy<C>({ it.h }, { it.negY }))
         val c = best.c
         val i = best.i
-        for (x in cands.sortedBy { it.i }) {
+        // nearest row first, then the upper one (v3: 2 rows up and down; v2 looked below only)
+        for (x in cands.sortedWith(compareBy<C>({ kotlin.math.abs(it.i - i) }, { it.i }))) {
             val d = x.c
             val j = x.i
-            if (j > i && j <= i + 2 && norm(d.value).contains(norm(c.value)) && len(norm(d.value)) > len(norm(c.value))) {
+            if (j != i && kotlin.math.abs(j - i) <= 2 && norm(d.value).contains(norm(c.value)) && len(norm(d.value)) > len(norm(c.value))) {
                 return Product(d, j, cands.map { it.c })
             }
         }
@@ -550,6 +577,7 @@ object Extract {
                 boxes[Field.BRAND] = chosen.box
                 bscore = chosen.score
             }
+            product = prefixSpace(product, brand)
             val rv = ArrayList<ReviewReason>()
             if (ambiguous(prod, pp.cands, brand)) rv.add(ReviewReason.AMBIGUOUS)
             if (prod.score < REVIEW_SCORE) rv.add(ReviewReason.LOW_CONFIDENCE)

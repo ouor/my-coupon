@@ -88,10 +88,10 @@ class AppPathTest {
     private fun JsonObject.str(k: String) = (this[k] as? JsonPrimitive)?.takeIf { it.isString || it.content != "null" }?.content
 
     private companion object {
-        /** Measured 2026-10-28 on the 56 .test coupons. */
+        /** Measured 2026-10-28 on the 56 .test coupons (extract v3: product 54 -> 56). */
         val BASELINE = mapOf(
             "images" to 56, "coupon" to 56, "decoded" to 52, "code box tall" to 52, "box like PC" to 52,
-            "expiry" to 56, "code" to 56, "brand" to 56, "product" to 54, "type" to 56, "face" to 5,
+            "expiry" to 56, "code" to 56, "brand" to 56, "product" to 56, "type" to 56, "face" to 5,
         )
     }
 }

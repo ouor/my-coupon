@@ -30,7 +30,7 @@ class ExtractParityTest {
     fun synthetic() {
         val dir = File(System.getProperty("mycoupon.golden"))
         val files = dir.listFiles { f -> f.name.endsWith(".json") }!!.sorted()
-        assertEquals(12, files.size)
+        assertEquals(14, files.size)
         val fails = files.filter { f -> diff(f).also { if (it.isNotEmpty()) println("FAIL ${f.name}: $it") }.isNotEmpty() }
         assertTrue("${fails.size} synthetic goldens differ", fails.isEmpty())
     }
