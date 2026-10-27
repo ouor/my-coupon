@@ -170,3 +170,5 @@ dependencies {
 
 // code review A-01: the exported schemas are committed; MigrationTestHelper reads them as test assets
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
+// a new N.json is written by KSP; merge the test assets after it, or a clean build misses it
+tasks.matching { it.name == "mergeDebugAssets" }.configureEach { dependsOn("kspDebugKotlin") }

@@ -6,7 +6,7 @@ import java.io.File
 
 /**
  * Code rule for QA R1-19 / security S-06: an exception message never carries coupon data (code, PIN, brand, product,
- * memo). Android's pre-handler writes the original uncaught exception to the crash log buffer before CrashLog can scrub
+ * memo, authCode, givenTo). Android's pre-handler writes the original uncaught exception to the crash log buffer before CrashLog can scrub
  * it, so the only fix is not to put the data there. This test finds every string template inside an exception or
  * require/check/error message in production sources; each interpolated expression must be on the allow list below,
  * with a reason. A new one fails the build until it is reviewed here.

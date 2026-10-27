@@ -28,6 +28,8 @@ class BackupFormatTest {
         assertEquals(listOf(LocalDate.of(2027, 3, 31), LocalDate.of(2027, 4, 30)), c.expiryCandidates)
         assertEquals("real-hash", c.imageHash) // S-04: the file's claim is ignored
         assertNull(c.sourceUri)
+        assertNull(c.authCode) // cycle-1 file: the v2 fields default to null (C2-19 AC3)
+        assertNull(c.givenTo)
         assertEquals(0L, c.id)
         assertEquals(mapOf("expiryDate" to listOf("NO_KEYWORD")), c.needsReview)
 
@@ -52,6 +54,7 @@ class BackupFormatTest {
     @Test
     fun roundTrip() {
         val c = Coupon(brand = "B", type = CouponType.AMOUNT, faceValue = 5000, balance = 5000, code = "1", codeSource = CodeSource.OCR,
+            authCode = "A12", givenTo = "G",
             expiryDate = LocalDate.of(2027, 1, 1), imagePath = "/x", thumbPath = "/t", imageHash = "h", createdAt = 1, updatedAt = 2)
         val text = json.encodeToString(CouponV1.serializer(), BackupFormat.toFile(c, "images/0"))
         val back = BackupFormat.toEntity(json.decodeFromString(CouponV1.serializer(), text), "/x", "/t", "h")

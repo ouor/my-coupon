@@ -115,11 +115,11 @@ class CouponRepository @Inject constructor(
     fun changed() = listeners.forEach { it.onCouponsChanged() }
 
     companion object {
-        /** spec F5 search: brand / product / memo, case- and space-insensitive substring. */
+        /** spec F5 search: brand / product / memo / given-to (C2-25), case- and space-insensitive substring. */
         fun matches(c: Coupon, q: String): Boolean {
             val k = q.filterNot { it.isWhitespace() }.lowercase()
             if (k.isEmpty()) return true
-            return listOfNotNull(c.brand, c.productName, c.memo).any { it.filterNot(Char::isWhitespace).lowercase().contains(k) }
+            return listOfNotNull(c.brand, c.productName, c.memo, c.givenTo).any { it.filterNot(Char::isWhitespace).lowercase().contains(k) }
         }
 
         fun list(all: List<Coupon>, f: ListFilter, s: ListSort, q: String, today: LocalDate): List<Coupon> {

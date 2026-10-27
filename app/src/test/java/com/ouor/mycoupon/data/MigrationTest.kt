@@ -2,10 +2,13 @@ package com.ouor.mycoupon.data
 
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
+import androidx.sqlite.execSQL
 import androidx.sqlite.driver.AndroidSQLiteDriver
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,10 +34,36 @@ class MigrationTest {
         helper.createDatabase(1).close()
         // validates the DB built from 1.json (tables, columns, indices, foreign keys)
         helper.runMigrationsAndValidate(1, emptyList()).close()
-        // and the app's Room code accepts it: its identity hash equals the current entities'
+    }
+
+    /** v1 -> v2 (C2-19, C2-25): every v1 value survives, the new columns are null (spec C2-19 AC2). */
+    @Test
+    fun v1To2KeepsRows() {
+        helper.createDatabase(1).use { c ->
+            c.execSQL(
+                "INSERT INTO coupon (id, brand, productName, type, faceValue, balance, code, codeKey, codeFormat, codeSource, " +
+                    "expiryDate, issuer, notes, memo, needsReview, fieldBoxes, expiryCandidates, imagePath, thumbPath, imageWidth, " +
+                    "imageHeight, imageHash, sourceUri, status, usedReason, usedAt, usedViaReminder, reminderOpenedAt, " +
+                    "reminderOffsets, trashAsked, createdAt, updatedAt) VALUES (7, 'B', 'P', 'AMOUNT', 10000, 4000, '1234', '1234', " +
+                    "'CODE_128', 'DECODED', 20000, 'I', 'N', 'M', '{}', '{}', '', 'i.jpg', 't.jpg', 10, 20, 'h', NULL, 'ACTIVE', " +
+                    "NULL, NULL, 0, NULL, '7,1', 0, 1, 2)",
+            )
+            c.execSQL("INSERT INTO usage_log (id, couponId, at, spent, balanceAfter, kind) VALUES (1, 7, 5, 6000, 4000, 'USE')")
+        }
+        helper.runMigrationsAndValidate(2, emptyList()).close()
         val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java, file.path)
             .setDriver(AndroidSQLiteDriver()).build()
-        runBlocking { db.coupons().all() }
+        runBlocking {
+            val c = db.coupons().get(7)!!
+            assertEquals(listOf("B", "P", "1234", "M"), listOf(c.brand, c.productName, c.code, c.memo))
+            assertEquals(4000L, c.balance)
+            assertEquals(listOf(7, 1), c.reminderOffsets)
+            assertNull(c.authCode)
+            assertNull(c.givenTo)
+            assertEquals(1, db.usage().list(7).size)
+            db.coupons().update(c.copy(authCode = "A1", givenTo = "G"))
+            assertEquals("A1", db.coupons().get(7)!!.authCode)
+        }
         db.close()
     }
 }

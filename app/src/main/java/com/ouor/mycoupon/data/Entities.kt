@@ -48,6 +48,10 @@ data class Coupon(
     val notes: String? = null,
     /** free memo; the detected sender lands here (F2) */
     val memo: String? = null,
+    /** C2-19 (schema v2): auth code / PIN printed apart from the barcode, typed by the user only. Never in logs or exceptions. */
+    val authCode: String? = null,
+    /** C2-25 (schema v2): who it was given to (usedReason GIVEN), optional. Never in logs or exceptions. */
+    val givenTo: String? = null,
     /** field key (porting-spec: brand, productName, faceValue, code, expiryDate, sender) -> reason codes. Empty = nothing to check. */
     val needsReview: Map<String, List<String>> = emptyMap(),
     /** field key -> [x0, y0, x1, y1] in original-image pixels (S5 highlight) */

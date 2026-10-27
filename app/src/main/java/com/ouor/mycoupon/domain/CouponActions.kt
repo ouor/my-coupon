@@ -56,8 +56,8 @@ object UsageInput {
 @Singleton
 class CouponActions @Inject constructor(private val repo: CouponRepository) {
 
-    /** Exchange coupon [사용 완료], or F16 [넘겼어요] with [UsedReason.GIVEN]. */
-    suspend fun markUsed(id: Long, reason: UsedReason = UsedReason.USED) = repo.transaction {
+    /** Exchange coupon [사용 완료], or F16 [넘겼어요] with [UsedReason.GIVEN] and the optional "누구에게" ([givenTo], C2-25). */
+    suspend fun markUsed(id: Long, reason: UsedReason = UsedReason.USED, givenTo: String? = null) = repo.transaction {
         val c = repo.get(id) ?: return@transaction
         if (c.status == CouponStatus.USED) return@transaction
         val now = System.currentTimeMillis()
@@ -66,7 +66,8 @@ class CouponActions @Inject constructor(private val repo: CouponRepository) {
         } else {
             repo.addUsage(UsageLog(couponId = id, at = now, spent = null, balanceAfter = null))
         }
-        repo.update(used(c, reason, now).copy(balance = if (c.type == CouponType.AMOUNT) 0 else null))
+        val to = givenTo?.trim()?.take(MAX_GIVEN_TO)?.ifEmpty { null }.takeIf { reason == UsedReason.GIVEN }
+        repo.update(used(c, reason, now).copy(balance = if (c.type == CouponType.AMOUNT) 0 else null, givenTo = to))
     }
 
     /** Amount voucher: the balance left after this purchase. 0 marks it used; the same balance is refused (no 0원 record). */
@@ -112,6 +113,7 @@ class CouponActions @Inject constructor(private val repo: CouponRepository) {
             brand = pick { it.brand }, productName = pick { it.productName }, type = type, faceValue = face, balance = balance,
             code = pick { it.code }, codeFormat = pick { it.codeFormat }, codeSource = pick { it.codeSource },
             expiryDate = pick { it.expiryDate }, issuer = pick { it.issuer }, notes = pick { it.notes }, memo = pick { it.memo },
+            authCode = pick { it.authCode }, givenTo = pick { it.givenTo },
             reminderOffsets = pick { it.reminderOffsets },
             // review marks: the user's confirmations apply, ones confirmed elsewhere meanwhile stay confirmed
             needsReview = cur.needsReview.filterKeys { k -> k in after.needsReview || k !in before.needsReview },
@@ -140,7 +142,7 @@ class CouponActions @Inject constructor(private val repo: CouponRepository) {
             repo.removeUsage(last)
             if (c.type == CouponType.AMOUNT) balance = (last.balanceAfter ?: 0) + (last.spent ?: 0)
         }
-        repo.update(c.copy(status = CouponStatus.ACTIVE, usedReason = null, usedAt = null, usedViaReminder = false, balance = balance))
+        repo.update(c.copy(status = CouponStatus.ACTIVE, usedReason = null, usedAt = null, usedViaReminder = false, balance = balance, givenTo = null))
     }
 
     /** S6 "마지막 기록 취소" on an amount voucher. */
@@ -186,6 +188,11 @@ class CouponActions @Inject constructor(private val repo: CouponRepository) {
             require(b >= 0) { "negative balance" }
             c.faceValue?.let { require(b <= it) { "balance above face value" } }
         }
+    }
+
+    private companion object {
+        /** S-10 style cap on a typed name */
+        const val MAX_GIVEN_TO = 40
     }
 
     private fun used(c: Coupon, reason: UsedReason, now: Long) = c.copy(

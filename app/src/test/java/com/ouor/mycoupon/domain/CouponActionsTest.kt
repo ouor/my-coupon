@@ -77,11 +77,16 @@ class CouponActionsTest {
     @Test
     fun givenAwayThenUndo() = runBlocking {
         val id = amount()
-        actions.markUsed(id, UsedReason.GIVEN)
+        actions.markUsed(id, UsedReason.GIVEN, givenTo = "  김  ")
         assertEquals(UsedReason.GIVEN, get(id).usedReason)
+        assertEquals("김", get(id).givenTo) // C2-25
+        assertTrue(CouponRepository.matches(get(id), "김"))
         actions.undoUse(id)
         assertEquals(CouponStatus.ACTIVE, get(id).status)
         assertEquals(null, get(id).usedReason)
+        assertEquals(null, get(id).givenTo)
+        actions.markUsed(id, UsedReason.GIVEN, givenTo = " ") // C2-25 AC2: blank is fine
+        assertEquals(null, get(id).givenTo)
     }
 
     @Test(expected = UsageInputException::class)

@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.data
 
+import androidx.room.AutoMigration
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
@@ -94,7 +95,13 @@ interface ScanDao {
  * Schema v1 is frozen in app/schemas (code review A-01). Never use destructive migration: a schema change bumps the version
  * and ships N.json + a Migration (or AutoMigration) + a MigrationTest case (docs/decisions.md).
  */
-@Database(entities = [Coupon::class, UsageLog::class, ScanLog::class], version = 1, exportSchema = true)
+@Database(
+    entities = [Coupon::class, UsageLog::class, ScanLog::class],
+    version = 2,
+    exportSchema = true,
+    // v2 (cycle 2): coupon.authCode (C2-19), coupon.givenTo (C2-25), both nullable TEXT, so existing rows keep every value
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
+)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun coupons(): CouponDao
