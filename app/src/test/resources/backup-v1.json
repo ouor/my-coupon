@@ -1,0 +1,52 @@
+{
+  "formatVersion": 1,
+  "createdAt": 1793000000000,
+  "settings": {"reminderOffsets": [30, 7, 5, 0], "reminderMinute": 5000},
+  "coupons": [
+    {
+      "coupon": {
+        "id": 12,
+        "brand": "테스트카페",
+        "productName": "아메리카노 T",
+        "code": "0000-1111-2222",
+        "codeKey": "000011112222",
+        "codeFormat": "CODE_128",
+        "codeSource": "DECODED",
+        "expiryDate": "2027-03-31",
+        "issuer": "테스트 선물하기",
+        "needsReview": {"expiryDate": ["NO_KEYWORD"]},
+        "fieldBoxes": {"code": [10.0, 20.0, 300.0, 80.0]},
+        "expiryCandidates": ["2027-03-31", "2027-04-30"],
+        "imagePath": "images/0",
+        "imageWidth": 720,
+        "imageHeight": 1280,
+        "imageHash": "claimed-by-file",
+        "sourceUri": "content://media/external/images/media/1",
+        "createdAt": 1792000000000,
+        "updatedAt": 1792000000000
+      },
+      "usage": []
+    },
+    {
+      "coupon": {
+        "id": 13,
+        "brand": "테스트마트",
+        "productName": "상품권 10,000원",
+        "type": "AMOUNT",
+        "faceValue": 10000,
+        "balance": 4000,
+        "code": "9999888877776666",
+        "codeSource": "USER",
+        "codeFormat": "PIN",
+        "imagePath": "images/1",
+        "status": "ACTIVE",
+        "reminderOffsets": [14, 2],
+        "createdAt": 1792000000000,
+        "updatedAt": 1792000000000
+      },
+      "usage": [
+        {"id": 5, "couponId": 13, "at": 1792100000000, "spent": 6000, "balanceAfter": 4000}
+      ]
+    }
+  ]
+}

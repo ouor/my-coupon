@@ -64,6 +64,9 @@ android {
         checkReleaseBuilds = true
         warningsAsErrors = false
     }
+    testOptions { unitTests.isIncludeAndroidResources = true }
+    // Robolectric reads the debug variant's merged assets, not test assets: the schema JSON ships in debug builds only (A-01)
+    sourceSets.getByName("debug").assets.srcDir("$projectDir/schemas")
     packaging {
         resources.excludes += setOf("META-INF/*.version", "META-INF/LICENSE*", "META-INF/NOTICE*", "DebugProbesKt.bin")
         // spec §2.3 APK <= 40MB: libonnxruntime.so is 34MB stored, 13MB deflated. Costs install-time extraction.
@@ -113,6 +116,8 @@ dependencies {
     implementation(project(":ocr-engine"))
     implementation(libs.onnxruntime.android)
     implementation(libs.zxing.core)
+    // Argon2id for the backup password (security review S-02; docs/core/backup-kdf.md). R8 keeps only the classes used.
+    implementation(libs.bouncycastle.prov)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -145,4 +150,11 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    // Room on the JVM (code review A-01 migration frame, A-05 CouponActions on a real DB)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.room.testing)
 }
+
+// code review A-01: the exported schemas are committed; MigrationTestHelper reads them as test assets
+ksp { arg("room.schemaLocation", "$projectDir/schemas") }

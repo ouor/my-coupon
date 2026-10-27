@@ -4,9 +4,15 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import com.ouor.mycoupon.ocr.core.CouponType
-import kotlinx.serialization.Serializable
 import java.time.LocalDate
+
+/*
+ * Enum names are stored in the DB (Room stores name) and the backup file: never rename or remove a constant (code review A-02).
+ * The OCR module's enums are mapped in ImportSession, so the storage format is owned here, not by the Python port.
+ */
+
+/** spec §6.1 type: exchange (one use) or amount voucher (balance). */
+enum class CouponType { EXCHANGE, AMOUNT }
 
 enum class CouponStatus { ACTIVE, USED }
 
@@ -16,8 +22,7 @@ enum class UsedReason { USED, GIVEN }
 /** spec §6.1 codeSource: barcode decode, OCR digits, or typed by the user. */
 enum class CodeSource { DECODED, OCR, USER }
 
-/** spec §6.1. Expired is computed (`ACTIVE && expiryDate < today`), never stored. */
-@Serializable
+/** spec §6.1. Expired is computed (`ACTIVE && expiryDate < today`), never stored. Backup format: backup/BackupFormat.kt. */
 @Entity(tableName = "coupon", indices = [Index("codeKey"), Index("imageHash"), Index("status")])
 data class Coupon(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -34,7 +39,6 @@ data class Coupon(
     /** ZXing format name (CODE_128, EAN_13, QR_CODE, ...), PIN (typed, no barcode) or NONE (OCR digits). */
     val codeFormat: String? = null,
     val codeSource: CodeSource? = null,
-    @Serializable(with = LocalDateSerializer::class)
     val expiryDate: LocalDate? = null,
     val issuer: String? = null,
     /** notes section text (F12), verbatim */
@@ -46,7 +50,7 @@ data class Coupon(
     /** field key -> [x0, y0, x1, y1] in original-image pixels (S5 highlight) */
     val fieldBoxes: Map<String, List<Double>> = emptyMap(),
     /** expiry candidates for the S5 chips */
-    val expiryCandidates: List<@Serializable(with = LocalDateSerializer::class) LocalDate> = emptyList(),
+    val expiryCandidates: List<LocalDate> = emptyList(),
     /** app-internal copy of the original bytes */
     val imagePath: String,
     val thumbPath: String,
@@ -80,8 +84,10 @@ data class Coupon(
     }
 }
 
+/** USE: S8 / [사용 완료] / [넘겼어요]. ADJUST: the balance typed in S5 edit (code review A-04), undone like a use. */
+enum class UsageKind { USE, ADJUST }
+
 /** spec §6.2: amount-voucher history, also the undo record. */
-@Serializable
 @Entity(
     tableName = "usage_log",
     foreignKeys = [ForeignKey(entity = Coupon::class, parentColumns = ["id"], childColumns = ["couponId"], onDelete = ForeignKey.CASCADE)],
@@ -91,10 +97,11 @@ data class UsageLog(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val couponId: Long,
     val at: Long,
-    /** won spent in this record (AMOUNT); null for an exchange coupon */
+    /** won spent in this record (AMOUNT; an ADJUST that raises the balance is negative); null for an exchange coupon */
     val spent: Long?,
     /** balance after this record (AMOUNT) */
     val balanceAfter: Long?,
+    val kind: UsageKind = UsageKind.USE,
 )
 
 enum class ScanResult { COUPON, NOT_COUPON, REGISTERED, DISMISSED }

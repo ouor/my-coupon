@@ -65,7 +65,7 @@ import com.ouor.mycoupon.domain.Draft
 import com.ouor.mycoupon.domain.DraftStage
 import com.ouor.mycoupon.domain.Duplicate
 import com.ouor.mycoupon.domain.ImportOrigin
-import com.ouor.mycoupon.ocr.core.CouponType
+import com.ouor.mycoupon.data.CouponType
 import com.ouor.mycoupon.ui.HomeViewModel
 import com.ouor.mycoupon.ui.ImportViewModel
 import com.ouor.mycoupon.ui.MainActivity

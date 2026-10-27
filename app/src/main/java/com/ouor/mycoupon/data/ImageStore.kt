@@ -26,9 +26,13 @@ class ImageStore @Inject constructor(@ApplicationContext private val context: Co
     val imageDir = File(context.filesDir, "images").apply { mkdirs() }
     val thumbDir = File(context.filesDir, "thumbs").apply { mkdirs() }
 
-    /** Reads [uri] fully; null when unreadable. */
+    /**
+     * Reads [uri] fully; null when unreadable, larger than [MAX_BYTES], or not another app's content uri
+     * (security review S-09: a shared file:// or our own provider uri must not copy app-private files).
+     */
     fun read(uri: Uri): ByteArray? = runCatching {
-        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        if (uri.scheme != "content" || uri.authority.orEmpty().startsWith(context.packageName)) return null
+        context.contentResolver.openInputStream(uri)?.use { readCapped(it, MAX_BYTES) }
     }.getOrNull()
 
     /** Copies bytes into the image folder. */
@@ -57,6 +61,20 @@ class ImageStore @Inject constructor(@ApplicationContext private val context: Co
 
     companion object {
         const val THUMB_PX = 320
+        /** Largest image accepted (S-09/S-10): a 200 MP JPEG is ~60 MB at most, coupon screenshots are < 5 MB. */
+        const val MAX_BYTES = 50 shl 20
+
+        /** Whole stream, or null once it passes [max] bytes. */
+        fun readCapped(i: java.io.InputStream, max: Int): ByteArray? {
+            val out = java.io.ByteArrayOutputStream()
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = i.read(buf)
+                if (n < 0) return out.toByteArray()
+                if (out.size() + n > max) return null
+                out.write(buf, 0, n)
+            }
+        }
 
         fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 

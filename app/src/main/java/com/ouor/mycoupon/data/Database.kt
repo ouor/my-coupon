@@ -11,19 +11,8 @@ import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.descriptors.PrimitiveKind
-import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
-import kotlinx.serialization.encoding.Decoder
-import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
-
-object LocalDateSerializer : KSerializer<LocalDate> {
-    override val descriptor = PrimitiveSerialDescriptor("LocalDate", PrimitiveKind.STRING)
-    override fun serialize(encoder: Encoder, value: LocalDate) = encoder.encodeString(value.toString())
-    override fun deserialize(decoder: Decoder): LocalDate = LocalDate.parse(decoder.decodeString())
-}
 
 class Converters {
     @TypeConverter fun dateToLong(d: LocalDate?): Long? = d?.toEpochDay()
@@ -101,7 +90,11 @@ interface ScanDao {
     @Query("DELETE FROM scan_log") suspend fun deleteAll()
 }
 
-@Database(entities = [Coupon::class, UsageLog::class, ScanLog::class], version = 1, exportSchema = false)
+/**
+ * Schema v1 is frozen in app/schemas (code review A-01). Never use destructive migration: a schema change bumps the version
+ * and ships N.json + a Migration (or AutoMigration) + a MigrationTest case (docs/decisions.md).
+ */
+@Database(entities = [Coupon::class, UsageLog::class, ScanLog::class], version = 1, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun coupons(): CouponDao

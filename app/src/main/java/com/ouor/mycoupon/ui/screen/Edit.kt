@@ -82,7 +82,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.ouor.mycoupon.data.CodeSource
 import com.ouor.mycoupon.data.Coupon
-import com.ouor.mycoupon.ocr.core.CouponType
+import com.ouor.mycoupon.data.CouponType
 import com.ouor.mycoupon.ui.CouponViewModel
 import com.ouor.mycoupon.ui.ImportViewModel
 import com.ouor.mycoupon.ui.MainActivity

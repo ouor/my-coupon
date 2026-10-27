@@ -24,7 +24,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.ouor.mycoupon.data.Coupon
-import com.ouor.mycoupon.ocr.core.CouponType
+import com.ouor.mycoupon.data.CouponType
 import com.ouor.mycoupon.ui.theme.Spacing
 import java.time.LocalDate
 

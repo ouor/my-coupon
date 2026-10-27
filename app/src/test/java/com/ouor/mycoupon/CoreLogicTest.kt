@@ -10,7 +10,7 @@ import com.ouor.mycoupon.data.UsedReason
 import com.ouor.mycoupon.domain.Stats
 import com.ouor.mycoupon.ocr.CouponRecognizer
 import com.ouor.mycoupon.ocr.core.CodeSource
-import com.ouor.mycoupon.ocr.core.CouponType
+import com.ouor.mycoupon.data.CouponType
 import com.ouor.mycoupon.ocr.core.Extraction
 import com.ouor.mycoupon.ocr.core.Field
 import com.ouor.mycoupon.ocr.core.ReviewReason
@@ -110,7 +110,7 @@ class CoreLogicTest {
 
     @Test
     fun decodedQrAlwaysNeedsCheck() {
-        val base = Extraction("2", true, null, null, CouponType.EXCHANGE, null, "ABC123", "QR_CODE", CodeSource.DECODED, null,
+        val base = Extraction("2", true, null, null, com.ouor.mycoupon.ocr.core.CouponType.EXCHANGE, null, "ABC123", "QR_CODE", CodeSource.DECODED, null,
             emptyList(), null, null, null, emptyMap(), emptyMap(), emptyList())
         assertEquals(listOf(ReviewReason.ALWAYS_CHECK), CouponRecognizer.withAppRules(base).needsReview[Field.CODE])
         val code128 = base.copy(codeFormat = "CODE_128")

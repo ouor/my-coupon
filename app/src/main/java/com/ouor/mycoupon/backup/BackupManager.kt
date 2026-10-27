@@ -2,12 +2,10 @@ package com.ouor.mycoupon.backup
 
 import android.content.Context
 import android.net.Uri
-import com.ouor.mycoupon.data.AppSettings
 import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponRepository
 import com.ouor.mycoupon.data.ImageStore
 import com.ouor.mycoupon.data.Settings
-import com.ouor.mycoupon.data.UsageLog
 import com.ouor.mycoupon.reminder.ReminderScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -16,7 +14,6 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
 import android.provider.DocumentsContract
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.zip.ZipEntry
@@ -24,23 +21,6 @@ import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
-
-/** Plaintext inside the encrypted file: a ZIP with manifest.json + images/<n>. */
-@Serializable
-data class BackupManifest(
-    val formatVersion: Int = FORMAT_VERSION,
-    val createdAt: Long,
-    val settings: AppSettings,
-    val coupons: List<BackupCoupon>,
-) {
-    companion object {
-        const val FORMAT_VERSION = 1
-    }
-}
-
-/** [coupon].imagePath holds the ZIP entry name; ids are re-assigned on import. */
-@Serializable
-data class BackupCoupon(val coupon: Coupon, val usage: List<UsageLog>)
 
 /** S14 preview: "쿠폰 N개, 그중 이미 있는 쿠폰 M개는 건너뜀". */
 data class BackupPreview(val total: Int, val skipped: Int, internal val zip: File, internal val manifest: BackupManifest)
@@ -75,10 +55,10 @@ class BackupManager @Inject constructor(
                     z.putNextEntry(ZipEntry(name))
                     File(c.imagePath).inputStream().use { it.copyTo(z) }
                     z.closeEntry()
-                    BackupCoupon(c.copy(imagePath = name, thumbPath = "", sourceUri = null), usage[c.id].orEmpty())
+                    BackupCoupon(BackupFormat.toFile(c, name), usage[c.id].orEmpty().map(BackupFormat::toFile))
                 }
                 z.putNextEntry(ZipEntry(MANIFEST))
-                z.write(json.encodeToString(BackupManifest.serializer(), BackupManifest(createdAt = System.currentTimeMillis(), settings = settings.app, coupons = entries)).toByteArray())
+                z.write(json.encodeToString(BackupManifest.serializer(), BackupManifest(createdAt = System.currentTimeMillis(), settings = BackupFormat.toFile(settings.app), coupons = entries)).toByteArray())
                 z.closeEntry()
             }
             job.ensureActive()
@@ -103,11 +83,12 @@ class BackupManager @Inject constructor(
             val job = coroutineContext.job
             input.use { i -> zip.outputStream().buffered().use { BackupCrypto.decrypt(i.buffered(), it, password, checkpoint = job::ensureActive) } }
             val manifest = ZipFile(zip).use { z ->
-                val e = z.getEntry(MANIFEST) ?: throw BackupFormatException("no manifest")
-                json.decodeFromString(BackupManifest.serializer(), z.getInputStream(e).readBytes().decodeToString())
+                json.decodeFromString(BackupManifest.serializer(), read(z, MANIFEST, MAX_MANIFEST).decodeToString())
             }
             if (manifest.formatVersion > BackupManifest.FORMAT_VERSION) throw BackupFormatException("newer format")
-            val skipped = manifest.coupons.count { repo.findDuplicate(it.coupon.copy(codeKey = Coupon.codeKey(it.coupon.code))) != null }
+            if (manifest.coupons.size > MAX_COUPONS) throw BackupFormatException("too many coupons")
+            // validates every coupon now (unknown enum, bad date): the preview never shows a file that import would refuse
+            val skipped = manifest.coupons.count { repo.findDuplicate(BackupFormat.toEntity(it.coupon, "", "", it.coupon.imageHash)) != null }
             BackupPreview(manifest.coupons.size, skipped, zip, manifest)
         } catch (e: Exception) {
             zip.delete()
@@ -124,28 +105,27 @@ class BackupManager @Inject constructor(
             val count = ZipFile(p.zip).use { z ->
                 // decide skips once, also within the file itself
                 val seenKeys = HashSet<String>()
-                val todo = p.manifest.coupons.filter { bc ->
-                    val c = bc.coupon.copy(codeKey = Coupon.codeKey(bc.coupon.code))
-                    val k = c.codeKey ?: "img:" + c.imageHash
-                    repo.findDuplicate(c) == null && seenKeys.add(k)
-                }
-                val prepared = todo.map { bc ->
-                    val bytes = z.getInputStream(z.getEntry(bc.coupon.imagePath) ?: throw BackupFormatException("missing image")).readBytes()
+                val prepared = ArrayList<Pair<Coupon, List<UsageV1>>>()
+                for (bc in p.manifest.coupons) {
+                    val bytes = read(z, bc.coupon.imagePath, MAX_IMAGE)
+                    // S-04: the hash comes from the bytes, never from the file's claim (duplicate check)
+                    val c = BackupFormat.toEntity(bc.coupon, "", "", ImageStore.sha256(bytes))
+                    if (repo.findDuplicate(c) != null || !seenKeys.add(c.codeKey ?: ("img:" + c.imageHash))) continue
                     val stored = images.save(bytes)
                     copied += stored.path
                     val thumb = images.saveThumb(bytes)
                     copied += thumb
-                    bc.coupon.copy(id = 0, codeKey = Coupon.codeKey(bc.coupon.code), imagePath = stored.path, thumbPath = thumb, sourceUri = null) to bc.usage
+                    prepared += c.copy(imagePath = stored.path, thumbPath = thumb) to bc.usage
                 }
                 repo.transaction {
                     for ((c, logs) in prepared) {
                         val id = repo.insertAll(listOf(c)).single()
-                        logs.forEach { repo.addUsage(it.copy(id = 0, couponId = id)) }
+                        logs.forEach { repo.addUsage(BackupFormat.toEntity(it, id)) }
                     }
                 }
                 prepared.size
             }
-            settings.app = p.manifest.settings
+            settings.app = BackupFormat.toSettings(p.manifest.settings)
             reminders.reschedule()
             count
         } catch (e: Exception) {
@@ -160,7 +140,25 @@ class BackupManager @Inject constructor(
         p.zip.delete()
     }
 
+    /**
+     * Plaintext export/import ZIPs left by a killed process (S-03/A6). Called at app start and by [모든 데이터 삭제];
+     * a preview never outlives its process, so cleaning at start cannot hit a live one.
+     */
+    fun clearTemp() {
+        File(context.cacheDir, "backup").deleteRecursively()
+    }
+
+    /** One ZIP entry with a cap on what is actually inflated (S-10: a deflate bomb must not OOM). */
+    private fun read(z: ZipFile, name: String, max: Int): ByteArray {
+        val e = z.getEntry(name) ?: throw BackupFormatException("missing entry")
+        if (e.size > max) throw BackupFormatException("entry too large")
+        return z.getInputStream(e).use { ImageStore.readCapped(it, max) } ?: throw BackupFormatException("entry too large")
+    }
+
     private companion object {
         const val MANIFEST = "manifest.json"
+        const val MAX_MANIFEST = 16 shl 20
+        const val MAX_IMAGE = ImageStore.MAX_BYTES
+        const val MAX_COUPONS = 10_000
     }
 }

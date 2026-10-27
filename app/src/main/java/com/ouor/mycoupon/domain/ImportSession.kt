@@ -12,8 +12,10 @@ import com.ouor.mycoupon.di.AppScope
 import com.ouor.mycoupon.gallery.MediaLink
 import com.ouor.mycoupon.ocr.CouponRecognizer
 import com.ouor.mycoupon.ocr.Recognition
-import com.ouor.mycoupon.ocr.core.CouponType
+import com.ouor.mycoupon.data.CouponType
 import com.ouor.mycoupon.ocr.core.Extraction
+import com.ouor.mycoupon.ocr.core.CodeSource as OcrCodeSource
+import com.ouor.mycoupon.ocr.core.CouponType as OcrCouponType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -249,13 +251,13 @@ class ImportSession @Inject constructor(
             return Coupon(
                 brand = x.brand,
                 productName = x.productName,
-                type = x.type,
+                type = when (x.type) { OcrCouponType.EXCHANGE -> CouponType.EXCHANGE; OcrCouponType.AMOUNT -> CouponType.AMOUNT },
                 faceValue = x.faceValue,
-                balance = if (x.type == CouponType.AMOUNT) x.faceValue else null,
+                balance = if (x.type == OcrCouponType.AMOUNT) x.faceValue else null,
                 code = x.code,
                 codeKey = Coupon.codeKey(x.code),
                 codeFormat = x.codeFormat,
-                codeSource = x.codeSource?.let { CodeSource.valueOf(it.name) },
+                codeSource = when (x.codeSource) { OcrCodeSource.DECODED -> CodeSource.DECODED; OcrCodeSource.OCR -> CodeSource.OCR; null -> null }, // A-09: explicit, not by name
                 expiryDate = x.expiryDate,
                 expiryCandidates = x.expiryCandidates,
                 issuer = x.issuer,

@@ -1,6 +1,6 @@
 package com.ouor.mycoupon.widget
 
-import com.ouor.mycoupon.ocr.core.CouponType
+import com.ouor.mycoupon.data.CouponType
 import androidx.glance.LocalSize
 import androidx.glance.appwidget.SizeMode
 import com.ouor.mycoupon.reminder.ReminderPlanner

@@ -6,13 +6,11 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.serialization.Serializable
 import java.time.LocalTime
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** spec §6.2 settings. Also part of the backup file (F15). */
-@Serializable
+/** spec §6.2 settings. In the backup file as backup.SettingsV1 (F15). */
 data class AppSettings(
     /** default reminder offsets in days before expiry (S11): D-7, D-1, the day */
     val reminderOffsets: List<Int> = listOf(7, 1, 0),
@@ -20,6 +18,12 @@ data class AppSettings(
     val reminderMinute: Int = 9 * 60,
 ) {
     val reminderTime: LocalTime get() = LocalTime.of(reminderMinute / 60, reminderMinute % 60)
+
+    /** Only values S11 can produce (security review S-04): a bad minute would crash reminderTime at every start. */
+    fun valid() = AppSettings(
+        reminderOffsets = reminderOffsets.filter { it in OFFSET_CHOICES }.distinct().sortedDescending(),
+        reminderMinute = reminderMinute.takeIf { it in 0 until 24 * 60 } ?: AppSettings().reminderMinute,
+    )
 
     companion object {
         /** S11 choices */
@@ -34,12 +38,13 @@ class Settings @Inject constructor(@ApplicationContext context: Context) {
 
     var app: AppSettings
         get() = AppSettings(
-            reminderOffsets = prefs.getString(K_OFFSETS, null)?.let { s -> if (s.isEmpty()) emptyList() else s.split(",").map(String::toInt) }
+            reminderOffsets = prefs.getString(K_OFFSETS, null)?.let { s -> if (s.isEmpty()) emptyList() else s.split(",").mapNotNull(String::toIntOrNull) }
                 ?: AppSettings().reminderOffsets,
             reminderMinute = prefs.getInt(K_MINUTE, AppSettings().reminderMinute),
-        )
+        ).valid()
         set(v) {
-            prefs.edit().putString(K_OFFSETS, v.reminderOffsets.sortedDescending().joinToString(",")).putInt(K_MINUTE, v.reminderMinute).apply()
+            val ok = v.valid()
+            prefs.edit().putString(K_OFFSETS, ok.reminderOffsets.joinToString(",")).putInt(K_MINUTE, ok.reminderMinute).apply()
         }
 
     fun observeApp(): Flow<AppSettings> = observe { app }

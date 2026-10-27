@@ -185,9 +185,12 @@ class CouponViewModel @Inject constructor(
     /** QA R1-09: an old notification/widget link to a deleted (or re-imported) coupon id */
     val missing = MutableStateFlow(false)
 
+    /** The row as S5 opened it: [save] writes only what the user changed since (A-04). */
+    private var editBase: Coupon? = null
+
     fun load(couponId: Long, fromReminder: Boolean = false) {
         id.value = couponId
-        viewModelScope.launch { missing.value = repo.get(couponId) == null }
+        viewModelScope.launch { repo.get(couponId).let { editBase = it; missing.value = it == null } }
         if (fromReminder) viewModelScope.launch { actions.openedFromReminder(couponId) }
     }
 
@@ -202,8 +205,8 @@ class CouponViewModel @Inject constructor(
     fun confirm(field: String) = act { actions.confirm(it, field) }
     fun setReminderOffsets(v: List<Int>?) = act { actions.setReminderOffsets(it, v) }
     fun trashAnswered() = act { actions.trashAnswered(it) }
-    fun save(c: Coupon) = viewModelScope.launch { repo.update(c) }
-    fun delete() = viewModelScope.launch { coupon.value?.let { repo.delete(it) } }
+    fun save(c: Coupon) = act { actions.edit(it, editBase ?: c, c) }
+    fun delete() = viewModelScope.launch { id.value?.let { actions.delete(it) } }
 }
 
 data class SettingsState(

@@ -28,7 +28,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.ouor.mycoupon.data.CouponStatus
 import com.ouor.mycoupon.data.Settings
-import com.ouor.mycoupon.ocr.core.CouponType
+import com.ouor.mycoupon.data.CouponType
 import com.ouor.mycoupon.ui.MainActivity
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject

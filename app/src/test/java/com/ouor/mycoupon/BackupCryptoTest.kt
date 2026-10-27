@@ -4,6 +4,7 @@ import com.ouor.mycoupon.backup.BackupAuthException
 import com.ouor.mycoupon.backup.BackupCrypto
 import com.ouor.mycoupon.backup.BackupFormatException
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -27,7 +28,8 @@ class BackupCryptoTest {
         assertArrayEquals(rfc.chunked(2).map { it.toInt(16).toByte() }.toByteArray(), BackupCrypto.pbkdf2("passwd".toCharArray(), "salt".toByteArray(), 1, 64))
     }
 
-    private fun enc(data: ByteArray): ByteArray = ByteArrayOutputStream().also { BackupCrypto.encrypt(ByteArrayInputStream(data), it, pw, iterations = 1000) }.toByteArray()
+    private val cheap = BackupCrypto.Kdf(memoryKiB = 1024, passes = 1)
+    private fun enc(data: ByteArray): ByteArray = ByteArrayOutputStream().also { BackupCrypto.encrypt(ByteArrayInputStream(data), it, pw, cheap) }.toByteArray()
     private fun dec(file: ByteArray, p: CharArray = pw): ByteArray = ByteArrayOutputStream().also { BackupCrypto.decrypt(ByteArrayInputStream(file), it, p) }.toByteArray()
 
     @Test
@@ -71,8 +73,46 @@ class BackupCryptoTest {
     @Test(expected = BackupAuthException::class)
     fun tamperedHeader() {
         val f = enc(ByteArray(10))
-        f[10] = (f[10] + 1).toByte() // iterations field: different key and AAD
+        f[10] = (f[10] + 1).toByte() // memory cost field (1024 -> 1280 KiB): different key and AAD
         dec(f)
+    }
+
+    /** phc-winner-argon2 reference vector (src/test.c): Argon2id v1.3, t=2, m=64 MiB, p=1, "password" / "somesalt". */
+    @Test
+    fun argon2idMatchesReference() {
+        val got = BackupCrypto.argon2id("password".toCharArray(), "somesalt".toByteArray(), BackupCrypto.Kdf(65536, 2, 1))
+        assertEquals("09316115d5cf24ed5a15a31a3ba326e5cf32edc24702987c02b6566f61913cf7", got.joinToString("") { "%02x".format(it) })
+    }
+
+    /** S-11: decomposed Hangul (NFD, some IMEs) opens a file made with precomposed text. */
+    @Test
+    fun passwordIsNfcNormalised() {
+        val nfc = "한글암호".toCharArray()
+        val nfd = java.text.Normalizer.normalize("한글암호", java.text.Normalizer.Form.NFD).toCharArray()
+        val f = ByteArrayOutputStream().also { BackupCrypto.encrypt(ByteArrayInputStream(ByteArray(10)), it, nfc, cheap) }.toByteArray()
+        assertArrayEquals(ByteArray(10), dec(f, nfd))
+    }
+
+    /** 1.0 development files (PBKDF2, format v1) still open. */
+    @Test
+    fun readsV1() {
+        val data = Random(7).nextBytes(3000)
+        val f = ByteArrayOutputStream().also { BackupCrypto.encryptV1(ByteArrayInputStream(data), it, pw, 1000) }.toByteArray()
+        assertArrayEquals(data, ByteArrayOutputStream().also { BackupCrypto.decrypt(ByteArrayInputStream(f), it, pw, v1Iterations = 1..1000) }.toByteArray())
+    }
+
+    /** S-10: a crafted cost is refused before the KDF runs. */
+    @Test(expected = BackupFormatException::class)
+    fun hugeCostRefused() {
+        val f = enc(ByteArray(10))
+        f[8] = 0x7f // memoryKiB ~ 2 TiB
+        dec(f)
+    }
+
+    @Test(expected = BackupFormatException::class)
+    fun v1IterationsOutOfRangeRefused() {
+        val f = ByteArrayOutputStream().also { BackupCrypto.encryptV1(ByteArrayInputStream(ByteArray(10)), it, pw, 1000) }.toByteArray()
+        dec(f) // default range is 300k..2.4M
     }
 
     @Test(expected = BackupFormatException::class)

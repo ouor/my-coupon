@@ -3,9 +3,10 @@ package com.ouor.mycoupon.domain
 import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponRepository
 import com.ouor.mycoupon.data.CouponStatus
+import com.ouor.mycoupon.data.UsageKind
 import com.ouor.mycoupon.data.UsageLog
 import com.ouor.mycoupon.data.UsedReason
-import com.ouor.mycoupon.ocr.core.CouponType
+import com.ouor.mycoupon.data.CouponType
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -80,10 +81,53 @@ class CouponActions @Inject constructor(private val repo: CouponRepository) {
     }
 
     /** Amount voucher: the amount spent (S8 "쓴 금액으로 입력"). Must not exceed the balance (F7 AC2). */
-    suspend fun recordSpent(id: Long, spent: Long) {
-        val c = repo.get(id) ?: return
+    suspend fun recordSpent(id: Long, spent: Long) = repo.transaction {
+        // read and write in one transaction: a second record in between must not be checked against a stale balance (A-05)
+        val c = repo.get(id) ?: return@transaction
         val bal = c.balance ?: c.faceValue ?: 0
         recordRemaining(id, UsageInput.spent(bal, spent))
+    }
+
+    /**
+     * S5 save of a stored coupon (code review A-04). Only the fields the user changed ([before] = what the editor opened
+     * with, [after] = what it saves) are written onto the current row, so a use, an undo or a [맞아요] that landed while
+     * the editor was open is kept. A changed balance leaves an ADJUST record, so "마지막 기록 취소" restores the previous one.
+     * Throws [IllegalArgumentException] when the result breaks an invariant ([validate]).
+     */
+    suspend fun edit(id: Long, before: Coupon, after: Coupon) = repo.transaction {
+        val cur = repo.get(id) ?: return@transaction
+        fun <T> pick(f: (Coupon) -> T): T = if (f(after) != f(before)) f(after) else f(cur)
+        val type = pick { it.type }
+        val face = if (type == CouponType.AMOUNT) pick { it.faceValue } else null
+        val typedBalance = pick { it.balance }
+        // the editor's rule: a balance still equal to the face value follows a corrected face value
+        val balance = when {
+            type != CouponType.AMOUNT -> null
+            after.balance != before.balance -> typedBalance
+            cur.type != CouponType.AMOUNT -> face
+            cur.balance == null || cur.balance == cur.faceValue -> face
+            else -> cur.balance
+        }
+        val merged = cur.copy(
+            brand = pick { it.brand }, productName = pick { it.productName }, type = type, faceValue = face, balance = balance,
+            code = pick { it.code }, codeFormat = pick { it.codeFormat }, codeSource = pick { it.codeSource },
+            expiryDate = pick { it.expiryDate }, issuer = pick { it.issuer }, notes = pick { it.notes }, memo = pick { it.memo },
+            reminderOffsets = pick { it.reminderOffsets },
+            // review marks: the user's confirmations apply, ones confirmed elsewhere meanwhile stay confirmed
+            needsReview = cur.needsReview.filterKeys { k -> k in after.needsReview || k !in before.needsReview },
+        )
+        validate(merged)
+        // only a balance the user typed is a record; one that follows a corrected face value is a correction
+        if (after.balance != before.balance && type == CouponType.AMOUNT && cur.type == CouponType.AMOUNT && balance != cur.balance && balance != null) {
+            val old = cur.balance ?: cur.faceValue ?: 0
+            repo.addUsage(UsageLog(couponId = id, at = System.currentTimeMillis(), spent = old - balance, balanceAfter = balance, kind = UsageKind.ADJUST))
+        }
+        repo.update(merged)
+    }
+
+    /** S5 "쿠폰 아님 · 빼기" on a stored coupon: the row, its history (cascade) and the image copies. */
+    suspend fun delete(id: Long) {
+        repo.get(id)?.let { repo.delete(it) }
     }
 
     /** S13 [되돌리기]: back to ACTIVE. A use that zeroed an amount voucher is undone with it. */
@@ -132,6 +176,16 @@ class CouponActions @Inject constructor(private val repo: CouponRepository) {
     suspend fun setReminderOffsets(id: Long, offsets: List<Int>?) {
         val c = repo.get(id) ?: return
         repo.update(c.copy(reminderOffsets = offsets?.distinct()?.sortedDescending()))
+    }
+
+    /** Invariants every write keeps (code review A-11). */
+    fun validate(c: Coupon) {
+        if (c.type == CouponType.EXCHANGE) require(c.faceValue == null && c.balance == null) { "exchange coupon with an amount" }
+        c.faceValue?.let { require(it >= 0) { "negative face value" } }
+        c.balance?.let { b ->
+            require(b >= 0) { "negative balance" }
+            c.faceValue?.let { require(b <= it) { "balance above face value" } }
+        }
     }
 
     private fun used(c: Coupon, reason: UsedReason, now: Long) = c.copy(

@@ -120,7 +120,7 @@ import com.ouor.mycoupon.domain.Stats
 import com.ouor.mycoupon.domain.UsageError
 import com.ouor.mycoupon.domain.UsageInput
 import com.ouor.mycoupon.domain.UsageInputException
-import com.ouor.mycoupon.ocr.core.CouponType
+import com.ouor.mycoupon.data.CouponType
 import com.ouor.mycoupon.ui.CouponViewModel
 import com.ouor.mycoupon.ui.HomeViewModel
 import com.ouor.mycoupon.ui.MainActivity
