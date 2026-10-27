@@ -11,6 +11,7 @@ import com.ouor.mycoupon.domain.UsageInputException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -45,7 +46,8 @@ class CouponViewModel @Inject constructor(
         if (fromReminder) viewModelScope.launch { actions.openedFromReminder(couponId) }
     }
 
-    private fun act(block: suspend (Long) -> Unit) { id.value?.let { viewModelScope.launch { block(it) } } }
+    // code review A14: screens navigate away right after these writes; leaving clears this ViewModel, the write must still land
+    private fun act(block: suspend (Long) -> Unit) { id.value?.let { viewModelScope.launch(NonCancellable) { block(it) } } }
 
     fun markUsed(reason: UsedReason = UsedReason.USED) = act { actions.markUsed(it, reason) }
     /** [onError] gets the refusal (C1): `error` for the kind, `message` as Korean copy. Other failures are not swallowed. */

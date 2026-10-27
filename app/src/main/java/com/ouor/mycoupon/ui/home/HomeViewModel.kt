@@ -65,13 +65,13 @@ class HomeViewModel @Inject constructor(
     private val crashPending = MutableStateFlow(crashLog.files().firstOrNull()?.name?.let { it != settings.crashBannerSeen } ?: false)
     private val notificationsOff = MutableStateFlow(false)
 
-    private val list = repo.observeList(filter, sort, query)
-    private val all = repo.observeAll()
+    // code review A23: one DB subscription and one midnight timer feed both the list and the counts
+    private val all = combine(repo.observeAll(), repo.today()) { a, t -> a to t }
 
     val state: StateFlow<HomeState> = combine(
-        combine(list, filter, sort, query, repo.today()) { l, f, s, q, t -> HomeState(l, f, s, q, t) },
-        all, newImages, crashPending, notificationsOff,
-    ) { base, everything, n, crash, notifOff ->
+        combine(all, filter, sort, query) { (a, t), f, s, q -> HomeState(CouponRepository.list(a, f, s, q, t), f, s, q, t) to a },
+        newImages, crashPending, notificationsOff,
+    ) { (base, everything), n, crash, notifOff ->
         val toReview = everything.filter { it.needsCheck && it.isAvailable(base.today) }
         val review = toReview.size
         val hasCoupons = everything.isNotEmpty()

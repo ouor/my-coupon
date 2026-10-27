@@ -41,7 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -99,7 +99,7 @@ fun ImportScreen(nav: NavHostController) {
     val activity = LocalActivity.current as MainActivity
     val vm: ImportViewModel = hiltViewModel(activity)
     val homeVm: HomeViewModel = hiltViewModel(activity)
-    val st by vm.state.collectAsState()
+    val st by vm.state.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbar.current
     var confirmClose by remember { mutableStateOf(false) }
     var confirmEarly by remember { mutableStateOf(false) }

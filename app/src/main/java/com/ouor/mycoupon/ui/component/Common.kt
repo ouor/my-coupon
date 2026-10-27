@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -185,7 +186,8 @@ fun BottomCta(text: String, onClick: () -> Unit, enabled: Boolean = true, hint: 
 fun AppSheet(onDismiss: () -> Unit, title: String, description: String? = null, content: @Composable ColumnScope.() -> Unit) {
     ModalBottomSheet(onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentWindowInsets = { WindowInsets(0) }) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Spacing.l).padding(bottom = Spacing.l).navigationBarsPadding()) {
+        // code review A18: the sheet's text fields (S8 amount, backup password) stay above the keyboard
+        Column(Modifier.navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.l).padding(bottom = Spacing.l)) {
             Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
             description?.let {
                 Spacer(Modifier.height(Spacing.s))

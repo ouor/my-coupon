@@ -34,7 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -73,7 +73,7 @@ fun GalleryScreen(nav: NavHostController) {
     val activity = LocalActivity.current as MainActivity
     val vm: GalleryViewModel = hiltViewModel()
     val importVm: ImportViewModel = hiltViewModel(activity)
-    val p by vm.progress.collectAsState()
+    val p by vm.progress.collectAsStateWithLifecycle()
     var granted by remember { mutableStateOf(vm.hasPermission()) }
     var denied by rememberSaveable { mutableStateOf(false) }
     var range by rememberSaveable { mutableStateOf(ScanRange.MONTH_3) }

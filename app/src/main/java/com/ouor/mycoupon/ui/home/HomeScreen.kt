@@ -63,7 +63,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -115,8 +115,8 @@ fun HomeScreen(nav: NavHostController) {
     val activity = LocalActivity.current as MainActivity
     val vm: HomeViewModel = hiltViewModel(activity)
     val importVm: ImportViewModel = hiltViewModel(activity)
-    val st by vm.state.collectAsState()
-    val askNotif by vm.notificationRationale.collectAsState()
+    val st by vm.state.collectAsStateWithLifecycle()
+    val askNotif by vm.notificationRationale.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbar.current
     var addSheet by rememberSaveable { mutableStateOf(false) }
     var kakaoGuide by rememberSaveable { mutableStateOf(false) }

@@ -30,7 +30,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,7 +79,7 @@ internal fun SettingRow(icon: ImageVector?, title: String, sub: String? = null, 
 @Composable
 fun SettingsScreen(nav: NavHostController) {
     val vm: SettingsViewModel = hiltViewModel()
-    val st by vm.state.collectAsState()
+    val st by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = LocalSnackbar.current
     var wipeStep by remember { mutableStateOf(0) }

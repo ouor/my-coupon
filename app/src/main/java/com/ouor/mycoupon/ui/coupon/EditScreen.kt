@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -54,7 +56,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -105,8 +107,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun EditDraftScreen(key: Int, nav: NavHostController) {
     val vm: ImportViewModel = hiltViewModel(LocalActivity.current as MainActivity)
-    val st by vm.state.collectAsState()
-    val brands by vm.brands.collectAsState()
+    val st by vm.state.collectAsStateWithLifecycle()
+    val brands by vm.brands.collectAsStateWithLifecycle()
     val d = st.drafts.firstOrNull { it.key == key }?.coupon
     if (d == null) { LaunchedEffect(Unit) { nav.popBackStack() }; return }
     CouponEditor(d, brands, onSave = { vm.edit(key, it); nav.popBackStack() }, onBack = { nav.popBackStack() },
@@ -117,12 +119,12 @@ fun EditDraftScreen(key: Int, nav: NavHostController) {
 fun EditCouponScreen(id: Long, nav: NavHostController) {
     val vm: CouponViewModel = hiltViewModel()
     LaunchedEffect(id) { vm.load(id) }
-    val c by vm.coupon.collectAsState()
-    val brands by vm.brands.collectAsState()
+    val c by vm.coupon.collectAsStateWithLifecycle()
+    val brands by vm.brands.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
     var confirmDelete by remember { mutableStateOf(false) }
-    c?.let { CouponEditor(it, brands, onSave = { n -> vm.save(n); snackbar.show("저장했어요"); nav.popBackStack() }, onBack = { nav.popBackStack() },
+    c?.let { CouponEditor(it, brands, codeRequired = it.code != null, onSave = { n -> vm.save(n); snackbar.show("저장했어요"); nav.popBackStack() }, onBack = { nav.popBackStack() },
         onNotCoupon = { confirmDelete = true }) }
     if (confirmDelete) AlertDialog(
         onDismissRequest = { confirmDelete = false },
@@ -139,7 +141,7 @@ private val numberFormat = NumberFormat.getNumberInstance(Locale.KOREA)
 /** S5 (F3). [맞아요] / editing a field clears that field's review reasons. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun CouponEditor(initial: Coupon, brands: List<String>, onSave: (Coupon) -> Unit, onBack: () -> Unit, onNotCoupon: () -> Unit) {
+private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Boolean = true, onSave: (Coupon) -> Unit, onBack: () -> Unit, onNotCoupon: () -> Unit) {
     // code review A8: the values being edited survive a process death (e.g. while checking a PIN in KakaoTalk)
     var c by rememberSaveable(initial.id, initial.imagePath) { mutableStateOf(initial) }
     var noExpiry by rememberSaveable(initial.imagePath) { mutableStateOf(initial.expiryDate == null && !initial.needsReview.containsKey("expiryDate")) }
@@ -154,7 +156,8 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, onSave: (Coupon)
     BackHandler(onBack = leave)
 
     fun save() {
-        codeError = if (c.code.isNullOrBlank()) "번호를 입력해 주세요" else null
+        // code review A20: a saved coupon that never had a number (shown by its image) can be edited without one
+        codeError = if (codeRequired && c.code.isNullOrBlank()) "번호를 입력해 주세요" else null
         balanceError = if (c.type == CouponType.AMOUNT && c.balance != null && c.faceValue != null && c.balance!! > c.faceValue!!) "잔액이 금액보다 클 수 없어요" else null
         if (codeError != null || balanceError != null) return
         val codeChanged = c.code != initial.code
@@ -174,7 +177,8 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, onSave: (Coupon)
         } },
         bottomBar = { BottomCta("저장", ::save) },
     ) { pad ->
-        Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {
+        // code review A18: number and memo fields scroll above the keyboard
+        Column(Modifier.padding(pad).consumeWindowInsets(pad).imePadding().fillMaxSize().verticalScroll(rememberScrollState())) {
             SourceImage(c)
             Column(Modifier.padding(Spacing.l), verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
                 if (c.needsReview.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {

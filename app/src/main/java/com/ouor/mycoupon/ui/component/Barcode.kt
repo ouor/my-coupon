@@ -89,7 +89,25 @@ fun copyCode(context: Context, code: String) {
     clip.description.extras = PersistableBundle().apply {
         if (Build.VERSION.SDK_INT >= 33) putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) else putBoolean("android.content.extra.IS_SENSITIVE", true)
     }
-    (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    cm.setPrimaryClip(clip)
+    if (Build.VERSION.SDK_INT <= 32) clearLater(cm, code) // 33+ clears the clipboard by itself
+}
+
+/** Security review S-14: the copied number leaves the clipboard after 90 s unless something else was copied since. */
+private fun clearLater(cm: ClipboardManager, code: String) {
+    var replaced = false
+    val listener = ClipboardManager.OnPrimaryClipChangedListener { replaced = true }
+    val main = android.os.Handler(android.os.Looper.getMainLooper())
+    main.post { cm.addPrimaryClipChangedListener(listener) } // after our own change has been dispatched
+    main.postDelayed({
+        cm.removePrimaryClipChangedListener(listener)
+        // in the background (API 29+) the clip is unreadable: then rely on the change listener alone
+        val now = runCatching { cm.primaryClip?.getItemAt(0)?.text?.toString() }.getOrNull()
+        if (if (now != null) now == code else !replaced) {
+            if (Build.VERSION.SDK_INT >= 28) cm.clearPrimaryClip() else cm.setPrimaryClip(ClipData.newPlainText("", ""))
+        }
+    }, 90_000)
 }
 
 /** The barcode image only (shared by S6 and S7). */

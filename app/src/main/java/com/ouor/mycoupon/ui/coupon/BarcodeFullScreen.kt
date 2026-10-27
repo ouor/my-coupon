@@ -17,7 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,7 +44,7 @@ import com.ouor.mycoupon.ui.theme.Spacing
 fun BarcodeFullScreen(id: Long, nav: NavHostController) = MyCouponTheme(forceLight = true) {
     val vm: CouponViewModel = hiltViewModel()
     LaunchedEffect(id) { vm.load(id) }
-    val c by vm.coupon.collectAsState()
+    val c by vm.coupon.collectAsStateWithLifecycle()
     val activity = LocalActivity.current as Activity
     CheckoutWindow(on = true)
     DisposableEffect(Unit) {

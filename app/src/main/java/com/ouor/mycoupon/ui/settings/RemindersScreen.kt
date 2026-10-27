@@ -26,7 +26,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,8 +57,8 @@ fun RemindersScreen(nav: NavHostController) {
     val vm: SettingsViewModel = hiltViewModel()
     val activity = LocalActivity.current as MainActivity
     val homeVm: HomeViewModel = hiltViewModel(activity)
-    val homeState by homeVm.state.collectAsState()
-    val st by vm.state.collectAsState()
+    val homeState by homeVm.state.collectAsStateWithLifecycle()
+    val st by vm.state.collectAsStateWithLifecycle()
     var timeDialog by remember { mutableStateOf(false) }
     var emptyWarn by remember { mutableStateOf(false) }
 

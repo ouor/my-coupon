@@ -32,7 +32,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,8 +60,8 @@ import java.time.LocalDate
 @Composable
 fun BackupScreen(nav: NavHostController) {
     val vm: SettingsViewModel = hiltViewModel()
-    val st by vm.state.collectAsState()
-    val backup by vm.backupUi.collectAsState()
+    val st by vm.state.collectAsStateWithLifecycle()
+    val backup by vm.backupUi.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbar.current
     val context = LocalContext.current
     var passwordFor by rememberSaveable { mutableStateOf<String?>(null) } // "export" / "import"

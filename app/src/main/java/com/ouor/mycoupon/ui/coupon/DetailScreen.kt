@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
@@ -60,7 +61,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -147,10 +148,16 @@ internal fun CheckoutWindow(on: Boolean) {
             }
         }
     }
+    // security review S-12: the recents thumbnail (saved to disk) never shows the barcode; screenshots stay allowed
+    if (Build.VERSION.SDK_INT >= 33) DisposableEffect(Unit) {
+        if (Checkout.hidden++ == 0) activity.setRecentsScreenshotEnabled(false)
+        onDispose { if (--Checkout.hidden == 0) activity.setRecentsScreenshotEnabled(true) }
+    }
 }
 
 private object Checkout {
     var bright = 0
+    var hidden = 0
 }
 
 /** S6 (F6, F7, F12, F16) with S8, S12, F10 trash suggestion. Follows the system theme; only the barcode card is always white (D6, revised by review U11). */
@@ -160,8 +167,8 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
     val vm: CouponViewModel = hiltViewModel()
     val homeVm: HomeViewModel = hiltViewModel(activity)
     LaunchedEffect(id) { vm.load(id, fromReminder) }
-    val c by vm.coupon.collectAsState()
-    val usage by vm.usage.collectAsState()
+    val c by vm.coupon.collectAsStateWithLifecycle()
+    val usage by vm.usage.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbar.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var useSheet by remember { mutableStateOf(false) }
@@ -181,7 +188,7 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
     val share = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { askGiven = true }
     val trash = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { vm.trashAnswered(); finishing?.let { leave(nav, snackbar, homeVm, id, it) } }
 
-    val missing by vm.missing.collectAsState()
+    val missing by vm.missing.collectAsStateWithLifecycle()
     if (c == null && missing) {
         Scaffold(topBar = { AppTopBar("", onBack = { nav.toHome() }) }) { pad ->
             Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -196,7 +203,7 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
     val state = coupon.state(today)
     CheckoutWindow(on = coupon.status == CouponStatus.ACTIVE)
     // review U13: swipe (or ‹ ›) to the neighbouring available coupon in the S1 order, without going back to the list
-    val home by homeVm.state.collectAsState()
+    val home by homeVm.state.collectAsStateWithLifecycle()
     val ring = remember(home.coupons, today) { home.coupons.filter { it.isAvailable(today) }.map { it.id } }
     val pos = ring.indexOf(id)
     val go = { step: Int ->
@@ -262,7 +269,7 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
             .verticalScroll(rememberScrollState()).padding(horizontal = Spacing.l)) {
             // short header so the barcode's top edge stays within 40 % of the screen (screens.md S6)
             if (!large) coupon.brand?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            Text(coupon.title(), Modifier.focusRequester(title).semantics { heading() },
+            Text(coupon.title(), Modifier.focusRequester(title).focusable().semantics { heading() }, // A19: focusable, or requestFocus fails silently
                 style = MaterialTheme.typography.titleLarge, maxLines = if (large) 1 else Int.MAX_VALUE)
             Row(Modifier.padding(top = Spacing.xs, bottom = Spacing.m), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
                 DdayBadge(coupon, today)
@@ -283,10 +290,18 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
                 if (coupon.code != null) QuickAction(Icons.Rounded.Image, if (showOriginal) "원본 닫기" else "원본 보기", Modifier.weight(1f)) { showOriginal = !showOriginal }
                 QuickAction(Icons.Rounded.Notifications, "알림", Modifier.weight(1f)) { reminderSheet = true }
                 QuickAction(Icons.AutoMirrored.Rounded.Send, "보내기", Modifier.weight(1f)) {
-                    val f = File(coupon.imagePath)
-                    val mime = Sharing.imageMime(f)
-                    val ext = when (mime) { "image/png" -> "png"; "image/webp" -> "webp"; "image/gif" -> "gif"; else -> "jpg" }
-                    share.launch(Sharing.intent(activity, f, "coupon.$ext", mime))
+                    // code review A21: copying a multi-MB original and stripping EXIF stays off the main thread
+                    scope.launch {
+                        val i = withContext(Dispatchers.IO) {
+                            runCatching {
+                                val f = File(coupon.imagePath)
+                                val mime = Sharing.imageMime(f)
+                                val ext = when (mime) { "image/png" -> "png"; "image/webp" -> "webp"; "image/gif" -> "gif"; else -> "jpg" }
+                                Sharing.intent(activity, f, "coupon.$ext", mime)
+                            }.getOrNull()
+                        }
+                        if (i != null) share.launch(i) else snackbar.show("이미지를 보내지 못했어요")
+                    }
                 }
             }
 
