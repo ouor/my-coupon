@@ -73,6 +73,11 @@ class MainActivity : ComponentActivity() {
                 nav.navigate(Route.Home) { popUpTo(0) }
                 nav.navigate(Route.Detail(intent.getLongExtra(EXTRA_COUPON_ID, 0), intent.getBooleanExtra(EXTRA_FROM_REMINDER, false)))
             }
+            intent.getBooleanExtra(EXTRA_FROM_REMINDER, false) -> { // N1 with several coupons → S1
+                if (!settings.onboarded) return
+                intent.getLongArrayExtra(EXTRA_REMINDER_IDS)?.let(homeVm::openedFromReminder)
+                nav.navigate(Route.Home) { popUpTo(0) }
+            }
             intent.getBooleanExtra(EXTRA_FROM_TILE, false) -> lifecycleScope.launch {
                 if (!settings.onboarded) return@launch
                 nav.navigate(Route.Home) { popUpTo(0) }
@@ -96,5 +101,7 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_COUPON_ID = "coupon_id"
         const val EXTRA_FROM_REMINDER = "from_reminder"
         const val EXTRA_FROM_TILE = "from_tile"
+        /** N1 for several coupons: the notified ids (F18) */
+        const val EXTRA_REMINDER_IDS = "reminder_ids"
     }
 }

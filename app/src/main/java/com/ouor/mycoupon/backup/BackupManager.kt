@@ -11,6 +11,7 @@ import com.ouor.mycoupon.data.UsageLog
 import com.ouor.mycoupon.reminder.ReminderScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -77,6 +78,7 @@ class BackupManager @Inject constructor(
             }
             val out = context.contentResolver.openOutputStream(target, "wt") ?: error("cannot open target")
             out.use { o -> zip.inputStream().buffered().use { BackupCrypto.encrypt(it, o, password) } }
+            settings.lastBackupAt = System.currentTimeMillis()
             coupons.size
         } finally {
             zip.delete()
@@ -98,13 +100,14 @@ class BackupManager @Inject constructor(
             BackupPreview(manifest.coupons.size, skipped, zip, manifest)
         } catch (e: Exception) {
             zip.delete()
+            if (e is kotlinx.coroutines.CancellationException) throw e
             if (e is BackupAuthException || e is BackupFormatException) throw e
             throw BackupFormatException("damaged: ${e.javaClass.simpleName}")
         }
     }
 
     /** Merges the preview into the app (spec F15): same number (or same image without a number) is skipped. Returns imported count. */
-    suspend fun import(p: BackupPreview): Int = withContext(Dispatchers.IO) {
+    suspend fun import(p: BackupPreview): Int = withContext(Dispatchers.IO + NonCancellable) { // a cancel after the commit must not delete the copied images
         val copied = ArrayList<String>()
         try {
             val count = ZipFile(p.zip).use { z ->

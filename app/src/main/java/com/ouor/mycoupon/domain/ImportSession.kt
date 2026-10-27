@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -84,6 +86,7 @@ class ImportSession @Inject constructor(
     private val _state = MutableStateFlow(ImportState())
     val state: StateFlow<ImportState> = _state.asStateFlow()
     private var job: Job? = null
+    private val registering = Mutex()
 
     /** Input image: content uri (+ MediaStore id when it is a gallery image). */
     data class Source(val uri: Uri, val mediaUri: String? = null, val mediaId: Long? = null)
@@ -119,13 +122,30 @@ class ImportSession @Inject constructor(
         st.copy(drafts = st.drafts.map { if (it.key == key) it.copy(checked = checked) else it })
     }
 
-    /** S5 save for a draft (also "직접 입력" on a failed card: its coupon holds the image only). Checks the card. */
-    fun edit(key: Int, coupon: Coupon) = _state.update { st ->
-        st.copy(drafts = st.drafts.map { if (it.key == key) it.copy(coupon = coupon, stage = DraftStage.DONE, checked = true) else it })
+    /**
+     * S5 save for a draft (also "직접 입력" on a failed card: its coupon holds the image only). Checks the card.
+     * A changed number re-runs the F4 duplicate check (the card stays checked: the user chose to save it).
+     */
+    fun edit(key: Int, coupon: Coupon) {
+        val c = coupon.copy(codeKey = Coupon.codeKey(coupon.code))
+        val before = _state.value.drafts.firstOrNull { it.key == key }?.coupon?.codeKey
+        _state.update { st ->
+            st.copy(drafts = st.drafts.map { if (it.key == key) it.copy(coupon = c, stage = DraftStage.DONE, checked = true) else it })
+        }
+        if (c.codeKey != before) scope.launch {
+            val earlier = _state.value.drafts.filter { it.key < key }.mapNotNull { it.coupon }
+            val dup = duplicateOf(c, earlier)
+            _state.update { st -> st.copy(drafts = st.drafts.map { if (it.key == key && it.coupon == c) it.copy(duplicate = dup) else it }) }
+        }
     }
 
-    /** Registers checked drafts; returns the new coupon ids. Unchecked copies are deleted. */
-    suspend fun register(): List<Long> = withContext(NonCancellable) {
+    /**
+     * Registers checked drafts; returns the new coupon ids. Unchecked copies are deleted.
+     * Calls are serialised and the batch is cleared inside the lock, so a second tap registers nothing (C10).
+     */
+    suspend fun register(): List<Long> = withContext(NonCancellable) { registering.withLock { registerLocked() } }
+
+    private suspend fun registerLocked(): List<Long> {
         job?.cancel()
         val st = _state.value
         val chosen = st.drafts.filter { it.checked && it.stage != DraftStage.READING && it.coupon != null }
@@ -138,7 +158,7 @@ class ImportSession @Inject constructor(
             }
         }
         _state.value = ImportState()
-        ids
+        return ids
     }
 
     /** [닫기] → [버리기] */

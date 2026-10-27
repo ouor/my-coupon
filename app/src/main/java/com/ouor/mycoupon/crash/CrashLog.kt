@@ -16,7 +16,7 @@ import javax.inject.Singleton
  * Hangul (numbers, product names) since a message can quote parsed input.
  */
 @Singleton
-class CrashLog @Inject constructor(@ApplicationContext context: Context) {
+class CrashLog @Inject constructor(@ApplicationContext private val context: Context) {
     val dir = File(context.filesDir, "crash").apply { mkdirs() }
 
     fun install() {
@@ -27,27 +27,52 @@ class CrashLog @Inject constructor(@ApplicationContext context: Context) {
         }
     }
 
-    fun write(thread: String, e: Throwable): File {
-        val now = LocalDateTime.now()
-        val f = File(dir, "crash-" + now.format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS")) + ".txt")
-        f.writeText(report(thread, e, now.toString()))
+    fun write(thread: String, e: Throwable): File = save(LocalDateTime.now(), report(thread, e, LocalDateTime.now().toString()))
+
+    private fun save(at: LocalDateTime, text: String): File {
+        val f = File(dir, "crash-" + at.format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS")) + ".txt")
+        f.writeText(text)
         files().drop(KEEP).forEach { it.delete() }
         return f
+    }
+
+    /**
+     * Native crashes (ONNX Runtime, ZXing has none) kill the process before any Java handler runs. On the next start,
+     * Android 11+ reports them through ApplicationExitInfo; each new one becomes a crash file (header + system
+     * description only: the tombstone holds raw memory, which could contain coupon numbers, so it is not copied).
+     */
+    fun recordNativeCrashes() {
+        if (Build.VERSION.SDK_INT < 30) return
+        val seen = File(dir, "native-seen")
+        val last = seen.takeIf { it.exists() }?.readText()?.toLongOrNull() ?: 0L
+        val exits = context.getSystemService(android.app.ActivityManager::class.java)
+            .getHistoricalProcessExitReasons(null, 0, 0)
+            .filter { it.reason == android.app.ApplicationExitInfo.REASON_CRASH_NATIVE && it.timestamp > last }
+        for (x in exits) {
+            val at = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(x.timestamp), java.time.ZoneId.systemDefault())
+            save(at, header(at.toString()) + "native crash (process ${x.processName})\n" + (x.description?.let { "description: " + scrub(it) + "\n" } ?: ""))
+        }
+        exits.maxOfOrNull { it.timestamp }?.let { seen.writeText(it.toString()) }
     }
 
     /** Newest first. */
     fun files(): List<File> = dir.listFiles { x -> x.name.startsWith("crash-") }.orEmpty().sortedByDescending { it.name }
 
-    fun clear() = dir.listFiles().orEmpty().forEach { it.delete() }
+    /** Keeps the native-crash cursor so wiped reports do not come back on the next start. */
+    fun clear() = files().forEach { it.delete() }
 
     companion object {
         const val KEEP = 10
 
-        fun report(thread: String, e: Throwable, time: String): String = buildString {
+        fun header(time: String): String = buildString {
             appendLine("time: $time")
             appendLine("app: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) ${BuildConfig.BUILD_TYPE}")
             appendLine("android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
             appendLine("device: ${Build.MANUFACTURER} ${Build.MODEL}")
+        }
+
+        fun report(thread: String, e: Throwable, time: String): String = buildString {
+            append(header(time))
             appendLine("thread: $thread")
             var c: Throwable? = e
             var first = true

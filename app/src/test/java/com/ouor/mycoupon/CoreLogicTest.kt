@@ -124,4 +124,19 @@ class CoreLogicTest {
         assertFalse(s.contains("스타벅스"))
         assertTrue(s.contains("at 12"))
     }
+
+    @Test
+    fun usageInputErrors() {
+        fun err(block: () -> Unit) = try { block(); null } catch (e: com.ouor.mycoupon.domain.UsageInputException) { assertTrue(e.message!!.any { it in '가'..'힣' }); e.error }
+        val u = com.ouor.mycoupon.domain.UsageInput
+
+        assertEquals(12400L, u.remaining(30000, 12400))
+        assertEquals(0L, u.remaining(30000, 0))
+        assertEquals(com.ouor.mycoupon.domain.UsageError.NO_CHANGE, err { u.remaining(30000, 30000) })
+        assertEquals(com.ouor.mycoupon.domain.UsageError.OVER_BALANCE, err { u.remaining(30000, 30001) })
+        assertEquals(com.ouor.mycoupon.domain.UsageError.NEGATIVE, err { u.remaining(30000, -1) })
+        assertEquals(12400L, u.spent(30000, 17600))
+        assertEquals(com.ouor.mycoupon.domain.UsageError.SPENT_ZERO, err { u.spent(30000, 0) })
+        assertEquals(com.ouor.mycoupon.domain.UsageError.OVER_BALANCE, err { u.spent(30000, 30001) })
+    }
 }

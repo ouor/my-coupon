@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ouor.mycoupon.backup.BackupAuthException
+import com.ouor.mycoupon.backup.BackupFormatException
 import com.ouor.mycoupon.backup.BackupManager
 import com.ouor.mycoupon.backup.BackupPreview
 import com.ouor.mycoupon.crash.CrashLog
@@ -20,6 +21,7 @@ import com.ouor.mycoupon.domain.ImportOrigin
 import com.ouor.mycoupon.domain.ImportSession
 import com.ouor.mycoupon.domain.ImportState
 import com.ouor.mycoupon.domain.Stats
+import com.ouor.mycoupon.domain.UsageInputException
 import com.ouor.mycoupon.domain.UsageStats
 import com.ouor.mycoupon.gallery.GalleryScanner
 import com.ouor.mycoupon.gallery.ScanProgress
@@ -27,6 +29,7 @@ import com.ouor.mycoupon.gallery.ScanRange
 import com.ouor.mycoupon.reminder.ReminderNotifier
 import com.ouor.mycoupon.reminder.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,6 +55,8 @@ data class HomeState(
     val query: String = "",
     val today: LocalDate = LocalDate.now(),
     val reviewCount: Int = 0,
+    /** NEEDS_REVIEW banner target: the available coupon needing a check that expires first, whatever the filter (C7) */
+    val firstReviewId: Long? = null,
     /** S1 chip "사용 가능 12" */
     val availableCount: Int = 0,
     /** false until the first DB emission (S1 shows no empty state before it) */
@@ -86,10 +91,11 @@ class HomeViewModel @Inject constructor(
         combine(list, filter, sort, query, repo.today()) { l, f, s, q, t -> HomeState(l, f, s, q, t) },
         all, newImages, crashPending, notificationsOff,
     ) { base, everything, n, crash, notifOff ->
-        val review = everything.count { it.needsCheck && it.isAvailable(base.today) }
+        val toReview = everything.filter { it.needsCheck && it.isAvailable(base.today) }
+        val review = toReview.size
         val hasCoupons = everything.isNotEmpty()
         base.copy(
-            reviewCount = review, newImages = n, loaded = true, hasCoupons = hasCoupons,
+            reviewCount = review, firstReviewId = toReview.minByOrNull { it.expiryDate ?: LocalDate.MAX }?.id, newImages = n, loaded = true, hasCoupons = hasCoupons,
             availableCount = everything.count { it.isAvailable(base.today) },
             banner = when {
                 crash -> HomeBanner.CRASH
@@ -117,6 +123,9 @@ class HomeViewModel @Inject constructor(
         scanner.sendToReview()
         newImages.value = 0
     }
+
+    /** N1 with several coupons opens S1: each notified coupon counts for F18 "알림 받고 쓴 쿠폰". */
+    fun openedFromReminder(ids: LongArray) = viewModelScope.launch { ids.forEach { actions.openedFromReminder(it) } }
 
     /** Snackbar [되돌리기] after S8/F16 (S6's ViewModel is gone by then) and S13 card [되돌리기]. */
     fun undoUse(id: Long) = viewModelScope.launch { actions.undoUse(id) }
@@ -176,8 +185,9 @@ class CouponViewModel @Inject constructor(
     private fun act(block: suspend (Long) -> Unit) { id.value?.let { viewModelScope.launch { block(it) } } }
 
     fun markUsed(reason: UsedReason = UsedReason.USED) = act { actions.markUsed(it, reason) }
-    fun recordRemaining(v: Long, onError: (String) -> Unit = {}) = act { runCatching { actions.recordRemaining(it, v) }.onFailure { e -> onError(e.message ?: "") } }
-    fun recordSpent(v: Long, onError: (String) -> Unit = {}) = act { runCatching { actions.recordSpent(it, v) }.onFailure { e -> onError(e.message ?: "") } }
+    /** [onError] gets the refusal (C1): `error` for the kind, `message` as Korean copy. Other failures are not swallowed. */
+    fun recordRemaining(v: Long, onError: (UsageInputException) -> Unit = {}) = act { try { actions.recordRemaining(it, v) } catch (e: UsageInputException) { onError(e) } }
+    fun recordSpent(v: Long, onError: (UsageInputException) -> Unit = {}) = act { try { actions.recordSpent(it, v) } catch (e: UsageInputException) { onError(e) } }
     fun undoUse() = act { actions.undoUse(it) }
     fun undoLastBalance() = act { actions.undoLastBalance(it) }
     fun confirm(field: String) = act { actions.confirm(it, field) }
@@ -193,7 +203,19 @@ data class SettingsState(
     val crashFiles: List<File> = emptyList(),
     /** S14 "쿠폰 12개", S10 wipe dialog */
     val coupons: Int = 0,
+    /** S14 "마지막 백업 10월 3일": epoch ms, null = never backed up (C3) */
+    val lastBackupAt: Long? = null,
 )
+
+/** C2: why a backup step failed. */
+enum class BackupFailure {
+    /** not a 내 쿠폰 backup, damaged, or a newer format */
+    FORMAT,
+    /** reading/writing failed (storage full, file gone) */
+    IO,
+    /** [SettingsViewModel.cancelBackup] or the screen went away */
+    CANCELLED,
+}
 
 sealed interface BackupUi {
     data object Idle : BackupUi
@@ -202,7 +224,7 @@ sealed interface BackupUi {
     data class Preview(val p: BackupPreview) : BackupUi
     data class Imported(val count: Int) : BackupUi
     data object WrongPassword : BackupUi
-    data class Failed(val reason: String) : BackupUi
+    data class Failed(val reason: BackupFailure) : BackupUi
 }
 
 /** S10 / S11 / S14. */
@@ -216,8 +238,8 @@ class SettingsViewModel @Inject constructor(
     private val session: ImportSession,
 ) : ViewModel() {
     private val crash = MutableStateFlow(crashLog.files())
-    val state: StateFlow<SettingsState> = combine(settings.observeApp(), repo.observeAll(), crash) { a, all, c ->
-        SettingsState(a, Stats.of(all), c, all.size)
+    val state: StateFlow<SettingsState> = combine(settings.observeApp(), repo.observeAll(), crash, settings.observeLastBackup()) { a, all, c, last ->
+        SettingsState(a, Stats.of(all), c, all.size, last.takeIf { it > 0 })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsState())
 
     val backupUi = MutableStateFlow<BackupUi>(BackupUi.Idle)
@@ -244,16 +266,26 @@ class SettingsViewModel @Inject constructor(
     fun import(p: BackupPreview) = backupJob { BackupUi.Imported(backup.import(p)) }
     fun cancelImport(p: BackupPreview) { backup.cancel(p); backupUi.value = BackupUi.Idle }
 
+    private var backupWork: Job? = null
+
+    /** Stops an export or open in progress (import is all-or-nothing and always finishes). */
+    fun cancelBackup() { backupWork?.cancel() }
+
     private fun backupJob(block: suspend () -> BackupUi): Job = viewModelScope.launch {
         backupUi.value = BackupUi.Working
         backupUi.value = try {
             block()
         } catch (_: BackupAuthException) {
             BackupUi.WrongPassword
-        } catch (e: Exception) {
-            BackupUi.Failed(e.javaClass.simpleName)
+        } catch (_: BackupFormatException) {
+            BackupUi.Failed(BackupFailure.FORMAT)
+        } catch (e: CancellationException) {
+            backupUi.value = BackupUi.Failed(BackupFailure.CANCELLED)
+            throw e
+        } catch (_: Exception) {
+            BackupUi.Failed(BackupFailure.IO)
         }
-    }
+    }.also { backupWork = it }
 }
 
 /** S9. Leaving the screen clears the ViewModel and cancels the scan = pause (F9). */
@@ -271,9 +303,9 @@ class GalleryViewModel @Inject constructor(private val scanner: GalleryScanner) 
     fun pause() = job?.cancel()
     fun sendToReview() = scanner.sendToReview()
 
-    /** S9 ② "사진 1,240장": images in the range not checked before. */
-    suspend fun count(range: ScanRange): Int = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        val since = java.time.ZonedDateTime.now().minusMonths(range.months).toEpochSecond()
-        runCatching { scanner.query(since).size }.getOrDefault(0)
-    }
+    /** S9 ② "사진 1,240장": images in the range (partial access: all allowed images, see [isPartialAccess]). */
+    suspend fun count(range: ScanRange): Int = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { scanner.count(range) }
+
+    /** C5: "선택한 사진만 허용" → S9 ② shows "허용한 사진 N장을 찾아볼게요" instead of the range. */
+    fun isPartialAccess() = scanner.isPartialAccess()
 }

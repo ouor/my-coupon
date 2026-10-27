@@ -255,7 +255,7 @@ private fun HomeBannerView(b: HomeBanner, review: Int, newImages: Int, vm: HomeV
             }) { Text("켜기") }
         }
         HomeBanner.NEEDS_REVIEW -> InfoBanner(Icons.Rounded.ErrorOutline, "날짜를 확인할 쿠폰이 ${review}개 있어요", s.reviewContainer, cs.onSurface,
-            onClick = { vm.state.value.coupons.firstOrNull { it.needsCheck }?.let { nav.navigate(Route.EditCoupon(it.id)) } })
+            onClick = { vm.state.value.firstReviewId?.let { nav.navigate(Route.EditCoupon(it)) } })
         HomeBanner.NEW_IMAGES -> InfoBanner(Icons.Rounded.ImageSearch, "새 쿠폰 이미지 ${newImages}장이 있어요", cs.primaryContainer, cs.onPrimaryContainer) {
             TextButton({ vm.reviewNewImages(); nav.navigate(Route.Import) }) { Text("확인하기") }
         }

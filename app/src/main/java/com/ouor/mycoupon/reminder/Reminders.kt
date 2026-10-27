@@ -165,6 +165,7 @@ class ReminderNotifier @Inject constructor(@ApplicationContext private val conte
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             if (single) putExtra(MainActivity.EXTRA_COUPON_ID, due[0].id)
+            else putExtra(MainActivity.EXTRA_REMINDER_IDS, due.map { it.id }.toLongArray())
             putExtra(MainActivity.EXTRA_FROM_REMINDER, true)
         }
         val pi = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

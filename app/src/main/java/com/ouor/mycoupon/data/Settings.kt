@@ -64,6 +64,13 @@ class Settings @Inject constructor(@ApplicationContext context: Context) {
         get() = prefs.getString(K_CRASH_SEEN, null)
         set(v) = prefs.edit().putString(K_CRASH_SEEN, v).apply()
 
+    /** S14 "마지막 백업 10월 3일": epoch ms of the last successful export, 0 = never */
+    var lastBackupAt: Long
+        get() = prefs.getLong(K_LAST_BACKUP, 0)
+        set(v) = prefs.edit().putLong(K_LAST_BACKUP, v).apply()
+
+    fun observeLastBackup(): Flow<Long> = observe { lastBackupAt }
+
     fun clear() = prefs.edit().clear().apply()
 
     private fun <T> observe(read: () -> T): Flow<T> = callbackFlow {
@@ -80,5 +87,6 @@ class Settings @Inject constructor(@ApplicationContext context: Context) {
         const val K_NOTIF_ASKED = "notification_asked"
         const val K_LAST_SCAN = "last_gallery_scan_sec"
         const val K_CRASH_SEEN = "crash_banner_seen"
+        const val K_LAST_BACKUP = "last_backup_at"
     }
 }

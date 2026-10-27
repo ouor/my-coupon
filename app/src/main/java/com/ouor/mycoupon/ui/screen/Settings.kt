@@ -287,7 +287,7 @@ fun BackupScreen(nav: NavHostController) {
             }
         }
         is BackupUi.Failed -> {
-            val format = b.reason.contains("Format")
+            val format = b.reason == com.ouor.mycoupon.ui.BackupFailure.FORMAT
             AppSheet({ vm.backupUi.value = BackupUi.Idle },
                 if (format) "이 파일은 열 수 없어요" else "하지 못했어요",
                 if (format) "내 쿠폰 백업 파일이 아니거나 파일이 손상됐어요. 지금 쿠폰은 그대로예요."

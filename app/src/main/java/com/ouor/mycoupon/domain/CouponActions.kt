@@ -27,8 +27,29 @@ class CouponRegistrar @Inject constructor(private val repo: CouponRepository) {
     }
 }
 
-/** Invalid input from S8 (spec F7 AC2). The UI should block these before calling. */
-class UsageInputException(message: String) : IllegalArgumentException(message)
+/** Why S8 input was refused (spec F7 AC2). */
+enum class UsageError { NOT_AMOUNT, NEGATIVE, OVER_BALANCE, NO_CHANGE, SPENT_ZERO }
+
+/** Invalid input from S8. [message] is user-facing Korean; [error] lets the UI pick its own copy. */
+class UsageInputException(val error: UsageError, message: String) : IllegalArgumentException(message)
+
+/** Pure checks for S8 input; [balance] is the current balance. Returns the balance left after the input. */
+object UsageInput {
+    private fun won(v: Long) = "%,d원".format(v)
+
+    fun remaining(balance: Long, remaining: Long): Long {
+        if (remaining < 0) throw UsageInputException(UsageError.NEGATIVE, "0원보다 적게 입력할 수 없어요")
+        if (remaining > balance) throw UsageInputException(UsageError.OVER_BALANCE, "남은 금액은 지금 잔액 ${won(balance)}보다 클 수 없어요")
+        if (remaining == balance) throw UsageInputException(UsageError.NO_CHANGE, "잔액이 그대로예요. 쓴 금액이 있을 때 기록해 주세요")
+        return remaining
+    }
+
+    fun spent(balance: Long, spent: Long): Long {
+        if (spent <= 0) throw UsageInputException(UsageError.SPENT_ZERO, "쓴 금액을 입력해 주세요")
+        if (spent > balance) throw UsageInputException(UsageError.OVER_BALANCE, "쓴 금액은 지금 잔액 ${won(balance)}보다 클 수 없어요")
+        return balance - spent
+    }
+}
 
 /** F7 use / balance / undo, F16 give-away, F3 review confirmation, F18 bookkeeping. */
 @Singleton
@@ -47,12 +68,12 @@ class CouponActions @Inject constructor(private val repo: CouponRepository) {
         repo.update(used(c, reason, now).copy(balance = if (c.type == CouponType.AMOUNT) 0 else null))
     }
 
-    /** Amount voucher: the balance left after this purchase. 0 marks it used. */
+    /** Amount voucher: the balance left after this purchase. 0 marks it used; the same balance is refused (no 0원 record). */
     suspend fun recordRemaining(id: Long, remaining: Long) = repo.transaction {
         val c = repo.get(id) ?: return@transaction
         val bal = c.balance ?: c.faceValue ?: 0
-        if (c.type != CouponType.AMOUNT) throw UsageInputException("not an amount voucher")
-        if (remaining < 0 || remaining > bal) throw UsageInputException("remaining must be within 0..balance")
+        if (c.type != CouponType.AMOUNT) throw UsageInputException(UsageError.NOT_AMOUNT, "금액권만 잔액을 기록할 수 있어요")
+        UsageInput.remaining(bal, remaining)
         val now = System.currentTimeMillis()
         repo.addUsage(UsageLog(couponId = id, at = now, spent = bal - remaining, balanceAfter = remaining))
         repo.update(if (remaining == 0L) used(c, UsedReason.USED, now).copy(balance = 0) else c.copy(balance = remaining))
@@ -62,8 +83,7 @@ class CouponActions @Inject constructor(private val repo: CouponRepository) {
     suspend fun recordSpent(id: Long, spent: Long) {
         val c = repo.get(id) ?: return
         val bal = c.balance ?: c.faceValue ?: 0
-        if (spent <= 0 || spent > bal) throw UsageInputException("spent must be within 1..balance")
-        recordRemaining(id, bal - spent)
+        recordRemaining(id, UsageInput.spent(bal, spent))
     }
 
     /** S13 [되돌리기]: back to ACTIVE. A use that zeroed an amount voucher is undone with it. */

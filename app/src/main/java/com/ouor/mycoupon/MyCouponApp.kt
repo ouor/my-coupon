@@ -22,6 +22,7 @@ class MyCouponApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         crashLog.install()
+        runCatching { crashLog.recordNativeCrashes() }
         notifier.createChannel()
         reminders.ensure()
     }

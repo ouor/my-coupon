@@ -34,8 +34,18 @@ import kotlin.coroutines.coroutineContext
 enum class ScanRange(val months: Long) { MONTH_1(1), MONTH_3(3), MONTH_12(12) }
 
 data class ScanProgress(
+    /** range of the current/last run; null before the first run */
+    val range: ScanRange? = null,
+    /** images in the range (with partial access: all allowed images) */
+    val inRange: Int = 0,
+    /** of [inRange], images already checked by an earlier scan (not checked again) */
+    val alreadyChecked: Int = 0,
+    /** images this scan goes through; after a resume it includes [resumedFrom] */
     val total: Int = 0,
+    /** images checked so far; continues from [resumedFrom] after a pause */
     val checked: Int = 0,
+    /** > 0 when this run resumed a paused one: "380장까지 확인했어요. 이어서 찾을게요" */
+    val resumedFrom: Int = 0,
     /** images that passed screening and full recognition says are coupons */
     val found: List<Draft> = emptyList(),
     val running: Boolean = false,
@@ -67,6 +77,18 @@ class GalleryScanner @Inject constructor(
             else -> granted(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
     }
+
+    /** Android 14+ "선택한 사진만 허용": only the selected photos are visible, and the range is not offered (S9 ②). */
+    fun isPartialAccess(): Boolean = Build.VERSION.SDK_INT >= 34 &&
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED &&
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED
+
+    /** Lower DATE_ADDED bound of [range]; partial access ignores the range (every allowed photo). */
+    private fun since(range: ScanRange): Long =
+        if (isPartialAccess()) 0 else ZonedDateTime.now().minusMonths(range.months).toEpochSecond()
+
+    /** S9 ② "사진 1,240장" / "허용한 사진 24장": images in [range]. */
+    fun count(range: ScanRange): Int = runCatching { query(since(range)).size }.getOrDefault(0)
 
     /** Permissions S9 asks for. */
     fun permissions(): Array<String> = when {
@@ -109,12 +131,18 @@ class GalleryScanner @Inject constructor(
 
     /** S9 ③. Results accumulate in [progress]; [ImportSession.startWith] hands them to S4. */
     suspend fun scan(range: ScanRange) = withContext(Dispatchers.Default) {
-        val since = ZonedDateTime.now().minusMonths(range.months).toEpochSecond()
         val done = repo.scannedIds()
-        val known = _progress.value.found.mapNotNull { it.mediaId }.toSet()
-        val media = query(since).filter { it.id !in done }
-        _progress.update { it.copy(total = media.size, checked = 0, running = true, finished = false) }
-        var checked = 0
+        val prev = _progress.value
+        val known = prev.found.mapNotNull { it.mediaId }.toSet()
+        val all = query(since(range))
+        val media = all.filter { it.id !in done }
+        // shortcut: the resume point lives in memory only; after process death ScanLog still skips checked images, the count restarts
+        val resumed = if (prev.range == range && !prev.finished && prev.checked > 0) prev.checked else 0
+        _progress.update {
+            it.copy(range = range, inRange = all.size, alreadyChecked = all.size - media.size, total = resumed + media.size,
+                checked = resumed, resumedFrom = resumed, running = true, finished = false)
+        }
+        var checked = resumed
         try {
             for (m in media) {
                 coroutineContext.ensureActive()
