@@ -184,8 +184,7 @@ def build_rows(lines, bars):
         header = len(norm(text)) <= 12 and NOTES_HEADER.search(text) is not None
         notes = notes or header
         rows.append({"text": text, "cells": cells, "box": union([c["box"] for c in cells]),
-                     "score": min(c["score"] for c in cells), "notes": notes or BULLET.match(text) is not None,
-                     "header": header})
+                     "score": min(c["score"] for c in cells), "notes": notes or BULLET.match(text) is not None})
     return rows
 
 
@@ -373,7 +372,8 @@ def repeated_fix(text, rows):
 
 
 def brand_near_product(rows, pi, prod):
-    """Short line right above the product title (a brand title), or the bracket prefix of the title."""
+    """Brand without a label: the short line right above the title, else a short line above it that the title
+    repeats, else the title's bracket prefix "(버거킹)…" / "[CU] …" unless it is a tag like [EVENT]."""
     if pi > 0:
         r = rows[pi - 1]
         p = prod["box"]
@@ -383,15 +383,15 @@ def brand_near_product(rows, pi, prod):
                 and not FULL.search(r["text"]) and not NUM.search(r["text"]) and hangul(r["text"]) + len(re.findall(r"[A-Za-z]", r["text"])) >= 2):
             # "메가MGC커피 선물하기" header above the title -> brand 메가MGC커피 (guide §3); clean_brand drops the suffix
             c = r["cells"][0]
-            return clean_brand(c["value"]), c["vbox"], c["score"], norm(c["value"]) in norm(prod["value"])
+            return clean_brand(c["value"]), c["vbox"], c["score"]
     for r in rows[:pi]:  # a short line elsewhere above the title whose text the title repeats
         c = r["cells"][0]
         if (not r["notes"] and len(r["cells"]) == 1 and c["label"] is None and 2 <= len(norm(c["value"])) <= 15
                 and norm(c["value"]) in norm(prod["value"]) and not NUM.search(c["value"])):
-            return clean_brand(c["value"]), c["vbox"], c["score"], True
+            return clean_brand(c["value"]), c["vbox"], c["score"]
     m = re.match(r"^\s*[\[(]([^\])]{1,15})[\])]", prod["value"])
     if m and not TAGS.match(m.group(1).strip()):
-        return m.group(1).strip(), prod["vbox"], prod["score"], True
+        return m.group(1).strip(), prod["vbox"], prod["score"]
     return None
 
 
@@ -426,7 +426,7 @@ def pick_type(rows, product):
 def pick_issuer(rows, brand, limit_y):
     """"카카오톡 선물하기"-style channel line. A "<brand> 선물하기" header is the brand's own corner, not an issuer."""
     for r in rows:
-        if r["notes"] or r["box"][3] <= limit_y and brand and norm(brand) in norm(r["text"]):
+        if r["notes"] or (r["box"][3] <= limit_y and brand and norm(brand) in norm(r["text"])):
             continue
         m = re.fullmatch(r"\s*(\S.{0,14}?)\s*선물하기\s*", r["text"])
         if m and not (brand and norm(m.group(1)) == norm(brand)):
@@ -472,10 +472,9 @@ def extract(lines, barcodes, width, height):
         if labelled:
             brand, boxes["brand"], bscore = labelled
         elif near:
-            brand, boxes["brand"], bscore, _ = near
+            brand, boxes["brand"], bscore = near
         if brand and bscore < REVIEW_SCORE:
             review["brand"] = ["LOW_CONFIDENCE"]
-        # the title line may carry a stray prefix of the brand line; keep the label as printed
     else:
         review["productName"] = ["NOT_FOUND"]
         if labelled:
