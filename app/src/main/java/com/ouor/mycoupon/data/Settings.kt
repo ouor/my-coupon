@@ -76,6 +76,12 @@ class Settings @Inject constructor(@ApplicationContext context: Context) {
 
     fun observeLastBackup(): Flow<Long> = observe { lastBackupAt }
 
+    /** F14 wipe (lead decision 2026-10-28: everything goes): reminder settings back to defaults, last backup time cleared. */
+    fun resetForWipe() {
+        app = AppSettings()
+        lastBackupAt = 0
+    }
+
     fun clear() = prefs.edit().clear().apply()
 
     private fun <T> observe(read: () -> T): Flow<T> = callbackFlow {

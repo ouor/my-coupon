@@ -3,7 +3,6 @@ package com.ouor.mycoupon
 import android.content.Context
 import com.ouor.mycoupon.backup.BackupManager
 import com.ouor.mycoupon.crash.CrashLog
-import com.ouor.mycoupon.data.AppSettings
 import com.ouor.mycoupon.data.CouponRepository
 import com.ouor.mycoupon.data.ImageStore
 import com.ouor.mycoupon.data.Settings
@@ -32,7 +31,7 @@ class AppData @Inject constructor(
 ) {
     /**
      * F14 [모든 데이터 삭제] (code review A5/S-03): DB rows (secure_delete, WAL truncated), image copies, unreviewed scan
-     * finds, the last shared copy, plaintext backup temp files, posted reminders and their state, crash reports, settings.
+     * finds, the last shared copy, plaintext backup temp files, posted reminders and their state, crash reports, settings and the last backup time.
      * Gallery originals and backup files the user saved elsewhere are untouched.
      */
     suspend fun wipeAll() {
@@ -44,7 +43,7 @@ class AppData @Inject constructor(
         crashLog.clear()
         backup.clearTemp()
         File(context.cacheDir, "share").deleteRecursively()
-        settings.app = AppSettings()
+        settings.resetForWipe()
         reminders.reschedule()
     }
 
