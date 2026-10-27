@@ -16,6 +16,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
 
@@ -38,7 +39,9 @@ class ExtractParityTest {
     fun real() {
         val dir = File(System.getProperty("mycoupon.testData"), "golden")
         val files = dir.listFiles { f -> f.name.endsWith(".json") }?.sorted().orEmpty()
-        if (files.isEmpty()) return println("SKIP real goldens: ${dir.path} missing")
+        // skipped (not passed) without .test; -Pmycoupon.requireRealGoldens makes a missing set a failure (code review A-07/O-16)
+        if (System.getProperty("mycoupon.requireRealGoldens") == "true") assertTrue("real goldens missing: ${dir.path}", files.isNotEmpty())
+        assumeTrue("real goldens missing: ${dir.path}", files.isNotEmpty())
         var bad = 0
         files.forEachIndexed { i, f ->
             val keys = diff(f).keys

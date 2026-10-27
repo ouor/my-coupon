@@ -1,17 +1,20 @@
 package com.ouor.mycoupon.domain
 
 import android.net.Uri
+import android.util.Log
 import com.ouor.mycoupon.data.CodeSource
 import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponRepository
 import com.ouor.mycoupon.data.ImageStore
 import com.ouor.mycoupon.data.ScanResult
+import com.ouor.mycoupon.data.StoredImage
 import com.ouor.mycoupon.di.AppScope
 import com.ouor.mycoupon.gallery.MediaLink
 import com.ouor.mycoupon.ocr.CouponRecognizer
 import com.ouor.mycoupon.ocr.Recognition
 import com.ouor.mycoupon.ocr.core.CouponType
 import com.ouor.mycoupon.ocr.core.Extraction
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -95,7 +98,7 @@ class ImportSession @Inject constructor(
 
     /** Starts a new batch, discarding any unregistered previous one. */
     fun start(sources: List<Source>, origin: ImportOrigin) {
-        discard()
+        clear()
         val list = sources.take(MAX_IMAGES)
         _state.value = ImportState(origin, list.indices.map { Draft(it, sourceUri = list[it].mediaUri, mediaId = list[it].mediaId) }, true, sources.size > MAX_IMAGES)
         job = scope.launch {
@@ -110,7 +113,7 @@ class ImportSession @Inject constructor(
 
     /** Adds already-recognised gallery results (F9) as a DONE batch. */
     fun startWith(drafts: List<Draft>, origin: ImportOrigin) {
-        discard()
+        clear()
         _state.value = ImportState(origin, drafts.mapIndexed { i, d -> d.copy(key = i) }, false)
     }
 
@@ -165,11 +168,17 @@ class ImportSession @Inject constructor(
             }
         }
         _state.value = ImportState()
+        scope.launch { recognizer.release() } // O-10: the sessions (~70 MB) are not kept once the batch is over; the next batch reloads them (~200 ms)
         return ids
     }
 
     /** [닫기] → [버리기] */
     fun discard() {
+        clear()
+        scope.launch { recognizer.release() }
+    }
+
+    private fun clear() {
         job?.cancel()
         _state.value.drafts.forEach { d -> d.coupon?.let { images.delete(it.imagePath, it.thumbPath) } }
         _state.value = ImportState()
@@ -179,12 +188,29 @@ class ImportSession @Inject constructor(
     suspend fun readDraft(key: Int, s: Source, earlier: List<Coupon> = emptyList()): Draft {
         val bytes = images.read(s.uri) ?: return Draft(key, sourceUri = s.mediaUri, mediaId = s.mediaId, stage = DraftStage.FAILED)
         val stored = images.save(bytes)
+        val thumb = images.saveThumb(bytes)
+        try {
+            return readStored(key, s, earlier, bytes, stored, thumb)
+        } catch (e: CancellationException) {
+            images.delete(stored.path, thumb) // A4: a cancelled read leaves no orphan copy
+            throw e
+        }
+    }
+
+    private suspend fun readStored(key: Int, s: Source, earlier: List<Coupon>, bytes: ByteArray, stored: StoredImage, thumb: String): Draft {
         // picker / share: find the gallery original while the uri grant is valid (F10 trash, F9 skip; QA R1-06)
         val link = if (s.mediaId == null) runCatching { media.resolve(s.uri, stored.hash) }.getOrNull() else null
         val src = s.mediaUri ?: link?.uri?.toString()
         val base = Draft(key, sourceUri = src, mediaId = s.mediaId ?: link?.id)
-        val thumb = images.saveThumb(bytes)
-        val r = runCatching { recognizer.recognize(bytes) }.getOrNull()
+        val r = try {
+            recognizer.recognize(bytes)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // O-12: class name only (never the message: it may carry text); the card still shows "읽지 못했어요"
+            Log.w("ImportSession", "recognition failed: ${e.javaClass.name}")
+            null
+        }
         val coupon = if (r == null) {
             Coupon(imagePath = stored.path, thumbPath = thumb, imageHash = stored.hash, sourceUri = src)
         } else {

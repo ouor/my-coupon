@@ -15,7 +15,7 @@ import com.ouor.mycoupon.data.ScanResult
 import com.ouor.mycoupon.data.Settings
 import com.ouor.mycoupon.domain.Draft
 import com.ouor.mycoupon.domain.ImportSession
-import com.ouor.mycoupon.ocr.Barcodes
+import com.ouor.mycoupon.ocr.engine.Barcodes
 import com.ouor.mycoupon.ocr.CouponRecognizer
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers

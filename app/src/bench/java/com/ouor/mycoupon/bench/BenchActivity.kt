@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import com.ouor.mycoupon.data.ImageStore
-import com.ouor.mycoupon.ocr.Barcodes
+import com.ouor.mycoupon.ocr.engine.Barcodes
 import com.ouor.mycoupon.ocr.CouponRecognizer
 import com.ouor.mycoupon.ocr.core.Box
 import com.ouor.mycoupon.ocr.core.DecodedBarcode

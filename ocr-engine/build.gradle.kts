@@ -8,6 +8,7 @@ kotlin { jvmToolchain(17) }
 
 dependencies {
     api(project(":ocr-core"))
+    api(libs.zxing.core)
     compileOnly(libs.onnxruntime.jvm)
     testImplementation(libs.onnxruntime.jvm)
     testImplementation(libs.junit)
