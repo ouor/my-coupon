@@ -15,3 +15,7 @@
 local.properties
 /.test
 /external
+/tools/ocr-bench/.venv
+/tools/ocr-bench/models
+/tools/ocr-bench/out
+build/

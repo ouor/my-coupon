@@ -23,5 +23,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "mycoupon"
-include(":app")
+include(":app", ":ocr-core", ":ocr-engine")
  
