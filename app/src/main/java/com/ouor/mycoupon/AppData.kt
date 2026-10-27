@@ -54,7 +54,8 @@ class AppData @Inject constructor(
      */
     suspend fun cleanUp(before: Long) {
         backup.clearTemp()
-        val keep = repo.all().flatMap { listOf(it.imagePath, it.thumbPath) }.toSet()
+        // A8: copies of a batch the previous process left open stay for S4's SavedState restore
+        val keep = repo.all().flatMap { listOf(it.imagePath, it.thumbPath) }.toSet() + session.pendingPaths()
         images.removeOrphans(keep, before)
     }
 }

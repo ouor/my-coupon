@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.coupon
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -139,8 +140,9 @@ private val numberFormat = NumberFormat.getNumberInstance(Locale.KOREA)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun CouponEditor(initial: Coupon, brands: List<String>, onSave: (Coupon) -> Unit, onBack: () -> Unit, onNotCoupon: () -> Unit) {
-    var c by remember(initial.id, initial.imagePath) { mutableStateOf(initial) }
-    var noExpiry by remember(initial.imagePath) { mutableStateOf(initial.expiryDate == null && !initial.needsReview.containsKey("expiryDate")) }
+    // code review A8: the values being edited survive a process death (e.g. while checking a PIN in KakaoTalk)
+    var c by rememberSaveable(initial.id, initial.imagePath) { mutableStateOf(initial) }
+    var noExpiry by rememberSaveable(initial.imagePath) { mutableStateOf(initial.expiryDate == null && !initial.needsReview.containsKey("expiryDate")) }
     var codeError by remember { mutableStateOf<String?>(null) }
     var balanceError by remember { mutableStateOf<String?>(null) }
     var datePicker by remember { mutableStateOf(false) }

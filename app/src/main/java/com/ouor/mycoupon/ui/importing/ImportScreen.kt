@@ -109,6 +109,7 @@ fun ImportScreen(nav: NavHostController) {
     }
 
     LaunchedEffect(st.truncated) { if (st.truncated) snackbar.show("한 번에 30장까지 읽어요. 앞의 30장만 가져왔어요") }
+    LaunchedEffect(Unit) { if (vm.lostOnRestore > 0) snackbar.show("앱이 닫혀 읽던 사진 ${vm.lostOnRestore}장은 다시 골라 주세요"); vm.lostShown() }
     // the batch was registered or discarded elsewhere (e.g. data wiped): nothing to show
     LaunchedEffect(st.drafts.isEmpty(), st.running) { if (st.drafts.isEmpty() && !st.running) nav.toHome() }
     BackHandler { confirmClose = true }

@@ -1,5 +1,7 @@
 package com.ouor.mycoupon.data
 
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -23,6 +25,7 @@ enum class UsedReason { USED, GIVEN }
 enum class CodeSource { DECODED, OCR, USER }
 
 /** spec §6.1. Expired is computed (`ACTIVE && expiryDate < today`), never stored. Backup format: backup/BackupFormat.kt. */
+@Parcelize // S4/S5 edit state survives process death (code review A8); not a storage or backup format
 @Entity(tableName = "coupon", indices = [Index("codeKey"), Index("imageHash"), Index("status")])
 data class Coupon(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -73,7 +76,7 @@ data class Coupon(
     val trashAsked: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-) {
+) : Parcelable {
     val needsCheck get() = needsReview.isNotEmpty()
     fun isExpired(today: LocalDate) = status == CouponStatus.ACTIVE && expiryDate != null && expiryDate < today
     fun isAvailable(today: LocalDate) = status == CouponStatus.ACTIVE && !isExpired(today)

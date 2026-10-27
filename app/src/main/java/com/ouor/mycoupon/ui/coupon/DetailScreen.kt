@@ -209,7 +209,13 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
         while (undoLeft > 0) { delay(1000); undoLeft-- }
         // F10: offer to trash the gallery original once (API 30+, MediaStore uri that still exists)
         val canTrash = !coupon.trashAsked && Build.VERSION.SDK_INT >= 30 && coupon.sourceUri?.startsWith("content://media/") == true &&
-            withContext(Dispatchers.IO) { runCatching { activity.contentResolver.openInputStream(Uri.parse(coupon.sourceUri))?.close(); true }.getOrDefault(false) }
+            withContext(Dispatchers.IO) {
+                // code review A7: without gallery permission (picker / share, the usual path) another app's photo can't be opened,
+                // so "can't tell" means try; the system trash dialog itself reports a missing photo
+                try { activity.contentResolver.openInputStream(Uri.parse(coupon.sourceUri))?.close(); true }
+                catch (_: SecurityException) { true }
+                catch (_: Exception) { false }
+            }
         if (canTrash) askTrash = true else { if (!coupon.trashAsked) vm.trashAnswered(); leave(nav, snackbar, homeVm, id, msg) }
     }
 
@@ -344,10 +350,10 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
         Spacer(Modifier.height(Spacing.l))
         PrimaryButton("휴지통으로 옮기기", {
             askTrash = false
-            if (Build.VERSION.SDK_INT >= 30) {
+            if (Build.VERSION.SDK_INT >= 30) runCatching {
                 val pi = MediaStore.createTrashRequest(activity.contentResolver, listOf(Uri.parse(coupon.sourceUri)), true)
                 trash.launch(IntentSenderRequest.Builder(pi.intentSender).build())
-            }
+            }.onFailure { vm.trashAnswered(); finishing?.let { leave(nav, snackbar, homeVm, id, it) } }
         })
         SecondaryButton("그대로 두기", { askTrash = false; vm.trashAnswered(); finishing?.let { leave(nav, snackbar, homeVm, id, it) } })
     }

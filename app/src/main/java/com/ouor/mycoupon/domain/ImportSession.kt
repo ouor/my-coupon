@@ -1,5 +1,8 @@
 package com.ouor.mycoupon.domain
 
+import java.io.File
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
 import android.net.Uri
 import com.ouor.mycoupon.data.Duplicate
 import android.util.Log
@@ -42,6 +45,7 @@ enum class DraftStage { READING, DONE, FAILED }
  * One S4 card. [coupon] is the editable result (id = 0 until registered); UI edits go through
  * [ImportSession.edit]. Field review keys follow porting-spec (brand, productName, faceValue, code, expiryDate, sender).
  */
+@Parcelize // kept in the S4 SavedState (code review A8)
 data class Draft(
     val key: Int,
     val stage: DraftStage = DraftStage.READING,
@@ -55,7 +59,7 @@ data class Draft(
     val checked: Boolean = false,
     /** per-image timings for the benchmark / debug screen */
     val totalMs: Long = 0,
-)
+) : Parcelable
 
 data class ImportState(
     val origin: ImportOrigin = ImportOrigin.PICKER,
@@ -104,6 +108,34 @@ class ImportSession @Inject constructor(
             _state.update { it.copy(running = false) }
         }
     }
+
+    /**
+     * Code review A8: after the process died, S4's SavedState hands the finished drafts back. Only when no batch is open;
+     * drafts whose image copy is gone are dropped. Returns how many were restored.
+     */
+    fun restore(origin: ImportOrigin, drafts: List<Draft>): Int {
+        if (_state.value.drafts.isNotEmpty()) return 0
+        val ok = drafts.filter { d -> d.stage != DraftStage.READING && d.coupon?.let { File(it.imagePath).exists() } != false }
+        _state.value = ImportState(origin, ok, false)
+        return ok.size
+    }
+
+    /** Image copies of the open batch, listed for [com.ouor.mycoupon.AppData.cleanUp] so a restored batch keeps its files (A8). Paths only, no coupon data. */
+    private val pending = File(images.imageDir.parentFile, "import_batch_paths")
+
+    init {
+        scope.launch {
+            _state.collect { st ->
+                val paths = st.drafts.mapNotNull { it.coupon }.flatMap { listOf(it.imagePath, it.thumbPath) }
+                runCatching { if (paths.isEmpty()) pending.delete() else pending.writeText(paths.joinToString("\n")) }
+            }
+        }
+    }
+
+    /** Paths [pending] lists when it was written within [maxAgeMs]; an older list is dropped (the batch was never reopened). */
+    fun pendingPaths(maxAgeMs: Long = 24 * 3600_000L): Set<String> =
+        if (pending.exists() && System.currentTimeMillis() - pending.lastModified() < maxAgeMs) pending.readLines().toSet()
+        else { pending.delete(); emptySet() }
 
     /** Adds already-recognised gallery results (F9) as a DONE batch. */
     fun startWith(drafts: List<Draft>, origin: ImportOrigin) {
