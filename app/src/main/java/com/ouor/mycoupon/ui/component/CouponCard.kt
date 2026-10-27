@@ -40,7 +40,7 @@ fun CouponCard(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modif
     val review = c.needsCheck && !past
     val balance = if (c.type == CouponType.AMOUNT && c.balance != null && !past) "잔액 ${won(c.balance)}" else null
     val usedLine = c.usedAt?.takeIf { past }?.let { epochDay(it).monthDay() + if (state == CouponState.GIVEN) " 넘김" else " 사용" }
-    val spoken = listOfNotNull(c.brand, c.productName ?: "이름 없는 쿠폰", ddaySpoken(c, today), usedLine, balance, "확인 필요".takeIf { review })
+    val spoken = listOfNotNull(c.brand, c.name() ?: "이름 없는 쿠폰", ddaySpoken(c, today), usedLine, balance, "확인 필요".takeIf { review })
         .joinToString(", ")
     val container = if (past) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surfaceContainer
 
@@ -61,7 +61,7 @@ fun CouponCard(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modif
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 c.brand?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                Text(c.productName ?: "이름 없는 쿠폰", style = MaterialTheme.typography.titleMedium)
+                Text(c.name() ?: "이름 없는 쿠폰", style = MaterialTheme.typography.titleMedium)
                 if (large) DdayBadge(c, today, Modifier.padding(top = Spacing.xs))
                 val sub = listOfNotNull(balance, usedLine).joinToString(" · ")
                 if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

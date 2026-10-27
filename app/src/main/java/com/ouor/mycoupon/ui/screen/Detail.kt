@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.screen
 
+import com.ouor.mycoupon.ui.component.title
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
@@ -261,7 +262,7 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.l)) {
             // short header so the barcode's top edge stays within 40 % of the screen (screens.md S6)
             if (!large) coupon.brand?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            Text(coupon.productName ?: coupon.brand ?: "이름 없는 쿠폰", Modifier.focusRequester(title).semantics { heading() },
+            Text(coupon.title(), Modifier.focusRequester(title).semantics { heading() },
                 style = MaterialTheme.typography.titleLarge, maxLines = if (large) 1 else Int.MAX_VALUE)
             Row(Modifier.padding(top = Spacing.xs, bottom = Spacing.m), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
                 DdayBadge(coupon, today)

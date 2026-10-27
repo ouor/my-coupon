@@ -155,6 +155,7 @@ class ImportViewModel @Inject constructor(private val session: ImportSession, re
 
     fun start(uris: List<Uri>, origin: ImportOrigin) = session.start(uris.map { ImportSession.Source(it) }, origin)
     fun setChecked(key: Int, v: Boolean) = session.setChecked(key, v)
+    fun exclude(key: Int) = session.exclude(key)
     fun edit(key: Int, c: Coupon) = session.edit(key, c)
     fun stop() = session.stopReading()
     fun discard() = session.discard()

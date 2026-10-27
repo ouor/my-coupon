@@ -124,6 +124,11 @@ class ImportSession @Inject constructor(
         st.copy(drafts = st.drafts.map { if (it.key == key) it.copy(checked = checked) else it })
     }
 
+    /** Review U2 "쿠폰 아님 · 빼기": the user says it is not a coupon (receipt etc.); it joins the folded not-a-coupon group. */
+    fun exclude(key: Int) = _state.update { st ->
+        st.copy(drafts = st.drafts.map { if (it.key == key) it.copy(isCoupon = false, checked = false) else it })
+    }
+
     /**
      * S5 save for a draft (also "직접 입력" on a failed card: its coupon holds the image only). Checks the card.
      * A changed number re-runs the F4 duplicate check (the card stays checked: the user chose to save it).

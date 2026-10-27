@@ -105,15 +105,17 @@ object Spacing {
 
 // §2.3-6: Korean breaks by phrase (Android 13+), never inside "사용 가/능".
 private val phrase = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase)
-private fun s(size: Int, line: Int, w: FontWeight) = TextStyle(fontSize = size.sp, lineHeight = line.sp, fontWeight = w, lineBreak = phrase)
+// review U10: titles use balanced lines so a long name never leaves one syllable alone ("…세 / 트")
+private val balanced = phrase.copy(strategy = LineBreak.Strategy.Balanced)
+private fun s(size: Int, line: Int, w: FontWeight, b: LineBreak = phrase) = TextStyle(fontSize = size.sp, lineHeight = line.sp, fontWeight = w, lineBreak = b)
 
 val AppTypography = Typography(
-    displaySmall = s(36, 44, FontWeight.Bold),
-    headlineMedium = s(28, 36, FontWeight.Bold),
-    headlineSmall = s(24, 32, FontWeight.Bold),
-    titleLarge = s(22, 30, FontWeight.SemiBold),
-    titleMedium = s(18, 26, FontWeight.SemiBold),
-    titleSmall = s(15, 22, FontWeight.SemiBold),
+    displaySmall = s(36, 44, FontWeight.Bold, balanced),
+    headlineMedium = s(28, 36, FontWeight.Bold, balanced),
+    headlineSmall = s(24, 32, FontWeight.Bold, balanced),
+    titleLarge = s(22, 30, FontWeight.SemiBold, balanced),
+    titleMedium = s(18, 26, FontWeight.SemiBold, balanced),
+    titleSmall = s(15, 22, FontWeight.SemiBold, balanced),
     bodyLarge = s(17, 26, FontWeight.Normal),
     bodyMedium = s(15, 22, FontWeight.Normal),
     bodySmall = s(13, 18, FontWeight.Normal),

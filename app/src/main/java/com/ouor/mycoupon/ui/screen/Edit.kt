@@ -50,6 +50,9 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.ouor.mycoupon.ui.toHome
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -107,7 +110,8 @@ fun EditDraftScreen(key: Int, nav: NavHostController) {
     val brands by vm.brands.collectAsState()
     val d = st.drafts.firstOrNull { it.key == key }?.coupon
     if (d == null) { LaunchedEffect(Unit) { nav.popBackStack() }; return }
-    CouponEditor(d, brands, onSave = { vm.edit(key, it); nav.popBackStack() }, onBack = { nav.popBackStack() })
+    CouponEditor(d, brands, onSave = { vm.edit(key, it); nav.popBackStack() }, onBack = { nav.popBackStack() },
+        onNotCoupon = { vm.exclude(key); nav.popBackStack() })
 }
 
 @Composable
@@ -117,7 +121,18 @@ fun EditCouponScreen(id: Long, nav: NavHostController) {
     val c by vm.coupon.collectAsState()
     val brands by vm.brands.collectAsState()
     val snackbar = LocalSnackbar.current
-    c?.let { CouponEditor(it, brands, onSave = { n -> vm.save(n); snackbar.show("저장했어요"); nav.popBackStack() }, onBack = { nav.popBackStack() }) }
+    val scope = rememberCoroutineScope()
+    var confirmDelete by remember { mutableStateOf(false) }
+    c?.let { CouponEditor(it, brands, onSave = { n -> vm.save(n); snackbar.show("저장했어요"); nav.popBackStack() }, onBack = { nav.popBackStack() },
+        onNotCoupon = { confirmDelete = true }) }
+    if (confirmDelete) AlertDialog(
+        onDismissRequest = { confirmDelete = false },
+        title = { Text("이 쿠폰을 지울까요?") },
+        text = { Text("쿠폰이 아닌 사진이면 목록에서 지워요. 갤러리 사진은 그대로예요.") },
+        confirmButton = { TextButton({ confirmDelete = false; scope.launch { vm.delete().join(); snackbar.show("쿠폰을 지웠어요"); nav.toHome() } }) {
+            Text("지우기", color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton({ confirmDelete = false }) { Text("그대로 두기") } },
+    )
 }
 
 private val numberFormat = NumberFormat.getNumberInstance(Locale.KOREA)
@@ -125,7 +140,7 @@ private val numberFormat = NumberFormat.getNumberInstance(Locale.KOREA)
 /** S5 (F3). [맞아요] / editing a field clears that field's review reasons. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun CouponEditor(initial: Coupon, brands: List<String>, onSave: (Coupon) -> Unit, onBack: () -> Unit) {
+private fun CouponEditor(initial: Coupon, brands: List<String>, onSave: (Coupon) -> Unit, onBack: () -> Unit, onNotCoupon: () -> Unit) {
     var c by remember(initial.id, initial.imagePath) { mutableStateOf(initial) }
     var noExpiry by remember(initial.imagePath) { mutableStateOf(initial.expiryDate == null && !initial.needsReview.containsKey("expiryDate")) }
     var codeError by remember { mutableStateOf<String?>(null) }
@@ -153,7 +168,10 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, onSave: (Coupon)
     }
 
     Scaffold(
-        topBar = { AppTopBar("쿠폰 확인", onBack = leave) { TextButton(::save) { Text("저장", style = MaterialTheme.typography.labelLarge) } } },
+        topBar = { AppTopBar("쿠폰 확인", onBack = leave) {
+            // review U2: a receipt read as a coupon must be removable right here; review U7: [저장] only at the bottom
+            TextButton(onNotCoupon, Modifier.heightIn(min = Spacing.touch)) { Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge) }
+        } },
         bottomBar = { BottomCta("저장", ::save) },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {

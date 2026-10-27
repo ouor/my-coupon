@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.widget
 
+import com.ouor.mycoupon.reminder.ReminderPlanner
 import android.content.Context
 import android.content.Intent
 import androidx.compose.ui.unit.dp
@@ -96,7 +97,7 @@ class CouponWidget : GlanceAppWidget() {
                         .setAction("open-${c.id}") // distinct intents per row
                     val d = Stats.daysLeft(c, today)
                     Row(GlanceModifier.fillMaxWidth().height(44.dp).clickable(actionStartActivity(row)), verticalAlignment = Alignment.CenterVertically) {
-                        Text(listOfNotNull(c.brand, c.productName).joinToString(" ").ifEmpty { "쿠폰" }, GlanceModifier.defaultWeight(),
+                        Text(ReminderPlanner.title(c), GlanceModifier.defaultWeight(),
                             style = TextStyle(fontSize = 14.sp, color = fg), maxLines = 1)
                         Text(WidgetData.dday(c, today), style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold,
                             color = if (d != null && d <= 7) soon else fg))

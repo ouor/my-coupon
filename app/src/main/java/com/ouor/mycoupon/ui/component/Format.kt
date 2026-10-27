@@ -45,7 +45,10 @@ fun won(v: Long): String = ReminderPlanner.won(v)
 fun codeGroups(code: String): List<String> = code.filterNot(Char::isWhitespace).chunked(4)
 fun codeSpoken(code: String): String = codeGroups(code).joinToString(", ")
 
-fun Coupon.title(): String = productName ?: brand ?: "이름 없는 쿠폰"
+fun Coupon.title(): String = name() ?: brand ?: "이름 없는 쿠폰"
+
+/** Product name as shown everywhere (brand prefix dropped, review U1). */
+fun Coupon.name(): String? = ReminderPlanner.shortName(brand, productName)
 
 /** S5 copy per reason (screens.md S5): the first reason of a field is shown. */
 fun reasonText(field: String, reason: String): String = when (reason) {
@@ -83,3 +86,6 @@ fun String.subject(): String {
     val ch = lastOrNull() ?: return this
     return if (ch in '가'..'힣' && (ch - '가') % 28 != 0) "${this}이" else "${this}가"
 }
+
+/** "번호 끝 2085": tells identical coupons apart without showing the whole number (review U3). */
+fun codeTail(code: String): String = "번호 끝 " + code.filter(Char::isLetterOrDigit).takeLast(4)

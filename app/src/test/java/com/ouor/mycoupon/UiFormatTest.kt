@@ -63,4 +63,20 @@ class UiFormatTest {
         assertEquals("금액이", "금액".subject())
         assertEquals("메모가", "메모".subject())
     }
+
+    @Test fun shortNameDropsRepeatedBrand() {
+        val n = { b: String?, p: String? -> com.ouor.mycoupon.reminder.ReminderPlanner.shortName(b, p) }
+        assertEquals("팥빙 젤라또 파르페", n("메가MGC커피", "(메가MGC커피)팥빙 젤라또 파르페"))
+        assertEquals("(ICE)아메리카노", n("메가MGC커피", "(메가MGC커피)(ICE)아메리카노"))
+        assertEquals("30,000원권", n("CU", "[CU] 30,000원권"))
+        assertEquals("아메리카노", n("메가커피", "(메가MGC커피)아메리카노".replace("메가MGC커피", "메가 커피")))
+        assertEquals("[EVENT]메가MGC커피 카페라떼", n("메가MGC커피", "[EVENT]메가MGC커피 카페라떼"))
+        assertEquals("(CU)", n("CU", "(CU)"))
+        assertEquals("(CU)김밥", n(null, "(CU)김밥"))
+        assertEquals(null, n("CU", null))
+    }
+
+    @Test fun codeTailShowsLastFour() {
+        assertEquals("번호 끝 2085", com.ouor.mycoupon.ui.component.codeTail("4550 3004 1841 2085"))
+    }
 }

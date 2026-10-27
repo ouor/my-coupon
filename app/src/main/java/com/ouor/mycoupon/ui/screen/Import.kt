@@ -1,5 +1,12 @@
 package com.ouor.mycoupon.ui.screen
 
+import com.ouor.mycoupon.ui.component.name
+import com.ouor.mycoupon.ui.component.codeTail
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.runtime.saveable.rememberSaveable
+import java.time.LocalDate
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -34,6 +41,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -118,8 +126,12 @@ fun ImportScreen(nav: NavHostController) {
         }
     }
 
-    val reviewCount = st.drafts.count { it.stage == DraftStage.DONE && it.isCoupon && it.duplicate == null && it.coupon?.needsCheck == true }
-    val notCoupon = st.drafts.count { it.stage == DraftStage.DONE && !it.isCoupon }
+    val today = LocalDate.now()
+    val expired = { d: Draft -> d.coupon?.expiryDate?.isBefore(today) == true }
+    val reviewCount = st.drafts.count { it.stage == DraftStage.DONE && it.isCoupon && it.duplicate == null && it.coupon?.needsCheck == true && !expired(it) }
+    // review U2: unchecked not-a-coupon drafts fold into one row that can be opened
+    val (folded, shown) = st.drafts.sortedBy(::order).partition { it.stage == DraftStage.DONE && !it.isCoupon && !it.checked }
+    var foldOpen by rememberSaveable { mutableStateOf(false) }
     val allFailed = !st.running && st.drafts.isNotEmpty() && st.drafts.all { it.stage == DraftStage.FAILED }
     val reading = st.total - st.done
 
@@ -149,11 +161,32 @@ fun ImportScreen(nav: NavHostController) {
                 EmptyState(Icons.Rounded.BrokenImage, "사진에서 쿠폰을 읽지 못했어요", "직접 입력하거나 다른 사진을 골라 주세요",
                     primary = "다른 사진 고르기" to { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) })
             } else if (st.done > 0) item(key = "summary") {
-                val parts = listOfNotNull("확인할 쿠폰 ${reviewCount}개".takeIf { reviewCount > 0 }, "쿠폰이 아닌 것 ${notCoupon}장".takeIf { notCoupon > 0 })
-                Text(parts.ifEmpty { listOf("읽은 쿠폰 ${st.done}개") }.joinToString(" · "), style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // review U8: the headline number is the same one the [N개 등록] button uses; the rest says where the others went
+                val done = st.drafts.filter { it.stage != DraftStage.READING }
+                val parts = listOfNotNull(
+                    "확인 필요 ${reviewCount}".takeIf { reviewCount > 0 },
+                    done.count { it.duplicate != null }.takeIf { it > 0 }?.let { "이미 등록 $it" },
+                    done.count { it.isCoupon && expired(it) }.takeIf { it > 0 }?.let { "만료 $it" },
+                    folded.size.takeIf { it > 0 }?.let { "쿠폰 아님 $it" },
+                    done.count { it.stage == DraftStage.FAILED }.takeIf { it > 0 }?.let { "못 읽음 $it" },
+                )
+                Column(Modifier.semantics(mergeDescendants = true) {}) {
+                    Text("${done.size}장 중 ${st.checkedCount}개를 등록해요", style = MaterialTheme.typography.titleMedium)
+                    if (parts.isNotEmpty()) Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
-            items(st.drafts.sortedBy(::order), key = { it.key }) { d ->
+            items(shown, key = { it.key }) { d ->
+                DraftCard(d, Modifier.animateItem(), onCheck = { vm.setChecked(d.key, it) }, onOpen = { nav.navigate(Route.EditDraft(d.key)) },
+                    onExclude = { vm.exclude(d.key) })
+            }
+            if (folded.isNotEmpty()) item(key = "folded") {
+                TextButton({ foldOpen = !foldOpen }, Modifier.fillMaxWidth().heightIn(min = Spacing.touch)) {
+                    Text("쿠폰이 아닌 것 ${folded.size}장", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                    Icon(if (foldOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, if (foldOpen) "접기" else "펼치기")
+                }
+            }
+            if (foldOpen) items(folded, key = { it.key }) { d ->
                 DraftCard(d, Modifier.animateItem(), onCheck = { vm.setChecked(d.key, it) }, onOpen = { nav.navigate(Route.EditDraft(d.key)) })
             }
             if (st.origin == ImportOrigin.GALLERY_SCAN) item(key = "pin-hint") {
@@ -180,18 +213,19 @@ fun ImportScreen(nav: NavHostController) {
 
 /** S4 RecognitionCard. Checkbox = select only; card tap = S5. */
 @Composable
-private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, onOpen: () -> Unit) {
+private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, onOpen: () -> Unit, onExclude: (() -> Unit)? = null) {
     val c = d.coupon
     val s = MaterialTheme.statusColors
     val readingNow = d.stage == DraftStage.READING
-    val review = d.stage == DraftStage.DONE && d.isCoupon && d.duplicate == null && c?.needsCheck == true
+    val expired = c?.expiryDate?.isBefore(LocalDate.now()) == true
+    // review U8: an expired card shows one warning (만료), not 만료 + 확인 필요
+    val review = d.stage == DraftStage.DONE && d.isCoupon && d.duplicate == null && c?.needsCheck == true && !expired
     val large = isLargeFont()
-    val expired = c?.expiryDate?.isBefore(java.time.LocalDate.now()) == true
     val spoken = when {
         readingNow -> "읽는 중"
         d.stage == DraftStage.FAILED -> "읽지 못했어요, 직접 입력"
         else -> listOfNotNull(
-            c?.brand, c?.productName,
+            c?.brand, c?.name(),
             c?.expiryDate?.let { "유효기간 ${it.spoken()}" } ?: "유효기간 없음",
             "확인 필요".takeIf { review },
             when (d.duplicate) { Duplicate.USED -> "이미 사용한 쿠폰이에요"; Duplicate.REGISTERED, Duplicate.IN_BATCH -> "이미 등록된 쿠폰"; null -> null },
@@ -243,7 +277,7 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
                                     }
                                 }
                                 c?.brand?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                                Text(c?.productName ?: "상품 이름 없음", style = MaterialTheme.typography.titleMedium)
+                                Text(c?.name() ?: "상품 이름 없음", style = MaterialTheme.typography.titleMedium)
                             }
                         }
                     }
@@ -256,11 +290,15 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
                     if (c.needsReview.containsKey("expiryDate") && review) ReviewMark()
                     val other = c.needsReview.keys.any { it != "expiryDate" }
                     val line = listOfNotNull(
-                        c.code?.let { "번호 끝 ${it.filter(Char::isLetterOrDigit).takeLast(4)}" } ?: "번호를 찾지 못했어요 · 핀번호면 직접 입력해 주세요",
+                        c.code?.let(::codeTail) ?: "번호를 찾지 못했어요 · 핀번호면 직접 입력해 주세요",
                         if (c.type == CouponType.AMOUNT) "금액권" + (c.faceValue?.let { " ${won(it)}" } ?: "") else "교환·할인권",
                     ).joinToString(" · ")
                     Text(line, Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (other && review && !c.needsReview.containsKey("expiryDate")) ReviewMark()
+                    // review U2: doubtful cards (확인 필요, or a not-a-coupon the user ticked) can be dropped from the card itself
+                    if (onExclude != null && (review || (!d.isCoupon && d.checked))) TextButton(onExclude, Modifier.heightIn(min = Spacing.touch)) {
+                        Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge)
+                    }
                 }
             }
         }
