@@ -75,4 +75,6 @@ data class Extraction(
     val needsReview: Map<Field, List<ReviewReason>>,
     val fieldBoxes: Map<Field, Box>,
     val rows: List<TextRow>,
+    /** App-only, not compared with the goldens (C2-18): the row box each expiry candidate was read from. */
+    val expiryCandidateBoxes: Map<LocalDate, Box> = emptyMap(),
 )

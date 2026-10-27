@@ -17,6 +17,7 @@ import com.ouor.mycoupon.ocr.engine.BgrImage
 import com.ouor.mycoupon.ocr.engine.PaddleOcrEngine
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -49,16 +50,21 @@ class CouponRecognizer @Inject constructor(@ApplicationContext private val conte
 
     /** Null when the bytes are not a decodable image (S4 "읽지 못했어요"). */
     suspend fun recognize(bytes: ByteArray): Recognition? = withContext(Dispatchers.Default) {
+        val ctx = coroutineContext
+        // O-09: [버리기] cancels the import job; every step and rec batch checks it, so the CPU is free within one batch
+        val cancel = { ctx.ensureActive() }
         mutex.withLock {
+            cancel()
             val t0 = SystemClock.elapsedRealtime()
             val bmp = ImageCodec.decode(bytes, DECODE_MAX_SIDE) ?: return@withLock null
-            val img = toBgr(bmp)
-            bmp.recycle()
+            val img = try { cancel(); toBgr(bmp) } finally { bmp.recycle() }
             val t1 = SystemClock.elapsedRealtime()
+            cancel()
             val barcodes = Barcodes.decode(img)
             val t2 = SystemClock.elapsedRealtime()
+            cancel()
             val e = engine()
-            val lines: List<OcrLine> = e.recognize(img)
+            val lines: List<OcrLine> = e.recognize(img, cancel)
             val et = e.lastTimings
             val t3 = SystemClock.elapsedRealtime()
             val x = withAppRules(Extract.extract(lines, barcodes, img.width, img.height))

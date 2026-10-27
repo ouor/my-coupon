@@ -86,17 +86,22 @@ class PaddleOcrEngine private constructor(
         }
     }
 
-    fun recognize(img: BgrImage): List<OcrLine> {
+    /**
+     * [cancel] is called between steps and before every rec batch (O-09): it throws to stop, e.g. the app's ensureActive(),
+     * so a discarded import stops within one batch instead of finishing the image. It never changes the output.
+     */
+    fun recognize(img: BgrImage, cancel: () -> Unit = {}): List<OcrLine> {
         val t0 = System.nanoTime()
         val boxes = detect(img)
         val t1 = System.nanoTime()
         val crops = ArrayList<BgrImage>()
         val kept = ArrayList<IntArray>()
         for (b in boxes) {
+            cancel()
             val c = crop(img, b) ?: continue
             crops.add(c); kept.add(b)
         }
-        val texts = recognizeCrops(crops)
+        val texts = recognizeCrops(crops, cancel)
         val t2 = System.nanoTime()
         lastTimings = Timings((t1 - t0) / 1_000_000, (t2 - t1) / 1_000_000, kept.size)
         return kept.mapIndexed { i, b ->
@@ -154,10 +159,11 @@ class PaddleOcrEngine private constructor(
         return if (ch.toDouble() / cw >= 1.5) ImageOps.rot90(out) else out
     }
 
-    private fun recognizeCrops(crops: List<BgrImage>): List<Pair<String, Float>> {
+    private fun recognizeCrops(crops: List<BgrImage>, cancel: () -> Unit): List<Pair<String, Float>> {
         val res = arrayOfNulls<Pair<String, Float>>(crops.size)
         val order = crops.indices.sortedBy { crops[it].width / crops[it].height.toDouble() }
         for (chunk in order.chunked(options.recBatch)) {
+            cancel()
             val widths = chunk.map { recWidth(crops[it]) } // padded width of each crop
             val maxW = widths.max()
             val plane = 48 * maxW

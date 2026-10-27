@@ -21,13 +21,16 @@ object Barcodes {
         BarcodeFormat.EAN_13, BarcodeFormat.ITF, BarcodeFormat.RSS_14, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
     )
 
-    // MAXICODE needs a pure image and gives no result points (O-13); the extension and RSS_EXPANDED never appear on coupons
-    private val hints = mapOf(
-        DecodeHintType.TRY_HARDER to true,
-        DecodeHintType.POSSIBLE_FORMATS to BarcodeFormat.entries.filter {
-            it != BarcodeFormat.UPC_EAN_EXTENSION && it != BarcodeFormat.RSS_EXPANDED && it != BarcodeFormat.MAXICODE
-        },
+    /**
+     * Formats Korean mobile coupons use (O-09: fewer readers = a cheaper miss on a photo without a code). MAXICODE needs a
+     * pure image and gives no result points (O-13); AZTEC, PDF_417, CODABAR, RSS_14/RSS_EXPANDED and the UPC/EAN extension
+     * are not seen on coupons (all 56 .test coupons: Code128 / Code93 / EAN-13), and CODABAR is the usual false hit on texture.
+     */
+    private val COUPON_FORMATS = listOf(
+        BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.CODE_93, BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
+        BarcodeFormat.UPC_A, BarcodeFormat.UPC_E, BarcodeFormat.ITF, BarcodeFormat.QR_CODE, BarcodeFormat.DATA_MATRIX,
     )
+    private val hints = mapOf(DecodeHintType.TRY_HARDER to true, DecodeHintType.POSSIBLE_FORMATS to COUPON_FORMATS)
     private val fastHints = mapOf(DecodeHintType.POSSIBLE_FORMATS to hints[DecodeHintType.POSSIBLE_FORMATS])
 
     fun gray(img: BgrImage): ByteArray {

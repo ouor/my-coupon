@@ -274,7 +274,10 @@ object Extract {
     private fun mkdate(y: String, m: String, d: String): LocalDate? =
         try { LocalDate.of(y.toInt(), m.toInt(), d.toInt()) } catch (_: DateTimeException) { null } catch (_: NumberFormatException) { null }
 
-    private class Expiry(val value: LocalDate?, val dates: List<LocalDate>, val box: Box?, val review: List<ReviewReason>)
+    private class Expiry(
+        val value: LocalDate?, val dates: List<LocalDate>, val box: Box?, val review: List<ReviewReason>,
+        val boxes: Map<LocalDate, Box> = emptyMap(),
+    )
 
     private fun pickExpiry(rows: List<Row>): Expiry {
         val full = rows.map { r -> FULL.findAll(r.text).mapNotNull { mkdate(it.groupValues[1], it.groupValues[2], it.groupValues[3]) }.toList() }
@@ -324,7 +327,11 @@ object Extract {
         val (value, src) = pick
         if (value in inferred) review.add(ReviewReason.YEAR_INFERRED)
         if (src.score < REVIEW_SCORE) review.add(ReviewReason.LOW_CONFIDENCE)
-        return Expiry(value, dates, src.box, review)
+        // app-only (C2-18, not in extract.py): the row each candidate was read from, first one wins like the pick
+        val from = if (keyed.isNotEmpty()) keyed else fallback
+        val boxes = LinkedHashMap<LocalDate, Box>()
+        for ((d, r) in from) boxes.getOrPut(d) { r.box }
+        return Expiry(value, dates, src.box, review, boxes)
     }
 
     // ---------- brand, product, type, amount, issuer ----------
@@ -625,6 +632,7 @@ object Extract {
             codeSource = code.source,
             expiryDate = exp.value,
             expiryCandidates = exp.dates,
+            expiryCandidateBoxes = exp.boxes,
             issuer = issuer?.first,
             sender = sender,
             notes = notes,
