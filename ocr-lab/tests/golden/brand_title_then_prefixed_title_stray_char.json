@@ -184,7 +184,7 @@
   "height": 2157
  },
  "expected": {
-  "version": "1",
+  "version": "2",
   "isCoupon": true,
   "brand": "카페B",
   "productName": "(카페B)(ICE)바닐라라 떼",

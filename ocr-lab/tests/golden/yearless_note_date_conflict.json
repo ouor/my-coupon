@@ -206,7 +206,7 @@
   "height": 1000
  },
  "expected": {
-  "version": "1",
+  "version": "2",
   "isCoupon": true,
   "brand": "편의점D",
   "productName": "편의점D 500원 할인",

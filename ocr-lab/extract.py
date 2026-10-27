@@ -10,7 +10,7 @@ relative geometry (in line heights / image width), generic Korean coupon vocabul
 import datetime as dt
 import re
 
-VERSION = "1"
+VERSION = "2"
 
 MIN_SCORE = 0.6        # step 1: lines below this are noise
 ROW_OVERLAP = 0.5      # step 2: vertical overlap / smaller box height to share a row
@@ -20,6 +20,8 @@ WRAP_HEIGHT = 0.8      # step 3: min height ratio of wrapped lines
 WRAP_HEIGHT_CUE = 0.6  # step 3: same, when the text itself says the line continues (open bracket, "+" at the seam)
 WRAP_WIDTH = 0.75      # step 3: the first line must span this share of the widest line
 REVIEW_SCORE = 0.9     # a field read from a run below this OCR confidence is flagged LOW_CONFIDENCE
+RIVAL_HEIGHT = 0.8     # product: another title-like cell at >= 0.8 x the chosen font height ...
+RIVAL_DIST = 6.0       # ... within 6 chosen line heights vertically makes the pick AMBIGUOUS
 
 # generic coupon vocabulary (not issuer/brand specific)
 NOTES_HEADER = re.compile(r"(유의|주의|안내|참고|이용)\s*(사항|안내|방법)|이용\s*안내|사용\s*방법|꼭\s*확인")
@@ -231,6 +233,7 @@ def pick_code(rows, barcodes):
 # ---------- step 6: expiry ----------
 
 FULL = re.compile(r"(20\d\d)\s*[./년-]\s*(\d{1,2})\s*[./월-]\s*(\d{1,2})")
+SHORT = re.compile(r"(?<![\d.])\d{2}\s*[./-]\s*\d{1,2}\s*[./-]\s*\d{1,2}(?!\d)")  # "26.12.31": unsupported, never guessed
 NOYEAR = re.compile(r"(?<![\d.:/])(\d{1,2})\s*[/월.]\s*(\d{1,2})\s*일?\s*까지")
 
 
@@ -252,6 +255,8 @@ def pick_expiry(rows):
             continue
         if r["notes"] and not any(k in r["text"] for k in NOTE_DATE_KEYWORDS):
             continue  # notes mention dates for events etc.; only validity sentences count
+        if not ds and SHORT.search(r["text"]) and any(k in r["text"] for k in DATE_KEYWORDS):
+            return None, [], r["box"], ["NOT_FOUND"]  # a deadline written with a two-digit year: leave it empty
         ds = list(ds)
         if years:  # "8/31까지" has no year: borrow the latest printed year, next year if that lands before every date
             for m, d in NOYEAR.findall(r["text"]):
@@ -350,8 +355,26 @@ def pick_product(rows, limit_y, brand):
     # a big brand title right above a title that repeats it ("버거킹" / "(버거킹)치즈와퍼…"): the longer line is the product
     for _, _, d, j in sorted(cands, key=lambda x: x[3]):
         if i < j <= i + 2 and norm(c["value"]) in norm(d["value"]) and len(norm(d["value"])) > len(norm(c["value"])):
-            return d, j
-    return c, i
+            return d, j, [x[2] for x in cands]
+    return c, i, [x[2] for x in cands]
+
+
+def ambiguous(prod, cands, brand):
+    """Another title-like cell of nearly the same font size close by, unrelated to the pick: the pick may be wrong.
+    Unrelated = not the brand, not contained in the pick, shares no word with it (a "○○ 교환권" subtitle does),
+    and has fewer than 6 digits (order numbers, even when misread as "00000]0000")."""
+    for d in cands:
+        if d is prod or d["h"] < RIVAL_HEIGHT * prod["h"]:
+            continue
+        if abs((d["box"][1] + d["box"][3]) / 2 - (prod["box"][1] + prod["box"][3]) / 2) > RIVAL_DIST * prod["h"]:
+            continue
+        v = d["value"]
+        if (brand and norm(v) == norm(brand)) or norm(v) in norm(prod["value"]) or len(re.findall(r"\d", v)) >= 6:
+            continue
+        if repeats(prod["value"], v) or repeats(v, prod["value"]):
+            continue
+        return True
+    return False
 
 
 def repeated_fix(text, rows):
@@ -463,16 +486,17 @@ def extract(lines, barcodes, width, height):
     pp = pick_product(rows, limit_y, labelled[0] if labelled else None)
     product = brand = None
     if pp:
-        prod, pi = pp
+        prod, pi, cands = pp
         product = repeated_fix(prod["value"], rows)
         boxes["productName"] = prod["vbox"]
-        if prod["score"] < REVIEW_SCORE:
-            review["productName"] = ["LOW_CONFIDENCE"]
         near = brand_near_product(rows, pi, prod)
         if labelled:
             brand, boxes["brand"], bscore = labelled
         elif near:
             brand, boxes["brand"], bscore = near
+        rv = (["AMBIGUOUS"] if ambiguous(prod, cands, brand) else []) + (["LOW_CONFIDENCE"] if prod["score"] < REVIEW_SCORE else [])
+        if rv:
+            review["productName"] = rv
         if brand and bscore < REVIEW_SCORE:
             review["brand"] = ["LOW_CONFIDENCE"]
     else:

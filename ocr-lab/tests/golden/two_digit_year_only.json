@@ -1,0 +1,174 @@
+{
+ "input": {
+  "lines": [
+   {
+    "text": "카페K 라떼",
+    "score": 0.99,
+    "poly": [
+     [
+      150,
+      100
+     ],
+     [
+      600,
+      100
+     ],
+     [
+      600,
+      160
+     ],
+     [
+      150,
+      160
+     ]
+    ]
+   },
+   {
+    "text": "유효기간: 26.12.31",
+    "score": 0.99,
+    "poly": [
+     [
+      150,
+      200
+     ],
+     [
+      600,
+      200
+     ],
+     [
+      600,
+      240
+     ],
+     [
+      150,
+      240
+     ]
+    ]
+   },
+   {
+    "text": "6666 7777 8888",
+    "score": 0.99,
+    "poly": [
+     [
+      250,
+      600
+     ],
+     [
+      600,
+      600
+     ],
+     [
+      600,
+      640
+     ],
+     [
+      250,
+      640
+     ]
+    ]
+   }
+  ],
+  "barcodes": [
+   {
+    "value": "666677778888",
+    "format": "Code128",
+    "box": [
+     [
+      150,
+      400
+     ],
+     [
+      650,
+      400
+     ],
+     [
+      650,
+      580
+     ],
+     [
+      150,
+      580
+     ]
+    ]
+   }
+  ],
+  "width": 800,
+  "height": 700
+ },
+ "expected": {
+  "version": "2",
+  "isCoupon": false,
+  "brand": null,
+  "productName": "카페K 라떼",
+  "type": "EXCHANGE",
+  "faceValue": null,
+  "code": "666677778888",
+  "codeFormat": "Code128",
+  "codeSource": "DECODED",
+  "expiryDate": null,
+  "expiryCandidates": [],
+  "issuer": null,
+  "sender": null,
+  "notes": null,
+  "needsReview": {
+   "expiryDate": [
+    "NOT_FOUND"
+   ],
+   "brand": [
+    "NOT_FOUND"
+   ]
+  },
+  "fieldBoxes": {
+   "code": [
+    150,
+    400,
+    650,
+    580
+   ],
+   "expiryDate": [
+    150,
+    200,
+    600,
+    240
+   ],
+   "productName": [
+    150,
+    100,
+    600,
+    160
+   ]
+  },
+  "rows": [
+   {
+    "text": "카페K 라떼",
+    "box": [
+     150,
+     100,
+     600,
+     160
+    ],
+    "notes": false
+   },
+   {
+    "text": "유효기간: 26.12.31",
+    "box": [
+     150,
+     200,
+     600,
+     240
+    ],
+    "notes": false
+   },
+   {
+    "text": "6666 7777 8888",
+    "box": [
+     250,
+     600,
+     600,
+     640
+    ],
+    "notes": false
+   }
+  ]
+ }
+}

@@ -128,4 +128,35 @@ CASES = [
         "barcodes": [BC("ABC123456789", 100, 400, 500, 560)], "width": 600, "height": 700,
     }, {"brand": "카페H", "sender": "홍길동", "productName": "카페H 아메리카노",
         "needsReview": {"sender": ["ALWAYS_CHECK"]}}),
+
+    ("ambiguous_product_two_titles", {
+        "lines": [
+            L("가게J", 300, 40, 420, 80),
+            L("딸기 케이크 조각", 150, 300, 650, 350),
+            L("초코 머핀 2개", 180, 400, 620, 448),
+            L("유효기간", 40, 480, 150, 520), L("2026.07.07", 450, 480, 700, 520),
+            L("3333 4444 5555", 250, 800, 600, 840),
+        ],
+        "barcodes": [BC("333344445555", 150, 600, 650, 780)], "width": 800, "height": 900,
+    }, {"isCoupon": True, "productName": "딸기 케이크 조각", "needsReview": {"productName": ["AMBIGUOUS"], "brand": ["NOT_FOUND"]}}),
+
+    # F2 AC6: a two-digit year is not supported; the date stays empty and is flagged, never guessed
+    ("two_digit_year_only", {
+        "lines": [
+            L("카페K 라떼", 150, 100, 600, 160),
+            L("유효기간: 26.12.31", 150, 200, 600, 240),
+            L("6666 7777 8888", 250, 600, 600, 640),
+        ],
+        "barcodes": [BC("666677778888", 150, 400, 650, 580)], "width": 800, "height": 700,
+    }, {"expiryDate": None, "expiryCandidates": [], "needsReview": {"expiryDate": ["NOT_FOUND"], "brand": ["NOT_FOUND"]}}),
+
+    ("two_digit_year_next_to_issue_date", {
+        "lines": [
+            L("카페K 라떼", 150, 100, 600, 160),
+            L("발급일: 2026.01.02", 150, 170, 600, 200),
+            L("26.12.31까지 사용", 150, 210, 600, 250),
+            L("6666 7777 8888", 250, 600, 600, 640),
+        ],
+        "barcodes": [BC("666677778888", 150, 400, 650, 580)], "width": 800, "height": 700,
+    }, {"expiryDate": None, "needsReview": {"expiryDate": ["NOT_FOUND"], "brand": ["NOT_FOUND"]}}),
 ]

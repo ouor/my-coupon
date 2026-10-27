@@ -118,7 +118,7 @@
   "height": 700
  },
  "expected": {
-  "version": "1",
+  "version": "2",
   "isCoupon": false,
   "brand": null,
   "productName": "가게G 쿠폰",

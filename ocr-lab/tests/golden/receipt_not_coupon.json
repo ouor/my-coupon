@@ -162,7 +162,7 @@
   "height": 3664
  },
  "expected": {
-  "version": "1",
+  "version": "2",
   "isCoupon": false,
   "brand": null,
   "productName": "카드결제승인",

@@ -294,7 +294,7 @@
   "height": 1670
  },
  "expected": {
-  "version": "1",
+  "version": "2",
   "isCoupon": true,
   "brand": "영화관A",
   "productName": "콤보세트(팝콘L 1개 +음료M 2 개)",

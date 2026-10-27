@@ -52,6 +52,7 @@ def evaluate(results):
         c["n"] += 1
         c["recall"] += got["isCoupon"]
         c["exp_review"] += "expiryDate" in got["needsReview"]
+        c["pn_review"] += "productName" in got["needsReview"]
         c["issuer"] += norm(got["issuer"] or "") == norm(lab["issuer"] or "")
         for f in FIELDS:
             if f == "face" and lab["coupon_type"] != "amount":
@@ -72,6 +73,7 @@ def fmt(c):
             parts.append(f"{f} {c[f]}/{c[f + '_n']} (silent {c[f + '_silent']})")
     parts.append(f"recall {c['recall']}/{n}" if n else "")
     parts.append(f"expiry-review {c['exp_review']}/{n}" if n else "")
+    parts.append(f"product-review {c['pn_review']}/{n}" if n else "")
     parts.append(f"issuer {c['issuer']}/{n}" if n else "")
     if c["neg"]:
         parts.append(f"non-coupon FP {c['fp']}/{c['neg']}")
