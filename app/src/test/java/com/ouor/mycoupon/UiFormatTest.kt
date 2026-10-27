@@ -11,6 +11,9 @@ import com.ouor.mycoupon.ui.component.firstReason
 import com.ouor.mycoupon.ui.component.reasonText
 import com.ouor.mycoupon.ui.component.state
 import com.ouor.mycoupon.ui.screen.timeLabel
+import com.ouor.mycoupon.ui.screen.usageMessage
+import com.ouor.mycoupon.domain.UsageInput
+import com.ouor.mycoupon.domain.UsageInputException
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -44,5 +47,12 @@ class UiFormatTest {
         assertEquals("MULTIPLE_CANDIDATES", firstReason(listOf("LOW_CONFIDENCE", "YEAR_INFERRED", "MULTIPLE_CANDIDATES")))
         assertEquals("AMBIGUOUS", firstReason(listOf("LOW_CONFIDENCE", "AMBIGUOUS")))
         assertEquals("사진과 같은지 확인해 주세요", reasonText("code", "SOMETHING_NEW"))
+    }
+
+    @Test fun usageCopy() {
+        val over = runCatching { UsageInput.spent(30000, 40000) }.exceptionOrNull() as UsageInputException
+        assertEquals("남은 30,000원보다 많이 쓸 수 없어요", usageMessage(over, 30000, true))
+        val same = runCatching { UsageInput.remaining(30000, 30000) }.exceptionOrNull() as UsageInputException
+        assertEquals("잔액이 그대로예요. 쓴 금액이 있을 때 기록해 주세요", usageMessage(same, 30000, false))
     }
 }

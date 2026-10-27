@@ -100,6 +100,9 @@ import com.ouor.mycoupon.data.CouponStatus
 import com.ouor.mycoupon.data.UsageLog
 import com.ouor.mycoupon.data.UsedReason
 import com.ouor.mycoupon.domain.Stats
+import com.ouor.mycoupon.domain.UsageError
+import com.ouor.mycoupon.domain.UsageInput
+import com.ouor.mycoupon.domain.UsageInputException
 import com.ouor.mycoupon.ocr.core.CouponType
 import com.ouor.mycoupon.ui.CouponViewModel
 import com.ouor.mycoupon.ui.HomeViewModel
@@ -311,7 +314,8 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController) = MyCo
         onUsed = { useSheet = false; vm.markUsed(); finishing = "사용 완료로 표시했어요" },
         onRemaining = { v ->
             useSheet = false
-            vm.recordRemaining(v)
+            // pre-checked in the sheet; a refusal here (stale balance) replaces the success Snackbar
+            vm.recordRemaining(v) { e -> snackbar.show(usageMessage(e, coupon.balance ?: coupon.faceValue ?: 0, false)) }
             if (v == 0L) finishing = "사용 완료로 표시했어요"
             else snackbar.show("잔액 ${won(v)}으로 기록했어요", "되돌리기") { homeVm.undoLastBalance(id) }
         })
@@ -429,13 +433,12 @@ private fun UseSheet(c: Coupon, onDismiss: () -> Unit, onUsed: () -> Unit, onRem
     var text by remember { mutableStateOf("") }
     var spentMode by remember { mutableStateOf(false) }
     val n = text.toLongOrNull()
-    val error = when {
-        n == null -> null
-        spentMode && n > bal -> "남은 ${won(bal)}보다 많이 쓸 수 없어요"
-        !spentMode && n > bal -> "잔액 ${won(bal)}보다 클 수 없어요"
-        else -> null
-    }
-    val remaining = n?.let { if (spentMode) bal - it else it }
+    // C1: the core's own rule decides; the sheet only words it
+    val check = n?.let { v -> runCatching { if (spentMode) UsageInput.spent(bal, v) else UsageInput.remaining(bal, v) } }
+    val remaining = check?.getOrNull()
+    val refusal = check?.exceptionOrNull() as? UsageInputException
+    // "잔액이 그대로예요" / "쓴 금액을 입력해 주세요" only disable the button; range errors are said out loud
+    val error = refusal?.takeIf { it.error == UsageError.OVER_BALANCE || it.error == UsageError.NEGATIVE }?.let { usageMessage(it, bal, spentMode) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     AppSheet(onDismiss, if (spentMode) "얼마 썼나요?" else "얼마 남았나요?", "지금 잔액 ${won(bal)}") {
@@ -446,7 +449,7 @@ private fun UseSheet(c: Coupon, onDismiss: () -> Unit, onUsed: () -> Unit, onRem
             isError = error != null, supportingText = error?.let { { Text(it, Modifier.semantics { error(it) }) } },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
-        if (error == null && n != null) Text(
+        if (remaining != null) Text(
             if (spentMode) "남는 금액 ${won(bal - n)}" else "이번에 쓴 금액 ${won(bal - n)}",
             Modifier.padding(vertical = Spacing.s), style = MaterialTheme.typography.bodyLarge)
         TextButton({ spentMode = !spentMode; text = "" }, Modifier.heightIn(min = Spacing.touch)) {
@@ -454,9 +457,18 @@ private fun UseSheet(c: Coupon, onDismiss: () -> Unit, onUsed: () -> Unit, onRem
         }
         Spacer(Modifier.height(Spacing.s))
         PrimaryButton(if (remaining == 0L) "다 썼어요 · 사용 완료" else "기록하기", { remaining?.let(onRemaining) },
-            enabled = remaining != null && error == null && remaining != bal)
+            enabled = remaining != null)
         SecondaryButton("취소", onDismiss)
     }
+}
+
+/** S8 copy per refusal (screens.md S8); unknown kinds fall back to the core's Korean message. */
+fun usageMessage(e: UsageInputException, balance: Long, spentMode: Boolean): String = when (e.error) {
+    UsageError.OVER_BALANCE -> if (spentMode) "남은 ${won(balance)}보다 많이 쓸 수 없어요" else "잔액 ${won(balance)}보다 클 수 없어요"
+    UsageError.NO_CHANGE -> "잔액이 그대로예요. 쓴 금액이 있을 때 기록해 주세요"
+    UsageError.SPENT_ZERO -> "쓴 금액을 입력해 주세요"
+    UsageError.NEGATIVE -> "0원보다 적게 입력할 수 없어요"
+    UsageError.NOT_AMOUNT -> e.message ?: "금액권만 잔액을 기록할 수 있어요"
 }
 
 /** S12 (null = follow the app setting). */

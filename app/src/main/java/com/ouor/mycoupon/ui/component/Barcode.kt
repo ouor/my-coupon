@@ -151,6 +151,9 @@ fun BarcodeBlock(c: Coupon, onExpand: () -> Unit, onCopied: () -> Unit, modifier
             }
             CodeNumber(code, if (view == CodeView.PIN) CodeTypography.codePin else CodeTypography.codeLarge,
                 Modifier.fillMaxWidth().clickable(onClickLabel = "크게 보기", onClick = onExpand).padding(vertical = Spacing.s))
+            // C9: a corrected number is never redrawn; the original image may still show the old one
+            if (view == CodeView.ORIGINAL && c.codeSource == CodeSource.USER) Text("직접 고친 번호예요. 계산대에서는 이 번호를 불러 주세요",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(Spacing.s))
             OutlinedButton({ copyCode(context, code); onCopied() }, Modifier.heightIn(min = Spacing.touch)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

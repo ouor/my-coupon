@@ -88,6 +88,7 @@ fun GalleryScreen(nav: NavHostController) {
         if (uris.isNotEmpty()) { importVm.start(uris, ImportOrigin.PICKER); nav.navigate(Route.Import) { popUpTo(Route.Home) } }
     }
     val pick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    val partial = granted && vm.isPartialAccess() // C5: only the photos the user allowed, no range
     LaunchedEffect(granted, range) { if (granted) photos = vm.count(range) }
     // back on this screen after a pause: resume (screens.md S9 "이어서 찾을게요")
     LaunchedEffect(granted) { if (granted && started && !p.finished && !p.running) vm.scan(range) }
@@ -127,9 +128,9 @@ fun GalleryScreen(nav: NavHostController) {
                 }
                 !started -> {
                     Spacer(Modifier.height(Spacing.l))
-                    Text("어디까지 찾아볼까요?", style = MaterialTheme.typography.headlineSmall)
+                    Text(if (partial) "허용한 사진에서 찾아볼게요" else "어디까지 찾아볼까요?", style = MaterialTheme.typography.headlineSmall)
                     Spacer(Modifier.height(Spacing.l))
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    if (!partial) SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                         ScanRange.entries.forEachIndexed { i, r ->
                             SegmentedButton(range == r, { range = r }, SegmentedButtonDefaults.itemShape(i, ScanRange.entries.size), Modifier.heightIn(min = Spacing.touch)) {
                                 Text(when (r) { ScanRange.MONTH_1 -> "최근 1개월"; ScanRange.MONTH_3 -> "3개월"; ScanRange.MONTH_12 -> "12개월" })
@@ -139,14 +140,21 @@ fun GalleryScreen(nav: NavHostController) {
                     Spacer(Modifier.height(Spacing.m))
                     Text(when {
                         photos < 0 -> " "
+                        partial && photos == 0 -> "허용한 사진이 없어요. 설정에서 사진을 더 고를 수 있어요"
+                        partial -> "허용한 사진 ${n(photos)}장을 찾아볼게요"
                         photos == 0 -> "이 기간에는 사진이 없어요"
                         else -> "사진 ${n(photos)}장 · 약 ${maxOf(1, photos / 600)}분 걸려요" // screening ~10 images/s
                     }, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                p.finished && p.found.isEmpty() -> EmptyState(Icons.Rounded.ImageSearch,
-                    if (p.total == 0) "새로 확인할 사진이 없어요" else "쿠폰 같은 사진을 찾지 못했어요",
-                    if (p.total == 0) "이 기간의 사진은 지난번에 모두 확인했어요." else "바코드 없는 상품권은 [사진 고르기]로 추가해 주세요",
-                    primary = "사진 고르기" to pick, secondary = "다른 기간 찾기" to { started = false })
+                // C4: nothing in the range / everything already checked / checked and found nothing
+                p.finished && p.found.isEmpty() -> when {
+                    p.inRange == 0 -> EmptyState(Icons.Rounded.ImageSearch, "이 기간에는 사진이 없어요", "다른 기간을 골라 주세요",
+                        primary = "다른 기간 찾기" to { started = false }, secondary = "사진 고르기" to pick)
+                    p.total == 0 -> EmptyState(Icons.Rounded.ImageSearch, "새로 확인할 사진이 없어요", "이 기간의 사진 ${n(p.inRange)}장은 지난번에 모두 확인했어요.",
+                        primary = "다른 기간 찾기" to { started = false }, secondary = "사진 고르기" to pick)
+                    else -> EmptyState(Icons.Rounded.ImageSearch, "쿠폰 같은 사진을 찾지 못했어요", "바코드 없는 상품권은 [사진 고르기]로 추가해 주세요",
+                        primary = "사진 고르기" to pick, secondary = "다른 기간 찾기" to { started = false })
+                }
                 else -> {
                     Spacer(Modifier.height(Spacing.l))
                     Text(if (p.finished) "다 찾았어요 · 쿠폰 ${p.found.size}장" else "쿠폰 ${p.found.size}장 찾았어요",
@@ -154,6 +162,9 @@ fun GalleryScreen(nav: NavHostController) {
                     Spacer(Modifier.height(Spacing.l))
                     LinearProgressIndicator(progress = { p.checked.toFloat() / maxOf(1, p.total) }, Modifier.fillMaxWidth())
                     Text("${n(p.total)}장 중 ${n(p.checked)}장 확인", Modifier.padding(top = Spacing.s), style = MaterialTheme.typography.bodyLarge)
+                    // C6: resumed after leaving the screen
+                    if (p.resumedFrom > 0 && !p.finished) Text("${n(p.resumedFrom)}장까지 확인했어요. 이어서 찾을게요", Modifier.padding(top = Spacing.s),
+                        style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
                     if (!p.finished) Text("이 화면에 있는 동안만 찾아요. 나갔다 오면 이어서 찾아요.", Modifier.padding(top = Spacing.s),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (p.found.isNotEmpty()) {

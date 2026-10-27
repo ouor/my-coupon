@@ -69,6 +69,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.ouor.mycoupon.BuildConfig
+import com.ouor.mycoupon.ui.BackupFailure
 import com.ouor.mycoupon.ui.BackupUi
 import com.ouor.mycoupon.ui.HomeViewModel
 import com.ouor.mycoupon.ui.MainActivity
@@ -235,15 +236,18 @@ fun BackupScreen(nav: NavHostController) {
     var passwordFor by remember { mutableStateOf<String?>(null) } // "export" / "import"
     var password by remember { mutableStateOf("") }
     var pendingImport by remember { mutableStateOf<Uri?>(null) }
+    var exporting by remember { mutableStateOf(false) } // which step an IO failure belongs to
+    var importing by remember { mutableStateOf(false) } // import is all-or-nothing: no [그만두기]
     val create = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        if (uri != null) vm.export(uri, password.toCharArray())
+        if (uri != null) { exporting = true; vm.export(uri, password.toCharArray()) }
         password = ""
     }
     val openDoc = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) { pendingImport = uri; password = ""; passwordFor = "import" }
+        if (uri != null) { exporting = false; pendingImport = uri; password = ""; passwordFor = "import" }
     }
     LaunchedEffect(backup) {
         val b = backup
+        if (b !is BackupUi.Working) importing = false
         if (b is BackupUi.Imported) { snackbar.show("쿠폰 ${b.count}개를 가져왔어요"); vm.backupUi.value = BackupUi.Idle; nav.toHome() }
     }
 
@@ -252,7 +256,8 @@ fun BackupScreen(nav: NavHostController) {
             InfoBanner(Icons.Rounded.Lock, "백업 파일에는 바코드 번호가 들어 있어요. 비밀번호로 잠가서 저장해요. 비밀번호를 잊으면 아무도 열 수 없어요.",
                 MaterialTheme.statusColors.reviewContainer, MaterialTheme.colorScheme.onSurface, Modifier.padding(horizontal = Spacing.l))
             Spacer(Modifier.height(Spacing.m))
-            SettingRow(Icons.Rounded.Save, "백업 파일 만들기", if (st.coupons == 0) "백업할 쿠폰이 없어요" else "쿠폰 ${st.coupons}개",
+            val last = st.lastBackupAt?.let { " · 마지막 백업 " + com.ouor.mycoupon.ui.component.epochDay(it).let { d -> "${d.monthValue}월 ${d.dayOfMonth}일" } } ?: ""
+            SettingRow(Icons.Rounded.Save, "백업 파일 만들기", if (st.coupons == 0) "백업할 쿠폰이 없어요" else "쿠폰 ${st.coupons}개$last",
                 onClick = if (st.coupons == 0) null else ({ password = ""; passwordFor = "export" }))
             SettingRow(Icons.Rounded.Download, "백업 파일 가져오기", "다른 폰에서 만든 파일을 합쳐요") { openDoc.launch(arrayOf("*/*")) }
             Text("파일은 내가 고른 곳에만 저장돼요. 앱이 어디로도 보내지 않아요.", Modifier.padding(Spacing.l),
@@ -268,34 +273,44 @@ fun BackupScreen(nav: NavHostController) {
         "import" -> PasswordSheet("비밀번호를 입력해 주세요", confirm = false, button = "열기",
             wrong = backup is BackupUi.WrongPassword,
             working = backup is BackupUi.Working,
-            onDismiss = { passwordFor = null; vm.backupUi.value = BackupUi.Idle }) { pw ->
+            onDismiss = { vm.cancelBackup(); passwordFor = null; vm.backupUi.value = BackupUi.Idle }) { pw ->
             pendingImport?.let { vm.open(it, pw.toCharArray()) }
         }
     }
     LaunchedEffect(backup) { if (backup is BackupUi.Preview || backup is BackupUi.Failed) passwordFor = null }
 
     when (val b = backup) {
-        BackupUi.Working -> if (passwordFor == null) AppSheet({}, "잠시만요", "백업 파일을 다루는 중이에요") { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        BackupUi.Working -> if (passwordFor == null) AppSheet({}, if (exporting) "백업 파일 만드는 중" else "잠시만요", "백업 파일을 다루는 중이에요") {
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+            Spacer(Modifier.height(Spacing.m))
+            if (!importing) SecondaryButton("그만두기", { vm.cancelBackup() })
+        }
         is BackupUi.Exported -> AppSheet({ vm.backupUi.value = BackupUi.Idle }, "쿠폰 ${b.count}개를 저장했어요",
             "새 폰에서는 [백업 파일 가져오기]로 열어요. 비밀번호를 꼭 기억해 주세요.") { PrimaryButton("확인", { vm.backupUi.value = BackupUi.Idle }) }
         is BackupUi.Preview -> {
             val n = b.p.total - b.p.skipped
             AppSheet({ vm.cancelImport(b.p) }, if (n == 0) "새로 가져올 쿠폰이 없어요" else "쿠폰 ${b.p.total}개를 찾았어요",
                 if (n == 0) "이미 모두 있어요." else listOfNotNull("그중 이미 있는 쿠폰 ${b.p.skipped}개는 건너뛰어요.".takeIf { b.p.skipped > 0 }, "사용 기록·알림 설정도 함께 가져와요.").joinToString(" ")) {
-                if (n > 0) PrimaryButton("${n}개 가져오기", { vm.import(b.p) })
+                if (n > 0) PrimaryButton("${n}개 가져오기", { importing = true; vm.import(b.p) })
                 SecondaryButton(if (n == 0) "닫기" else "취소", { vm.cancelImport(b.p) })
             }
         }
-        is BackupUi.Failed -> {
-            val format = b.reason == com.ouor.mycoupon.ui.BackupFailure.FORMAT
-            AppSheet({ vm.backupUi.value = BackupUi.Idle },
-                if (format) "이 파일은 열 수 없어요" else "하지 못했어요",
-                if (format) "내 쿠폰 백업 파일이 아니거나 파일이 손상됐어요. 지금 쿠폰은 그대로예요."
-                else "저장 공간을 확인하고 다시 해 주세요. 지금 쿠폰은 그대로예요.") {
-                PrimaryButton(if (format) "다른 파일 고르기" else "확인", {
+        is BackupUi.Failed -> when (b.reason) {
+            // C2: user stopped it: no error sheet, just say nothing changed
+            BackupFailure.CANCELLED -> LaunchedEffect(b) { vm.backupUi.value = BackupUi.Idle; snackbar.show("그만뒀어요. 지금 쿠폰은 그대로예요") }
+            BackupFailure.FORMAT -> AppSheet({ vm.backupUi.value = BackupUi.Idle }, "이 파일은 열 수 없어요",
+                "내 쿠폰 백업 파일이 아니거나 파일이 손상됐어요. 지금 쿠폰은 그대로예요.") {
+                PrimaryButton("다른 파일 고르기", { vm.backupUi.value = BackupUi.Idle; openDoc.launch(arrayOf("*/*")) })
+                SecondaryButton("닫기", { vm.backupUi.value = BackupUi.Idle })
+            }
+            BackupFailure.IO -> AppSheet({ vm.backupUi.value = BackupUi.Idle },
+                if (exporting) "저장하지 못했어요" else "가져오지 못했어요",
+                if (exporting) "저장 공간을 확인하고 다시 해 주세요." else "파일을 읽지 못했어요. 지금 쿠폰은 그대로예요.") {
+                PrimaryButton("다시 하기", {
                     vm.backupUi.value = BackupUi.Idle
-                    if (format) openDoc.launch(arrayOf("*/*"))
+                    if (exporting) { password = ""; passwordFor = "export" } else openDoc.launch(arrayOf("*/*"))
                 })
+                SecondaryButton("닫기", { vm.backupUi.value = BackupUi.Idle })
             }
         }
         else -> {}

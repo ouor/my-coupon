@@ -110,9 +110,11 @@ fun ImportScreen(nav: NavHostController) {
         if (registering) return
         registering = true
         vm.register { ids ->
-        snackbar.show("쿠폰 ${ids.size}개를 등록했어요")
-        if (ids.isNotEmpty()) homeVm.registered()
-        nav.toHome()
+            // C10: a second, concurrent call gets [] from the core; the first call already announced and left
+            if (ids.isEmpty()) return@register
+            snackbar.show("쿠폰 ${ids.size}개를 등록했어요")
+            homeVm.registered()
+            nav.toHome()
         }
     }
 
