@@ -96,6 +96,7 @@ fun ImportScreen(nav: NavHostController) {
     val snackbar = LocalSnackbar.current
     var confirmClose by remember { mutableStateOf(false) }
     var confirmEarly by remember { mutableStateOf(false) }
+    var registering by remember { mutableStateOf(false) } // one register per tap burst (double insert otherwise)
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { uris ->
         if (uris.isNotEmpty()) vm.start(uris, ImportOrigin.PICKER)
     }
@@ -105,10 +106,14 @@ fun ImportScreen(nav: NavHostController) {
     LaunchedEffect(st.drafts.isEmpty(), st.running) { if (st.drafts.isEmpty() && !st.running) nav.toHome() }
     BackHandler { confirmClose = true }
 
-    fun register() = vm.register { ids ->
+    fun register() {
+        if (registering) return
+        registering = true
+        vm.register { ids ->
         snackbar.show("쿠폰 ${ids.size}개를 등록했어요")
         if (ids.isNotEmpty()) homeVm.registered()
         nav.toHome()
+        }
     }
 
     val reviewCount = st.drafts.count { it.stage == DraftStage.DONE && it.isCoupon && it.duplicate == null && it.coupon?.needsCheck == true }
@@ -120,7 +125,7 @@ fun ImportScreen(nav: NavHostController) {
         topBar = { AppTopBar("결과 확인", onBack = { confirmClose = true }, close = true) },
         bottomBar = {
             BottomCta("${st.checkedCount}개 등록", { if (st.running) confirmEarly = true else register() },
-                enabled = st.checkedCount > 0, hint = if (st.checkedCount == 0 && st.done > 0) "등록할 쿠폰을 골라 주세요" else null)
+                enabled = st.checkedCount > 0 && !registering, hint = if (st.checkedCount == 0 && st.done > 0) "등록할 쿠폰을 골라 주세요" else null)
         },
         snackbarHost = { SnackbarHost(snackbar.host) },
     ) { pad ->

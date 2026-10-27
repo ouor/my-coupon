@@ -1,5 +1,9 @@
 package com.ouor.mycoupon.ui
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -49,7 +53,13 @@ fun AppNavHost(nav: NavHostController, start: Any) {
     val scope = rememberCoroutineScope()
     val snackbar = remember { AppSnackbar(host, scope) }
     CompositionLocalProvider(LocalSnackbar provides snackbar) {
-        NavHost(nav, startDestination = start) {
+        // design-system §5: S1 → S6 within 200 ms; system "remove animations" scales these to 0
+        NavHost(nav, startDestination = start,
+            enterTransition = { fadeIn(tween(150)) + slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(200), initialOffset = { it / 12 }) },
+            exitTransition = { fadeOut(tween(100)) },
+            popEnterTransition = { fadeIn(tween(150)) },
+            popExitTransition = { fadeOut(tween(100)) + slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(200), targetOffset = { it / 12 }) },
+        ) {
             composable<Route.Onboarding> { OnboardingScreen { nav.navigate(Route.Home) { popUpTo(Route.Onboarding) { inclusive = true } } } }
             composable<Route.Home> { HomeScreen(nav) }
             composable<Route.Import> { ImportScreen(nav) }

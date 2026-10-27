@@ -454,7 +454,7 @@ private fun UseSheet(c: Coupon, onDismiss: () -> Unit, onUsed: () -> Unit, onRem
         }
         Spacer(Modifier.height(Spacing.s))
         PrimaryButton(if (remaining == 0L) "다 썼어요 · 사용 완료" else "기록하기", { remaining?.let(onRemaining) },
-            enabled = remaining != null && error == null && !(spentMode && n == 0L))
+            enabled = remaining != null && error == null && remaining != bal)
         SecondaryButton("취소", onDismiss)
     }
 }
