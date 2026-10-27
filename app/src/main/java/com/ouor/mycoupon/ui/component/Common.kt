@@ -63,12 +63,19 @@ import java.io.File
 fun isLargeFont(): Boolean = LocalDensity.current.fontScale >= 1.5f
 
 /** App-wide Snackbar that outlives the screen that asked for it (S8 → S1 "되돌리기"). */
-class AppSnackbar(val host: SnackbarHostState, private val scope: CoroutineScope) {
+class AppSnackbar(val host: SnackbarHostState, private val scope: CoroutineScope, private val undoMs: Long = 8_000) {
+    private var job: kotlinx.coroutines.Job? = null
+
+    /** With an [action] (undo) it stays [undoMs] (C2-04: 8 s or the accessibility "time to take action"); M3 Long varies by device. */
     fun show(message: String, action: String? = null, onAction: () -> Unit = {}) {
-        scope.launch {
+        job?.cancel()
+        job = scope.launch {
             host.currentSnackbarData?.dismiss()
-            val r = host.showSnackbar(message, action, withDismissAction = false,
-                duration = if (action != null) SnackbarDuration.Long else SnackbarDuration.Short)
+            if (action == null) { host.showSnackbar(message, null, withDismissAction = false, duration = SnackbarDuration.Short); return@launch }
+            val r = kotlinx.coroutines.withTimeoutOrNull(undoMs) {
+                host.showSnackbar(message, action, withDismissAction = false, duration = SnackbarDuration.Indefinite)
+            }
+            if (r == null) host.currentSnackbarData?.dismiss()
             if (r == SnackbarResult.ActionPerformed) onAction()
         }
     }

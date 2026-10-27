@@ -21,6 +21,10 @@
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE" />
         </intent>
+        <!-- C2-21 [번호 읽기]: lets the app see the device TTS engine (Android 11+ package visibility) -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
     </queries>
 
     <application

@@ -36,13 +36,16 @@ import com.ouor.mycoupon.ui.component.ThousandsTransformation
 import com.ouor.mycoupon.ui.component.won
 import com.ouor.mycoupon.ui.theme.Spacing
 
-/** S8 (amount only): spent (default) or remaining amount with live preview and range check. Exchange coupons are marked from the CTA (U5). */
+/**
+ * S8 (amount only): remaining (first default, C2-15) or spent amount with a live preview as big as the input, range check.
+ * [startSpent] / [onMode]: the method used last is remembered. Exchange coupons are marked from the CTA (U5).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun UseSheet(c: Coupon, onDismiss: () -> Unit, onRemaining: (Long) -> Unit) {
+internal fun UseSheet(c: Coupon, startSpent: Boolean, onMode: (Boolean) -> Unit, onDismiss: () -> Unit, onRemaining: (Long) -> Unit) {
     val bal = c.balance ?: c.faceValue ?: 0
     var text by remember { mutableStateOf("") }
-    var spentMode by remember { mutableStateOf(true) } // matches [쓴 금액 입력]
+    var spentMode by remember { mutableStateOf(startSpent) }
     val n = text.toLongOrNull()
     // C1: the core's own rule decides; the sheet only words it
     val check = n?.let { v -> runCatching { if (spentMode) UsageInput.spent(bal, v) else UsageInput.remaining(bal, v) } }
@@ -55,8 +58,8 @@ internal fun UseSheet(c: Coupon, onDismiss: () -> Unit, onRemaining: (Long) -> U
     AppSheet(onDismiss, if (spentMode) "얼마 썼나요?" else "얼마 남았나요?", "지금 잔액 ${won(bal)}") {
         // review U4: the mode is a visible two-way choice, not a link whose meaning flips
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(bottom = Spacing.m)) {
-            listOf(true to "쓴 금액", false to "남은 금액").forEachIndexed { i, (mode, label) ->
-                SegmentedButton(spentMode == mode, { if (spentMode != mode) { spentMode = mode; text = "" } },
+            listOf(false to "남은 금액", true to "쓴 금액").forEachIndexed { i, (mode, label) ->
+                SegmentedButton(spentMode == mode, { if (spentMode != mode) { spentMode = mode; text = ""; onMode(mode) } },
                     SegmentedButtonDefaults.itemShape(i, 2), Modifier.heightIn(min = Spacing.touch)) { Text(label) }
             }
         }
@@ -69,7 +72,7 @@ internal fun UseSheet(c: Coupon, onDismiss: () -> Unit, onRemaining: (Long) -> U
         )
         if (remaining != null) Text(
             if (spentMode) "남는 금액 ${won(bal - n)}" else "이번에 쓴 금액 ${won(bal - n)}",
-            Modifier.padding(vertical = Spacing.s), style = MaterialTheme.typography.bodyLarge)
+            Modifier.padding(vertical = Spacing.s), style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"))
         Spacer(Modifier.height(Spacing.s))
         PrimaryButton(if (remaining == 0L) "다 썼어요 · 사용 완료" else "기록하기", { remaining?.let(onRemaining) },
             enabled = remaining != null)

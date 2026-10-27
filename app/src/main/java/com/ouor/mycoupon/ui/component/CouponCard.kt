@@ -11,7 +11,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,9 +39,14 @@ fun CouponCard(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modif
     val large = isLargeFont()
     val review = c.needsCheck && !past
     val balance = if (c.type == CouponType.AMOUNT && c.balance != null && !past) "잔액 ${won(c.balance)}" else null
-    val usedLine = c.usedAt?.takeIf { past }?.let { epochDay(it).monthDay() + if (state == CouponState.GIVEN) " 넘김" else " 사용" }
+    // C2-25: "10월 27일 넘김 · 김○○"
+    val usedLine = c.usedAt?.takeIf { past }?.let { epochDay(it).monthDay() + if (state == CouponState.GIVEN) " 넘김" + (c.givenTo?.let { n -> " · $n" } ?: "") else " 사용" }
     val tail = c.code?.takeIf { codeTail }?.let(::codeTail)
-    val spoken = listOfNotNull(c.brand, c.name() ?: "이름 없는 쿠폰", ddaySpoken(c, today), usedLine, balance, tail, "확인 필요".takeIf { review })
+    // C2-05 / design-system §9: "사용 완료, 10월 27일, 브랜드, 상품명" for past ones, otherwise "브랜드, 상품명, 4일 남음, 11월 1일까지, 번호 끝 2416"
+    val pastWhen = if (state == CouponState.EXPIRED) c.expiryDate?.let { it.monthDay() + "까지" } else c.usedAt?.let { epochDay(it).monthDay() }
+    val spoken = (if (past) listOfNotNull(ddaySpoken(c, today), pastWhen) else emptyList())
+        .plus(listOfNotNull(c.brand, c.name() ?: "이름 없는 쿠폰", ddaySpoken(c, today).takeIf { !past }, c.givenTo?.takeIf { state == CouponState.GIVEN },
+            c.code?.let(::codeTail), balance, "확인 필요".takeIf { review }))
         .joinToString(", ")
     val container = if (past) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surfaceContainer
 
@@ -70,9 +75,10 @@ fun CouponCard(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modif
             }
             if (!large) Column(horizontalAlignment = Alignment.End) {
                 DdayBadge(c, today, Modifier.padding(start = Spacing.s))
-                if (onUndo != null) TextButton(onUndo) { Text("되돌리기") }
+                // C2-27: a bordered button, so it never looks like the (non-interactive) status chip above it
+                if (onUndo != null) OutlinedButton(onUndo, Modifier.padding(top = Spacing.xs).heightIn(min = Spacing.touch)) { Text("되돌리기") }
             }
         }
-        if (large && onUndo != null) TextButton(onUndo, Modifier.padding(start = Spacing.s, bottom = Spacing.s)) { Text("되돌리기") }
+        if (large && onUndo != null) OutlinedButton(onUndo, Modifier.padding(start = Spacing.l, bottom = Spacing.m).heightIn(min = Spacing.touch)) { Text("되돌리기") }
     }
 }

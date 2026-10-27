@@ -37,7 +37,9 @@ class UiFormatTest {
     @Test fun formats() {
         assertEquals("2026.11.03(화)", LocalDate.of(2026, 11, 3).dotted())
         assertEquals(listOf("4550", "0000", "0000", "4993"), codeGroups("4550 0000 0000 4993"))
-        assertEquals("1234, 5678, 90", codeSpoken("1234567890"))
+        assertEquals("일 이 삼 사, 오 육 칠 팔, 구 공", codeSpoken("1234567890"))
+        assertEquals("오 공 이 공, 공 공 공 공, 이 사 일 육", codeSpoken("5020 0000 2416"))
+        assertEquals("A B 일 이", codeSpoken("ab12"))
         assertEquals("오전 9:00", timeLabel(9 * 60))
         assertEquals("오후 12:30", timeLabel(12 * 60 + 30))
         assertEquals("오전 12:05", timeLabel(5))

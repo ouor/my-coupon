@@ -74,13 +74,12 @@ fun ReviewMark(modifier: Modifier = Modifier, text: String = "확인 필요") {
     }
 }
 
-/** TalkBack sentence for the D-day (design-system §6.2: never "디 마이너스 3"). */
+/** TalkBack sentence for the D-day (design-system §9, C2-05: never "디 마이너스 3"; the date instead of "곧 만료"). */
 fun ddaySpoken(c: Coupon, today: LocalDate): String = when (c.state(today)) {
-    CouponState.AVAILABLE -> "${Stats.daysLeft(c, today)}일 남음"
-    CouponState.SOON -> "${Stats.daysLeft(c, today)}일 남음, 곧 만료"
-    CouponState.TODAY -> "오늘까지 사용 가능"
+    CouponState.AVAILABLE, CouponState.SOON -> "${Stats.daysLeft(c, today)}일 남음, ${c.expiryDate!!.monthDay()}까지"
+    CouponState.TODAY -> "오늘까지"
     CouponState.NO_EXPIRY -> "유효기간 없음"
-    CouponState.EXPIRED -> "만료됨"
+    CouponState.EXPIRED -> "기간 지남"
     CouponState.USED -> "사용 완료"
     CouponState.GIVEN -> "넘김"
 }

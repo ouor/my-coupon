@@ -1,5 +1,12 @@
 package com.ouor.mycoupon.ui.component
 
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.alpha
 import android.content.ClipData
 import com.ouor.mycoupon.image.ImageCodec
 import android.content.ClipDescription
@@ -150,37 +157,73 @@ fun CodeNumber(code: String, style: TextStyle, modifier: Modifier = Modifier) {
 
 /**
  * design-system §6.4. Always white with black bars, whatever the theme (P5): the card has its own light theme, so its texts
- * and button stay readable on white in dark mode (U11). Tap → S7 ([onExpand]).
+ * and button stay readable on white in dark mode (U11). Tap → S7 ([onExpand], "점원에게 보여 주기", C2-20).
+ * [dimmed] (C2-02, past coupon): bars and number at alpha 0.25 with [그래도 보기] → [onReveal].
+ * [onSpeak] (C2-21) is null when the device has no TTS engine: then [번호 읽기] is hidden.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun BarcodeBlock(c: Coupon, onExpand: () -> Unit, onCopied: () -> Unit, modifier: Modifier = Modifier) = com.ouor.mycoupon.ui.theme.MyCouponTheme(forceLight = true) {
+fun BarcodeBlock(
+    c: Coupon, onExpand: () -> Unit, onCopied: (auth: Boolean) -> Unit, modifier: Modifier = Modifier,
+    dimmed: Boolean = false, onReveal: () -> Unit = {}, onSpeak: (() -> Unit)? = null,
+) = com.ouor.mycoupon.ui.theme.MyCouponTheme(forceLight = true) {
     val code = c.code ?: return@MyCouponTheme
     val context = LocalContext.current
     val view = c.codeView()
     Surface(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, color = BarcodeColors.background,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-        Column(Modifier.padding(vertical = Spacing.l, horizontal = Spacing.l), horizontalAlignment = Alignment.CenterHorizontally) {
-            if (view != CodeView.PIN) {
-                Column(Modifier.fillMaxWidth().clickable(onClickLabel = "크게 보기", onClick = onExpand), horizontalAlignment = Alignment.CenterHorizontally) {
-                    BarcodeImage(c)
+        Box(contentAlignment = Alignment.Center) {
+            Column(Modifier.padding(vertical = Spacing.l, horizontal = Spacing.l).alpha(if (dimmed) 0.25f else 1f)
+                .then(if (dimmed) Modifier.clearAndSetSemantics {} else Modifier), horizontalAlignment = Alignment.CenterHorizontally) {
+                if (view != CodeView.PIN) {
+                    Column(Modifier.fillMaxWidth().clickable(enabled = !dimmed, onClickLabel = "점원에게 보여 주기", onClick = onExpand)
+                        .clearAndSetSemantics {
+                            contentDescription = "${listOfNotNull(c.brand, c.name()).joinToString(" ")} 바코드, 번호 ${codeSpoken(code)}"
+                            if (!dimmed) onClick("점원에게 보여 주기") { onExpand(); true }
+                        },
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+                        BarcodeImage(c)
+                    }
+                    if (view == CodeView.ORIGINAL) Text("원본 이미지예요. 안 찍히면 번호를 불러 주세요",
+                        Modifier.padding(top = Spacing.s), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(Spacing.m))
                 }
-                if (view == CodeView.ORIGINAL) Text("원본 이미지예요. 안 찍히면 번호를 불러 주세요",
-                    Modifier.padding(top = Spacing.s), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(Spacing.m))
-            }
-            CodeNumber(code, if (view == CodeView.PIN) CodeTypography.codePin else CodeTypography.codeLarge,
-                Modifier.fillMaxWidth().clickable(onClickLabel = "크게 보기", onClick = onExpand).padding(vertical = Spacing.s))
-            // C9: a corrected number is never redrawn; the original image may still show the old one
-            if (view == CodeView.ORIGINAL && c.codeSource == CodeSource.USER) Text("직접 고친 번호예요. 계산대에서는 이 번호를 불러 주세요",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(Spacing.s))
-            OutlinedButton({ copyCode(context, code); onCopied() }, Modifier.heightIn(min = Spacing.touch)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.ContentCopy, null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(Spacing.s))
-                    Text("번호 복사", style = MaterialTheme.typography.labelLarge)
+                CodeNumber(code, if (view == CodeView.PIN) CodeTypography.codePin else CodeTypography.codeLarge,
+                    Modifier.fillMaxWidth().clickable(enabled = !dimmed, onClickLabel = "점원에게 보여 주기", onClick = onExpand).padding(vertical = Spacing.s))
+                // C9: a corrected number is never redrawn; the original image may still show the old one
+                if (view == CodeView.ORIGINAL && c.codeSource == CodeSource.USER) Text("직접 고친 번호예요. 계산대에서는 이 번호를 불러 주세요",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                c.authCode?.let { auth -> AuthCodeRow(auth) { copyCode(context, auth); onCopied(true) } }
+                Spacer(Modifier.height(Spacing.s))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.s, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                    OutlinedButton({ copyCode(context, code); onCopied(false) }, Modifier.heightIn(min = Spacing.touch), enabled = !dimmed) {
+                        Icon(Icons.Rounded.ContentCopy, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(Spacing.s))
+                        Text("번호 복사", style = MaterialTheme.typography.labelLarge)
+                    }
+                    if (onSpeak != null) OutlinedButton(onSpeak, Modifier.heightIn(min = Spacing.touch), enabled = !dimmed) {
+                        Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(Spacing.s))
+                        Text("번호 읽기", style = MaterialTheme.typography.labelLarge)
+                    }
                 }
             }
+            if (dimmed) OutlinedButton(onReveal, Modifier.heightIn(min = Spacing.cta), colors = ButtonDefaults.outlinedButtonColors(containerColor = BarcodeColors.background)) {
+                Text("그래도 보기", style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
+}
+
+/** C2-19: 인증번호·PIN under the number, same size, groups of four, its own [복사]. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun AuthCodeRow(auth: String, onCopy: (() -> Unit)?) {
+    Column(Modifier.fillMaxWidth().padding(top = Spacing.s), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("인증번호", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        CodeNumber(auth, CodeTypography.codeLarge, Modifier.fillMaxWidth())
+        if (onCopy != null) TextButton(onCopy, Modifier.heightIn(min = Spacing.touch).semantics { contentDescription = "인증번호 복사" }) {
+            Text("복사", style = MaterialTheme.typography.labelLarge)
         }
     }
 }

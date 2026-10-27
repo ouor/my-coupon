@@ -13,7 +13,15 @@ import java.io.File
 
 /** F16 / F19: hands a copy of an app file to the system share sheet (the app itself sends nothing). */
 object Sharing {
-    fun intent(context: Context, source: File, name: String, mime: String): Intent {
+    /** C2-26 (QA R2-01): broadcast the chooser sends only when the user picked a target app; S6 asks "넘겼나요?" on it. */
+    const val ACTION_CHOSEN = "com.ouor.mycoupon.action.SHARE_CHOSEN"
+
+    private fun chosenSender(context: Context): android.content.IntentSender =
+        // mutable: the chooser fills in EXTRA_CHOSEN_COMPONENT; explicit by package, so no other app receives it
+        android.app.PendingIntent.getBroadcast(context, 0x5A, Intent(ACTION_CHOSEN).setPackage(context.packageName),
+            android.app.PendingIntent.FLAG_MUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT).intentSender
+
+    fun intent(context: Context, source: File, name: String, mime: String, reportChoice: Boolean = false): Intent {
         val dir = File(context.cacheDir, "share").apply { mkdirs() }
         dir.listFiles().orEmpty().forEach { it.delete() } // only the latest shared copy lives here
         val copy = File(dir, name)
@@ -22,7 +30,7 @@ object Sharing {
         val uri = FileProvider.getUriForFile(context, context.packageName + ".files", copy)
         val send = Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         // QA R1-15: never offer this app itself as a target (it would re-import the coupon)
-        return Intent.createChooser(send, null)
+        return (if (reportChoice) Intent.createChooser(send, null, chosenSender(context)) else Intent.createChooser(send, null))
             .putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, arrayOf(android.content.ComponentName(context, com.ouor.mycoupon.ui.MainActivity::class.java)))
     }
 

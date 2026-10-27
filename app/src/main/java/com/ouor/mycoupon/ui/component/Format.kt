@@ -41,9 +41,18 @@ fun epochDay(ms: Long): LocalDate = Instant.ofEpochMilli(ms).atZone(ZoneId.syste
 
 fun won(v: Long): String = ReminderPlanner.won(v)
 
-/** "1234 5678 9012 3456" groups; TalkBack reads "1234, 5678, ..." (F6 AC5). */
+/** "1234 5678 9012 3456" groups (F6 AC5). */
 fun codeGroups(code: String): List<String> = code.filterNot(Char::isWhitespace).chunked(4)
-fun codeSpoken(code: String): String = codeGroups(code).joinToString(", ")
+
+private const val DIGIT_WORDS = "공일이삼사오육칠팔구"
+
+/**
+ * C2-05 / design-system §9: one digit at a time, a pause every four — "오 공 이 공, 삼 공 칠 일". Letters stay as they are,
+ * one by one. The single spoken form for TalkBack (S6, S7) and the TTS [번호 읽기] (C2-21).
+ */
+fun codeSpoken(code: String): String = codeGroups(code).joinToString(", ") { g ->
+    g.map { ch -> if (ch in '0'..'9') DIGIT_WORDS[ch - '0'] else ch.uppercaseChar() }.joinToString(" ")
+}
 
 fun Coupon.title(): String = name() ?: brand ?: "이름 없는 쿠폰"
 

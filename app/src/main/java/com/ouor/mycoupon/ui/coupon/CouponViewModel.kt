@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponRepository
+import com.ouor.mycoupon.data.Settings
 import com.ouor.mycoupon.data.UsageLog
 import com.ouor.mycoupon.data.UsedReason
 import com.ouor.mycoupon.domain.CouponActions
@@ -26,6 +27,7 @@ import kotlinx.coroutines.launch
 class CouponViewModel @Inject constructor(
     private val repo: CouponRepository,
     private val actions: CouponActions,
+    private val settings: Settings,
 ) : ViewModel() {
     private val id = MutableStateFlow<Long?>(null)
     val coupon: StateFlow<Coupon?> = id.flatMapLatest { it?.let(repo::observe) ?: flowOf(null) }
@@ -49,7 +51,14 @@ class CouponViewModel @Inject constructor(
     // code review A14: screens navigate away right after these writes; leaving clears this ViewModel, the write must still land
     private fun act(block: suspend (Long) -> Unit) { id.value?.let { viewModelScope.launch(NonCancellable) { block(it) } } }
 
-    fun markUsed(reason: UsedReason = UsedReason.USED) = act { actions.markUsed(it, reason) }
+    /** [givenTo]: C2-25 "누구에게(선택)" for [UsedReason.GIVEN]; blank = nobody named. */
+    fun markUsed(reason: UsedReason = UsedReason.USED, givenTo: String? = null) = act { actions.markUsed(it, reason, givenTo) }
+    /** C2-17: S6 closed after [shownMs] without a use; the core asks on S1 only past 15 s, once per coupon. */
+    fun lingered(couponId: Long, shownMs: Long) = settings.recordLinger(couponId, shownMs)
+    /** C2-15: the S8 input method the user picked last (false = "남은 금액", the first default). */
+    var amountInputSpent: Boolean
+        get() = settings.amountInputSpent
+        set(v) { settings.amountInputSpent = v }
     /** [onError] gets the refusal (C1): `error` for the kind, `message` as Korean copy. Other failures are not swallowed. */
     fun recordRemaining(v: Long, onError: (UsageInputException) -> Unit = {}) = act { try { actions.recordRemaining(it, v) } catch (e: UsageInputException) { onError(e) } }
     fun recordSpent(v: Long, onError: (UsageInputException) -> Unit = {}) = act { try { actions.recordSpent(it, v) } catch (e: UsageInputException) { onError(e) } }

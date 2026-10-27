@@ -14,6 +14,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.ouor.mycoupon.ui.component.AppSnackbar
+import com.ouor.mycoupon.ui.component.undoMillis
 import com.ouor.mycoupon.ui.component.LocalSnackbar
 import com.ouor.mycoupon.ui.settings.BackupScreen
 import com.ouor.mycoupon.ui.coupon.BarcodeFullScreen
@@ -37,7 +38,8 @@ object Route {
     @Serializable data object Import // S3 + S4
     @Serializable data class EditDraft(val key: Int) // S5 for an import draft
     @Serializable data class EditCoupon(val id: Long) // S5 for a stored coupon
-    @Serializable data class Detail(val id: Long, val fromReminder: Boolean = false) // S6
+    /** [swiped]: reached by ‹ › or a swipe (C2-04 1 s CTA lock); [openUse]: S1 "아까 썼어요?" [쓴 금액 입력] opens S8 at once (C2-17). */
+    @Serializable data class Detail(val id: Long, val fromReminder: Boolean = false, val swiped: Boolean = false, val openUse: Boolean = false) // S6
     @Serializable data class BarcodeFull(val id: Long) // S7
     @Serializable data object Gallery // S9
     @Serializable data object Settings // S10
@@ -51,7 +53,8 @@ object Route {
 fun AppNavHost(nav: NavHostController, start: Any) {
     val host = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val snackbar = remember { AppSnackbar(host, scope) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val snackbar = remember { AppSnackbar(host, scope, undoMillis(context)) }
     CompositionLocalProvider(LocalSnackbar provides snackbar) {
         // design-system §5: S1 → S6 within 200 ms; system "remove animations" scales these to 0
         NavHost(nav, startDestination = start,
@@ -65,7 +68,7 @@ fun AppNavHost(nav: NavHostController, start: Any) {
             composable<Route.Import> { ImportScreen(nav) }
             composable<Route.EditDraft> { EditDraftScreen(it.toRoute<Route.EditDraft>().key, nav) }
             composable<Route.EditCoupon> { EditCouponScreen(it.toRoute<Route.EditCoupon>().id, nav) }
-            composable<Route.Detail> { val r = it.toRoute<Route.Detail>(); DetailScreen(r.id, r.fromReminder, nav) }
+            composable<Route.Detail> { val r = it.toRoute<Route.Detail>(); DetailScreen(r.id, r.fromReminder, nav, r.swiped, r.openUse) }
             composable<Route.BarcodeFull> { BarcodeFullScreen(it.toRoute<Route.BarcodeFull>().id, nav) }
             composable<Route.Gallery> { GalleryScreen(nav) }
             composable<Route.Settings> { SettingsScreen(nav) }
