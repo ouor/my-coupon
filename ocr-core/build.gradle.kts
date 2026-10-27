@@ -1,4 +1,4 @@
-// Pure Kotlin (no Android): OCR lines + barcodes -> coupon fields. Port of the Python reference (pp-ocr-v5/postprocess.py).
+// Pure Kotlin (no Android): OCR lines + barcodes -> coupon fields. Port of ocr-lab/extract.py (docs/ocr/porting-spec.md).
 plugins {
     alias(libs.plugins.kotlin.jvm)
 }
@@ -13,4 +13,6 @@ dependencies {
 tasks.test {
     // parity fixtures live in the git-ignored .test/ folder; tests skip when it is missing
     systemProperty("mycoupon.testData", rootProject.file(".test").absolutePath)
+    systemProperty("mycoupon.golden", rootProject.file("ocr-lab/tests/golden").absolutePath)
+    testLogging { showStandardStreams = true }
 }

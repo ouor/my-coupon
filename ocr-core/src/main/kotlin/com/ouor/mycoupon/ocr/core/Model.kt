@@ -5,63 +5,74 @@ import java.time.LocalDate
 /** Pixel point in original-image coordinates. */
 data class Point(val x: Int, val y: Int)
 
-data class Rect(val left: Int, val top: Int, val right: Int, val bottom: Int) {
+/** Axis-aligned box [x0, y0, x1, y1] in original-image pixels (fieldBoxes / rows in docs/ocr/porting-spec.md). */
+data class Box(val x0: Double, val y0: Double, val x1: Double, val y1: Double) {
     companion object {
-        fun around(points: List<Point>) =
-            Rect(points.minOf { it.x }, points.minOf { it.y }, points.maxOf { it.x }, points.maxOf { it.y })
+        fun around(xs: List<Double>, ys: List<Double>) = Box(xs.min(), ys.min(), xs.max(), ys.max())
     }
 }
 
-/** One recognized text line. Same shape as `lines[]` in pp-ocr-v5/out/(name).jsonl. */
-data class OcrLine(val text: String, val score: Float, val poly: List<Point>)
+/** One recognized text line (PP-OCRv5 rec_text / rec_score / rec_poly). */
+data class OcrLine(val text: String, val score: Double, val poly: List<Point>)
 
-/** ZXing result. [format] is the ZXing BarcodeFormat name, e.g. `CODE_128`, `EAN_13`, `QR_CODE`. */
-data class DecodedBarcode(val value: String, val format: String, val box: Rect)
+/** ZXing result. [format] is passed through as given (ZXing format name). [box] = bounding box of its result points. */
+data class DecodedBarcode(val value: String, val format: String, val box: Box)
 
 enum class CouponType { EXCHANGE, AMOUNT }
 
-enum class Field { BRAND, PRODUCT_NAME, TYPE, FACE_VALUE, CODE, EXPIRY_DATE, ISSUER, SENDER, NOTES }
+enum class CodeSource { DECODED, OCR }
 
-/**
- * Why a field needs the user's check ("확인 필요"). UI maps each code to a sentence (screens.md S5).
- */
-enum class ReviewReason {
-    /** Date had no year; the year was borrowed from another date on the image. "사진에 연도가 없어 추정했어요" */
-    YEAR_INFERRED,
-    /** Two or more different expiry candidates; the earliest was chosen. "날짜가 여러 개 있어요" (+ candidates) */
-    MULTIPLE_CANDIDATES,
-    /** No validity keyword row; the date was guessed from other rows. "유효기간 글자를 찾지 못해 추정했어요" */
-    NO_KEYWORD,
-    /** OCR confidence of the source line is below the threshold. "글자가 흐려 잘못 읽었을 수 있어요" */
-    LOW_CONFIDENCE,
-    /** Value not found at all. "…를 찾지 못했어요. 직접 입력해 주세요" */
-    NOT_FOUND,
-    /** Decoded barcode and OCR digits differ. "바코드와 숫자가 달라요" */
-    CODE_MISMATCH,
-    /** Barcode could not be decoded; the number comes from OCR only. "바코드를 읽지 못해 글자로 읽었어요" */
-    CODE_NOT_DECODED,
-    /** Sender read from "○○님이 보낸" text; always confirmed by the user (spec F2). */
-    SENDER_DETECTED,
+/** Field keys of needsReview / fieldBoxes; [key] is the JSON key in porting-spec.md. */
+enum class Field(val key: String) {
+    BRAND("brand"), PRODUCT_NAME("productName"), FACE_VALUE("faceValue"), CODE("code"),
+    EXPIRY_DATE("expiryDate"), ISSUER("issuer"), SENDER("sender"),
 }
 
+/** Why a field needs the user's check ("확인 필요"). UI copy per code: docs/design/screens.md S5. */
+enum class ReviewReason {
+    /** Date had no year; the year was borrowed from another date on the image. */
+    YEAR_INFERRED,
+    /** Two or more different candidates (expiry dates, face values); the safest was chosen. */
+    MULTIPLE_CANDIDATES,
+    /** No validity keyword on the date's row; the date was guessed. */
+    NO_KEYWORD,
+    /** OCR confidence of the source line is below 0.9. */
+    LOW_CONFIDENCE,
+    /** Value not found (also: a two-digit-year deadline, which is never guessed). */
+    NOT_FOUND,
+    /** Decoded barcode and the printed number differ. */
+    CODE_MISMATCH,
+    /** No barcode decoded; the number comes from OCR only. */
+    CODE_NOT_DECODED,
+    /** Sender read from "○○님이 보낸": always confirmed by the user. */
+    ALWAYS_CHECK,
+    /** Another title-like line of similar size nearby: the product name pick may be wrong. */
+    AMBIGUOUS,
+}
+
+/** Display row after noise / row / wrap / tidy steps. */
+data class TextRow(val text: String, val box: Box, val notes: Boolean)
+
+/** Output of [Extract.extract]; mirrors the JSON in docs/ocr/porting-spec.md (version "2"). */
 data class Extraction(
+    val version: String,
     val isCoupon: Boolean,
     val brand: String?,
     val productName: String?,
-    val type: CouponType?,
-    val faceValue: Int?,
+    val type: CouponType,
+    val faceValue: Long?,
     val code: String?,
-    /** ZXing format name, `PIN` (number without a barcode) or null when there is no number. */
+    /** ZXing format name, "NONE" for an OCR-only number, null when there is no number. */
     val codeFormat: String?,
-    val codeDecoded: Boolean,
+    val codeSource: CodeSource?,
     val expiryDate: LocalDate?,
-    /** Distinct expiry candidates (sorted), for the S5 candidate chips. */
+    /** Distinct expiry candidates, ascending (S5 candidate chips). */
     val expiryCandidates: List<LocalDate>,
     val issuer: String?,
     val sender: String?,
     val notes: String?,
-    val needsReview: Map<Field, ReviewReason>,
-    val fieldBoxes: Map<Field, Rect>,
-    /** Display rows after steps 1-4 (not persisted; for debugging and parity checks). */
-    val rows: List<String>,
+    /** Reasons in order per field; a field without an entry needs no check. */
+    val needsReview: Map<Field, List<ReviewReason>>,
+    val fieldBoxes: Map<Field, Box>,
+    val rows: List<TextRow>,
 )

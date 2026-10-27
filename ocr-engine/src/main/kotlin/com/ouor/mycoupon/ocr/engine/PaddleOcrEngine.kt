@@ -64,7 +64,7 @@ class PaddleOcrEngine(
         val t2 = System.nanoTime()
         lastTimings = Timings((t1 - t0) / 1_000_000, (t2 - t1) / 1_000_000, kept.size)
         return kept.mapIndexed { i, b ->
-            OcrLine(texts[i].first, texts[i].second, List(4) { Point(b[it * 2], b[it * 2 + 1]) })
+            OcrLine(texts[i].first, texts[i].second.toDouble(), List(4) { Point(b[it * 2], b[it * 2 + 1]) })
         }
     }
 
