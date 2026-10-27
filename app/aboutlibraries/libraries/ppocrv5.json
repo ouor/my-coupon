@@ -1,0 +1,15 @@
+{
+  "uniqueId": "PaddlePaddle:PP-OCRv5",
+  "artifactVersion": "PP-OCRv5 mobile",
+  "name": "PaddleOCR PP-OCRv5 모델",
+  "description": "문자 인식 모델 (RapidOCR ONNX 변환본)",
+  "developers": [
+    {
+      "name": "PaddlePaddle Authors"
+    }
+  ],
+  "website": "https://github.com/PaddlePaddle/PaddleOCR",
+  "licenses": [
+    "Apache-2.0"
+  ]
+}

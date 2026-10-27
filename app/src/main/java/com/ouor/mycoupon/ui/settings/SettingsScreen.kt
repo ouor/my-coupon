@@ -150,23 +150,6 @@ fun PrivacyScreen(nav: NavHostController) {
     TextPage("개인정보 안내", sections, nav)
 }
 
-/** Open-source notices. */
-@Composable
-fun LicensesScreen(nav: NavHostController) {
-    val libs = listOf(
-        "PaddleOCR / PP-OCRv5 모델" to "Apache License 2.0 · PaddlePaddle Authors",
-        "RapidOCR ONNX 모델" to "Apache License 2.0 · RapidAI",
-        "ONNX Runtime" to "MIT License · Microsoft",
-        "ZXing" to "Apache License 2.0 · ZXing authors",
-        "Android Jetpack (Compose, Material 3, Navigation, Room, WorkManager, Glance, Hilt)" to "Apache License 2.0 · The Android Open Source Project",
-        "Material Icons" to "Apache License 2.0 · Google",
-        "Coil" to "Apache License 2.0 · Coil Contributors",
-        "Dagger / Hilt" to "Apache License 2.0 · The Dagger Authors",
-        "Kotlin, kotlinx.coroutines, kotlinx.serialization" to "Apache License 2.0 · JetBrains",
-    )
-    TextPage("오픈소스 라이선스", libs, nav)
-}
-
 @Composable
 private fun TextPage(title: String, sections: List<Pair<String, String>>, nav: NavHostController) {
     Scaffold(topBar = { AppTopBar(title, onBack = { nav.popBackStack() }) }) { pad ->

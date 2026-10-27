@@ -1,0 +1,15 @@
+{
+  "uniqueId": "RapidAI:RapidOCR",
+  "artifactVersion": "",
+  "name": "RapidOCR",
+  "description": "PP-OCRv5 ONNX 변환 모델",
+  "developers": [
+    {
+      "name": "RapidAI"
+    }
+  ],
+  "website": "https://github.com/RapidAI/RapidOCR",
+  "licenses": [
+    "Apache-2.0"
+  ]
+}

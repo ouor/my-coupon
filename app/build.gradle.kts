@@ -5,6 +5,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.parcelize) // code review A8: S4/S5 edit state in SavedState
+    // security review S-05: dependency list + license texts generated at build time into res/raw (no runtime library, no network in the app)
+    alias(libs.plugins.aboutlibraries)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
@@ -77,6 +79,15 @@ android {
 }
 
 kotlin { jvmToolchain(17) }
+
+// S-05: offline only (no remote license fetch); OCR models, BouncyCastle and ORT copyright lines come from aboutlibraries/
+aboutLibraries {
+    collect {
+        configPath = file("aboutlibraries")
+        fetchRemoteLicense = false
+        fetchRemoteFunding = false
+    }
+}
 
 // code review O-04: the shipped models must be the ones in gradle/ocr-models.sha256 (docs/core/ocr-runtime.md)
 val verifyOcrModels = tasks.register("verifyOcrModels") {
