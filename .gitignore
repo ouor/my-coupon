@@ -21,3 +21,7 @@ local.properties
 build/
 
 .kotlin/
+
+# release signing secrets (see signing/SIGNING.md)
+signing/release.p12
+signing/keystore.properties

@@ -1,4 +1,5 @@
 import java.security.MessageDigest
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -9,6 +10,11 @@ plugins {
     alias(libs.plugins.aboutlibraries)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+}
+
+// signing/SIGNING.md: the key and its password stay out of git
+val ksProps = Properties().apply {
+    rootProject.file("signing/keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
 
 android {
@@ -24,7 +30,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 2 // docs/decisions.md: raise for every shipped APK, always with a schema change (A2-02)
-        versionName = "1.1.0"
+        versionName = "0.8.0"
         // code review O-04: expected model hashes, checked at build (verifyOcrModels) and after extraction on the device
         rootProject.file("gradle/ocr-models.sha256").readLines().filter { it.isNotBlank() }.forEach { l ->
             val (hash, file) = l.trim().split(Regex("\\s+"))
@@ -36,19 +42,29 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file("signing/release.p12")
+            storeType = "PKCS12"
+            storePassword = ksProps.getProperty("storePassword")
+            keyAlias = "release"
+            keyPassword = ksProps.getProperty("storePassword")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "src/main/keepRules/rules.keep")
-            // shortcut: release is signed with the debug key until the release keystore exists (spec §8.5)
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
         // non-debuggable release-like build with BenchActivity (src/bench): OCR timings on the device (docs/core/ocr-runtime.md)
         create("bench") {
             initWith(getByName("release"))
             isMinifyEnabled = false
             isShrinkResources = false
+            signingConfig = signingConfigs.getByName("debug") // dev-only build, never shipped
             matchingFallbacks += "release"
         }
     }
