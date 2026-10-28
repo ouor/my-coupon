@@ -1,5 +1,7 @@
 package com.ouor.mycoupon.ui.component
 
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -56,7 +58,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.ouor.mycoupon.data.CodeSource
 import com.ouor.mycoupon.data.Coupon
-import com.ouor.mycoupon.ui.BarcodeRenderer
 import com.ouor.mycoupon.ui.theme.BarcodeColors
 import com.ouor.mycoupon.ui.theme.CodeTypography
 import com.ouor.mycoupon.ui.theme.Spacing
@@ -117,24 +118,32 @@ private fun clearLater(cm: ClipboardManager, code: String) {
     }, 90_000)
 }
 
-/** The barcode image only (shared by S6 and S7). */
+/**
+ * The barcode image only (shared by S6 and S7). [maxHeight] caps it (code review U-02: S7 in landscape, where the width rule
+ * alone made a QR taller than the screen and pushed the 1D number off it).
+ */
 @Composable
-fun BarcodeImage(c: Coupon, modifier: Modifier = Modifier) {
+fun BarcodeImage(c: Coupon, modifier: Modifier = Modifier, maxHeight: Dp = Dp.Infinity) {
     val code = c.code ?: return
     when (c.codeView()) {
         CodeView.RENDERED -> BoxWithConstraints(modifier.fillMaxWidth()) {
-            val px = with(LocalDensity.current) { maxWidth.roundToPx() }
+            val d = LocalDensity.current
+            val px = with(d) { maxWidth.roundToPx() }
+            val cap = if (maxHeight == Dp.Infinity) Int.MAX_VALUE else with(d) { maxHeight.roundToPx() }
             val twoD = BarcodeRenderer.is2d(c.codeFormat)
-            val h1d = maxOf(with(LocalDensity.current) { 96.dp.roundToPx() }, (px * 0.35).toInt())
-            val bmp = remember(code, c.codeFormat, px) {
-                BarcodeRenderer.render(code, c.codeFormat!!, if (twoD) (px * 0.7).toInt() else px, h1d)
+            val side = minOf((px * 0.7).toInt(), cap)
+            val h1d = minOf(maxOf(with(d) { 96.dp.roundToPx() }, (px * 0.35).toInt()), cap)
+            // code review U-02 (A21 for S7): the pixel loop runs off the main thread; the space is held meanwhile
+            val bmp by produceState<Bitmap?>(null, code, c.codeFormat, px, side, h1d) {
+                value = withContext(Dispatchers.Default) { BarcodeRenderer.render(code, c.codeFormat!!, if (twoD) side else px, h1d) }
             }
             // shown at its own pixel size: integer module width, no resampling blur (§6.4)
-            if (bmp != null) Image(
-                bmp.asImageBitmap(), "바코드",
-                Modifier.align(Alignment.Center).size(with(LocalDensity.current) { bmp.width.toDp() }, with(LocalDensity.current) { bmp.height.toDp() }),
+            val b = bmp
+            if (b != null) Image(
+                b.asImageBitmap(), "바코드",
+                Modifier.align(Alignment.Center).size(with(d) { b.width.toDp() }, with(d) { b.height.toDp() }),
                 contentScale = ContentScale.FillBounds, filterQuality = FilterQuality.None,
-            )
+            ) else Spacer(Modifier.height(with(d) { (if (twoD) side else h1d).toDp() }))
         }
         CodeView.ORIGINAL -> {
             var bmp by remember(c.imagePath) { mutableStateOf<Bitmap?>(null) }
@@ -178,7 +187,8 @@ fun BarcodeBlock(
                 if (view != CodeView.PIN) {
                     Column(Modifier.fillMaxWidth().clickable(enabled = !dimmed, onClickLabel = "점원에게 보여 주기", onClick = onExpand)
                         .clearAndSetSemantics {
-                            contentDescription = "${listOfNotNull(c.brand, c.name()).joinToString(" ")} 바코드, 번호 ${codeSpoken(code)}"
+                            // code review U-24: the number node right below reads the number; here only what the barcode is
+                            contentDescription = "${listOfNotNull(c.brand, c.name()).joinToString(" ")} 바코드"
                             if (!dimmed) onClick("점원에게 보여 주기") { onExpand(); true }
                         },
                         horizontalAlignment = Alignment.CenterHorizontally) {
@@ -193,7 +203,8 @@ fun BarcodeBlock(
                 // C9: a corrected number is never redrawn; the original image may still show the old one
                 if (view == CodeView.ORIGINAL && c.codeSource == CodeSource.USER) Text("직접 고친 번호예요. 계산대에서는 이 번호를 불러 주세요",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                c.authCode?.let { auth -> AuthCodeRow(auth) { copyCode(context, auth); onCopied(true) } }
+                // code review U-24: a dimmed (past) card copies neither number
+                c.authCode?.let { auth -> AuthCodeRow(auth, if (dimmed) null else ({ copyCode(context, auth); onCopied(true) })) }
                 Spacer(Modifier.height(Spacing.s))
                 // round-2 V7: a dimmed card has [그래도 보기] in this row's place instead of on top of the number
                 if (dimmed) Spacer(Modifier.height(Spacing.cta))

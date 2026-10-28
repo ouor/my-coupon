@@ -1,5 +1,8 @@
 package com.ouor.mycoupon.ui.coupon
 
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.ouor.mycoupon.ui.component.BarcodeRenderer
 import androidx.compose.foundation.layout.Row
 import android.app.Activity
 import android.content.pm.ActivityInfo
@@ -88,7 +91,9 @@ fun BarcodeFullScreen(id: Long, nav: NavHostController) = MyCouponTheme(forceLig
     val coupon = c ?: return@MyCouponTheme
     var hint by remember { mutableStateOf(false) }
     LaunchedEffect(hint) { if (hint) { delay(2_000); hint = false } }
-    Box(Modifier.fillMaxSize().background(BarcodeColors.background)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(BarcodeColors.background)) {
+        // code review U-02: sized by the landscape height, so the whole code and its number fit the first screen
+        val codeMax = maxHeight * (if (BarcodeRenderer.is2d(coupon.codeFormat)) 0.6f else 0.45f)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.xl, vertical = Spacing.l),
             horizontalAlignment = Alignment.CenterHorizontally) {
             // the clerk's check line, kept clear of the close button
@@ -99,7 +104,7 @@ fun BarcodeFullScreen(id: Long, nav: NavHostController) = MyCouponTheme(forceLig
                 if (bright) BrightnessChip(Modifier.padding(start = Spacing.s))
             }
             Spacer(Modifier.height(Spacing.s))
-            if (coupon.codeView() != CodeView.PIN) BarcodeImage(coupon)
+            if (coupon.codeView() != CodeView.PIN) BarcodeImage(coupon, maxHeight = codeMax)
             coupon.code?.let {
                 Spacer(Modifier.height(Spacing.m))
                 CodeNumber(it, if (coupon.codeView() == CodeView.PIN) CodeTypography.codePin else CodeTypography.codeLarge, Modifier.fillMaxWidth())
@@ -110,7 +115,8 @@ fun BarcodeFullScreen(id: Long, nav: NavHostController) = MyCouponTheme(forceLig
         // round-2 V9: how to close is always written under [✕]
         Column(Modifier.align(Alignment.TopEnd).padding(Spacing.s), horizontalAlignment = Alignment.CenterHorizontally) {
             HoldToClose(Modifier, onClose = { nav.popBackStack() }, onShort = { hint = true })
-            Text("길게 눌러 닫기", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // code review U-29: TalkBack closes with a double tap, so this hint is for sight only
+            Text("길게 눌러 닫기", Modifier.clearAndSetSemantics {}, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (hint) Text("길게 누르면 닫혀요", Modifier.align(Alignment.BottomCenter).padding(Spacing.l)
             .background(MaterialTheme.colorScheme.inverseSurface, MaterialTheme.shapes.small).padding(horizontal = Spacing.m, vertical = Spacing.s),
