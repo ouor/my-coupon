@@ -1,5 +1,16 @@
 package com.ouor.mycoupon.ui.coupon
 
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.DisplayMode
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.stateDescription
+import com.ouor.mycoupon.ui.component.isLargeFont
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.rounded.Close
@@ -97,8 +108,6 @@ import androidx.navigation.NavHostController
 import com.ouor.mycoupon.data.CodeSource
 import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponType
-import com.ouor.mycoupon.ui.importing.ImportViewModel
-import com.ouor.mycoupon.ui.MainActivity
 import com.ouor.mycoupon.ui.component.AppTopBar
 import com.ouor.mycoupon.ui.component.BottomCta
 import com.ouor.mycoupon.ui.component.LocalSnackbar
@@ -118,15 +127,12 @@ import java.time.ZoneOffset
 import java.util.Locale
 import kotlinx.coroutines.launch
 
+/** S5 for an import draft; [draft] null = gone from the batch. Nav.kt passes the import session's pieces (code review A2-05). */
 @Composable
-fun EditDraftScreen(key: Int, nav: NavHostController) {
-    val vm: ImportViewModel = hiltViewModel(LocalActivity.current as MainActivity)
-    val st by vm.state.collectAsStateWithLifecycle()
-    val brands by vm.brands.collectAsStateWithLifecycle()
-    val d = st.drafts.firstOrNull { it.key == key }?.coupon
-    if (d == null) { LaunchedEffect(Unit) { nav.popBackStack() }; return }
-    CouponEditor(d, brands, onSave = { vm.edit(key, it); nav.popBackStack() }, onBack = { nav.popBackStack() },
-        onNotCoupon = { vm.exclude(key); nav.popBackStack() })
+fun EditDraftScreen(draft: Coupon?, brands: List<String>, nav: NavHostController, onSave: (Coupon) -> Unit, onExclude: () -> Unit) {
+    if (draft == null) { LaunchedEffect(Unit) { nav.popBackStack() }; return }
+    CouponEditor(draft, brands, onSave = { onSave(it); nav.popBackStack() }, onBack = { nav.popBackStack() },
+        onNotCoupon = { onExclude(); nav.popBackStack() })
 }
 
 @Composable
@@ -152,6 +158,9 @@ fun EditCouponScreen(id: Long, nav: NavHostController) {
 
 private val numberFormat = NumberFormat.getNumberInstance(Locale.KOREA)
 
+/** "2026년 11월 1일 일요일" (TalkBack, code review U-08) */
+private fun spokenDate(d: LocalDate) = d.format(java.time.format.DateTimeFormatter.ofPattern("yyyy년 M월 d일 EEEE", Locale.KOREAN))
+
 /** S5 (F3). [맞아요] / editing a field clears that field's review reasons. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -168,6 +177,7 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
     var viewer by rememberSaveable { mutableStateOf<String?>(null) }
     fun confirm(field: String) { c = c.copy(needsReview = c.needsReview - field) }
     val changed = c != initial
+    val large = isLargeFont()
     val leave = { if (changed) confirmLeave = true else onBack() }
     BackHandler(onBack = leave)
 
@@ -189,7 +199,8 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
     Scaffold(
         topBar = { AppTopBar("쿠폰 확인", onBack = leave) {
             // review U2: a receipt read as a coupon must be removable right here; review U7: [저장] only at the bottom
-            OutlinedButton(onNotCoupon, Modifier.padding(end = Spacing.m).heightIn(min = 40.dp)) { Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge) }
+            // code review U-11: at 150 %+ it does not fit the top bar, so it moves to the first body row
+            if (!large) OutlinedButton(onNotCoupon, Modifier.padding(end = Spacing.m).heightIn(min = 40.dp)) { Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge) }
         } },
         bottomBar = { BottomCta("저장", ::save) },
     ) { pad ->
@@ -205,6 +216,7 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                     OutlinedButton({ viewer = "" }, Modifier.heightIn(min = Spacing.touch)) {
                         Icon(Icons.Rounded.Image, null, Modifier.padding(end = Spacing.xs)); Text("원본 전체 보기")
                     }
+                    if (large) OutlinedButton(onNotCoupon, Modifier.heightIn(min = Spacing.touch)) { Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge) }
                 }
                 if ("brand" in c.needsReview) SourceCrop(c, "brand") { viewer = it }
                 BrandField(c.brand ?: "", brands, review = c.needsReview["brand"]) { c = c.copy(brand = it.ifBlank { null }); confirm("brand") }
@@ -237,7 +249,12 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                 val expiryReview = c.needsReview["expiryDate"]
                 val candidates = expiryReview != null && "MULTIPLE_CANDIDATES" in expiryReview && c.expiryCandidates.size > 1
                 if (expiryReview != null && !candidates && !noExpiry) SourceCrop(c, "expiryDate") { viewer = it }
-                Surface(onClick = { if (!noExpiry) datePicker = true }, enabled = !noExpiry) {
+                val expirySpoken = listOfNotNull("유효기간", if (noExpiry) "기간 없음" else c.expiryDate?.let(::spokenDate) ?: "날짜를 골라 주세요",
+                    "확인 필요".takeIf { expiryReview != null }).joinToString(", ")
+                Surface(onClick = { if (!noExpiry) datePicker = true }, Modifier.clearAndSetSemantics {
+                    contentDescription = expirySpoken; role = Role.Button
+                    if (noExpiry) disabled() else onClick("유효기간 고르기") { datePicker = true; true }
+                }, enabled = !noExpiry) {
                     OutlinedTextField(
                         if (noExpiry) "기간 없음" else c.expiryDate?.dotted() ?: "", {}, Modifier.fillMaxWidth(), readOnly = true, enabled = false,
                         label = { Text("유효기간") }, placeholder = { Text("날짜를 골라 주세요") },
@@ -261,8 +278,10 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                     }
                 }
                 if (!noExpiry) ReviewLine("expiryDate", expiryReview) { confirm("expiryDate") }
-                Row(Modifier.fillMaxWidth().heightIn(min = Spacing.touch), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(noExpiry, { noExpiry = it; if (it) confirm("expiryDate") })
+                Row(Modifier.fillMaxWidth().heightIn(min = Spacing.touch)
+                    .toggleable(noExpiry, role = Role.Checkbox) { noExpiry = it; if (it) confirm("expiryDate") },
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(noExpiry, null)
                     Text("유효기간 없음", style = MaterialTheme.typography.bodyLarge)
                 }
 
@@ -285,7 +304,7 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                 ReviewLine("sender", c.needsReview["sender"]) { confirm("sender") }
 
                 c.notes?.let { notes ->
-                    TextButton({ notesOpen = !notesOpen }, Modifier.heightIn(min = Spacing.touch)) {
+                    TextButton({ notesOpen = !notesOpen }, Modifier.heightIn(min = Spacing.touch).semantics { stateDescription = if (notesOpen) "펼쳐짐" else "접힘" }) {
                         Text("유의사항 원문", style = MaterialTheme.typography.labelLarge)
                         Icon(if (notesOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null)
                     }
@@ -299,7 +318,8 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
 
     if (datePicker) {
         val utc = (c.expiryDate ?: LocalDate.now()).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        val state = rememberDatePickerState(initialSelectedDateMillis = utc)
+        // code review U-12: the calendar does not fit at 150 %+; the typed form does, and it scrolls
+        val state = rememberDatePickerState(initialSelectedDateMillis = utc, initialDisplayMode = if (large) DisplayMode.Input else DisplayMode.Picker)
         DatePickerDialog(
             onDismissRequest = { datePicker = false },
             confirmButton = {
@@ -309,7 +329,7 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                 }) { Text("확인") }
             },
             dismissButton = { TextButton({ datePicker = false }) { Text("취소") } },
-        ) { DatePicker(state) }
+        ) { DatePicker(state, if (large) Modifier.verticalScroll(rememberScrollState()) else Modifier) }
     }
     viewer?.let { key ->
         Dialog({ viewer = null }, DialogProperties(usePlatformDefaultWidth = false)) {
@@ -373,7 +393,7 @@ private fun ReviewLine(field: String, reasons: List<String>?, onConfirm: () -> U
     LaunchedEffect(justConfirmed) { if (justConfirmed) { kotlinx.coroutines.delay(1000); justConfirmed = false } }
     val s = MaterialTheme.statusColors
     if (reasons == null) {
-        if (justConfirmed) Row(verticalAlignment = Alignment.CenterVertically) {
+        if (justConfirmed) Row(Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }, verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.CheckCircle, null, tint = s.available)
             Text(" 확인했어요", style = MaterialTheme.typography.labelMedium, color = s.available)
         }
