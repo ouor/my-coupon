@@ -22,8 +22,9 @@ import com.ouor.mycoupon.ui.component.epochDay
 import com.ouor.mycoupon.ui.component.won
 import com.ouor.mycoupon.ui.theme.Spacing
 
+/** [onUndoLast] gets the id of the record shown on top (code review U-07: the core then removes only that one). */
 @Composable
-internal fun UsageHistory(usage: List<UsageLog>, onUndoLast: () -> Unit) {
+internal fun UsageHistory(usage: List<UsageLog>, onUndoLast: (Long) -> Unit) {
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.medium).padding(Spacing.m)) {
         usage.forEachIndexed { i, u ->
             val d = epochDay(u.at)
@@ -32,7 +33,7 @@ internal fun UsageHistory(usage: List<UsageLog>, onUndoLast: () -> Unit) {
                 val what = if (u.kind == UsageKind.ADJUST) "잔액 수정" else "${u.spent?.let(::won) ?: "-"} 사용"
                 Text("${d.monthValue}.${"%02d".format(d.dayOfMonth)} · $what · 잔액 ${u.balanceAfter?.let(::won) ?: "-"}",
                     Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"))
-                if (i == 0) TextButton(onUndoLast) { Text("기록 지우기") }
+                if (i == 0) TextButton({ onUndoLast(u.id) }) { Text("기록 지우기") }
             }
             if (i < usage.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
