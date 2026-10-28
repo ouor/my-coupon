@@ -1,5 +1,8 @@
 package com.ouor.mycoupon.widget
 
+import androidx.glance.semantics.contentDescription
+import androidx.glance.semantics.semantics
+import com.ouor.mycoupon.ui.component.ddaySpoken
 import com.ouor.mycoupon.data.CouponType
 import androidx.glance.LocalSize
 import androidx.glance.appwidget.SizeMode
@@ -108,7 +111,10 @@ class CouponWidget : GlanceAppWidget() {
                     val name = ReminderPlanner.shortName(c.brand, c.productName) ?: c.brand ?: "쿠폰"
                     val line2 = listOfNotNull(c.brand?.takeIf { it != name },
                         c.balance?.takeIf { c.type == CouponType.AMOUNT }?.let { "잔액 ${ReminderPlanner.won(it)}" }).joinToString(" · ")
-                    Row(GlanceModifier.fillMaxWidth().height(52.dp).clickable(actionStartActivity(row)), verticalAlignment = Alignment.CenterVertically) {
+                    // C2-05: one sentence like the list card, not "D 마이너스 3"
+                    val spoken = listOf(name, line2, ddaySpoken(c, today), "누르면 바코드").filter { it.isNotEmpty() }.joinToString(", ")
+                    Row(GlanceModifier.fillMaxWidth().height(52.dp).clickable(actionStartActivity(row)).semantics { contentDescription = spoken },
+                        verticalAlignment = Alignment.CenterVertically) {
                         Column(GlanceModifier.defaultWeight()) {
                             Text(name, style = TextStyle(fontSize = 16.sp, color = fg, fontWeight = FontWeight.Medium), maxLines = 1)
                             if (line2.isNotEmpty()) Text(line2, style = TextStyle(fontSize = 13.sp, color = sub), maxLines = 1)

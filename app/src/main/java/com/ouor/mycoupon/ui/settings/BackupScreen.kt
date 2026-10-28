@@ -52,7 +52,6 @@ import com.ouor.mycoupon.ui.component.LocalSnackbar
 import com.ouor.mycoupon.ui.component.PrimaryButton
 import com.ouor.mycoupon.ui.component.SecondaryButton
 import com.ouor.mycoupon.ui.theme.Spacing
-import com.ouor.mycoupon.ui.theme.statusColors
 import com.ouor.mycoupon.ui.toHome
 import java.time.LocalDate
 
