@@ -199,7 +199,11 @@ fun ImportScreen(nav: NavHostController) {
                     if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            items(st.reviewGroups(), key = { "group-${it.field}-${it.keys.first()}" }) { g ->
+            // only real, new coupons whose value was read (a NOT_FOUND field has nothing to agree with; S5 shows no [맞아요] for it)
+            val groups = st.reviewGroups().filter { g ->
+                g.keys.all { k -> st.drafts.first { it.key == k }.let { d -> d.isCoupon && d.duplicate == null && d.coupon?.needsReview?.get(g.field)?.contains("NOT_FOUND") != true } }
+            }
+            items(groups, key = { "group-${it.field}-${it.keys.first()}" }) { g ->
                 GroupConfirmRow(g, Modifier.animateItem()) {
                     val before = st.drafts.filter { it.key in g.keys }
                     vm.confirmGroup(g)
