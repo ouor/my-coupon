@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.importing
 
+import com.ouor.mycoupon.ui.ImportStarter
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import com.ouor.mycoupon.data.ImageStore
@@ -28,7 +29,7 @@ class ImportViewModel @Inject constructor(
     repo: CouponRepository,
     private val images: ImageStore,
     private val saved: SavedStateHandle,
-) : ViewModel() {
+) : ViewModel(), ImportStarter {
     val state: StateFlow<ImportState> = session.state
     val brands: StateFlow<List<String>> = repo.observeBrands().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -54,10 +55,10 @@ class ImportViewModel @Inject constructor(
         }
     }
 
-    fun start(uris: List<Uri>, origin: ImportOrigin) = session.start(uris.map { ImportSession.Source(it) }, origin)
+    override fun start(uris: List<Uri>, origin: ImportOrigin) { session.start(uris.map { ImportSession.Source(it) }, origin) }
     /** C2-24: file + FileProvider uri for the system camera app (paths are kept by the caller across a process death). */
-    fun newCapture(): Pair<File, Uri> = images.newCapture()
-    fun startCapture(file: File, uri: Uri) = session.startCapture(file, uri)
+    override fun newCapture(): Pair<File, Uri> = images.newCapture()
+    override fun startCapture(file: File, uri: Uri) { session.startCapture(file, uri) }
     /** C2-09 [모두 맞아요]: clears that field's check on every card of the group. */
     fun confirmGroup(g: ReviewGroup) = session.confirmGroup(g)
     fun setChecked(key: Int, v: Boolean) = session.setChecked(key, v)

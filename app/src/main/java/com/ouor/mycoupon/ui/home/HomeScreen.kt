@@ -1,5 +1,16 @@
 package com.ouor.mycoupon.ui.home
 
+import androidx.compose.material3.AssistChip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.stateDescription
+import androidx.lifecycle.compose.dropUnlessResumed
+import com.ouor.mycoupon.ui.component.Copy
+import com.ouor.mycoupon.ui.ImportStarter
+import com.ouor.mycoupon.ui.component.TimePickDialog
+import com.ouor.mycoupon.ui.component.openNotificationSettings
+import com.ouor.mycoupon.ui.component.timeLabel
+import androidx.lifecycle.compose.LifecycleStartEffect
 import com.ouor.mycoupon.ui.component.codeTail
 import com.ouor.mycoupon.ui.component.won
 import androidx.compose.foundation.background
@@ -18,8 +29,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
 import com.ouor.mycoupon.AppIntents
 import com.ouor.mycoupon.data.CouponType
-import com.ouor.mycoupon.ui.settings.TimePickDialog
-import com.ouor.mycoupon.ui.settings.timeLabel
 import kotlinx.coroutines.launch
 import android.Manifest
 import android.content.Context
@@ -109,8 +118,6 @@ import com.ouor.mycoupon.data.CouponStatus
 import com.ouor.mycoupon.data.ListFilter
 import com.ouor.mycoupon.data.ListSort
 import com.ouor.mycoupon.domain.ImportOrigin
-import com.ouor.mycoupon.ui.importing.ImportViewModel
-import com.ouor.mycoupon.ui.MainActivity
 import com.ouor.mycoupon.ui.Route
 import com.ouor.mycoupon.ui.Sharing
 import com.ouor.mycoupon.ui.component.AppSheet
@@ -125,17 +132,13 @@ import com.ouor.mycoupon.ui.component.title
 import com.ouor.mycoupon.ui.theme.Spacing
 import com.ouor.mycoupon.ui.theme.statusColors
 
-fun openNotificationSettings(context: Context) {
-    context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
-}
-
 /** S1 home + S13 (the [지난 쿠폰] filter state), S2 add sheet, D8 notification rationale sheet. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(nav: NavHostController) {
-    val activity = LocalActivity.current as MainActivity
-    val vm: HomeViewModel = hiltViewModel(activity)
-    val importVm: ImportViewModel = hiltViewModel(activity)
+fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarter) {
+    val activity = LocalContext.current
+    // core P-04: the F9 new-image check runs only while S1 is on screen
+    LifecycleStartEffect(Unit) { val check = vm.checkNew(); onStopOrDispose { check.cancel() } }
     val st by vm.state.collectAsStateWithLifecycle()
     val askNotif by vm.notificationRationale.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbar.current
@@ -193,6 +196,7 @@ fun HomeScreen(nav: NavHostController) {
                 containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary,
                 onClick = { addSheet = true }, expanded = atTop,
                 icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("추가", style = MaterialTheme.typography.labelLarge) },
+                // code review U-15 checked on POCO: M3 clears the text's semantics, so this is the only label (read once)
                 modifier = Modifier.semantics { contentDescription = "쿠폰 추가" },
             )
         },
@@ -248,10 +252,11 @@ fun HomeScreen(nav: NavHostController) {
             // review U3: identical names get the last four digits so they can be told apart
             val twins = st.coupons.groupingBy { it.brand to it.title() }.eachCount().filterValues { it > 1 }.keys
             items(st.coupons, key = { it.id }) { c ->
-                CouponCard(c, st.today, onClick = { if (android.os.SystemClock.elapsedRealtime() >= vm.cardTapsFrom) nav.navigate(Route.Detail(c.id)) }, modifier = Modifier.animateItem(),
+                // code review U-06: a double tap opens one S6, not two
+                CouponCard(c, st.today, onClick = dropUnlessResumed { if (android.os.SystemClock.elapsedRealtime() >= vm.cardTapsFrom) nav.navigate(Route.Detail(c.id)) }, modifier = Modifier.animateItem(),
                     codeTail = (c.brand to c.title()) in twins,
                     onUndo = if (c.status == CouponStatus.USED) ({
-                        vm.undoUse(c.id); snackbar.show("${c.title()} 다시 쓸 수 있게 되돌렸어요")
+                        vm.undoUse(c.id); snackbar.show("${c.title()} ${Copy.UNDONE}")
                     }) else null)
             }
         }
@@ -308,7 +313,9 @@ private fun SortMenu(sort: ListSort, onSort: (ListSort) -> Unit) {
     val label = { s: ListSort -> if (s == ListSort.EXPIRY) "만료 임박순" else "최근 등록순" }
     Box {
         // round-2 V13: a chip like its neighbours, not blue text
-        FilterChip(false, { open = true }, { Text(label(sort), style = MaterialTheme.typography.labelLarge) }, Modifier.heightIn(min = Spacing.touch),
+        // code review U-15: it opens a menu (an unselected FilterChip read as "checkbox, not checked")
+        AssistChip({ open = true }, { Text(label(sort), style = MaterialTheme.typography.labelLarge) },
+            Modifier.heightIn(min = Spacing.touch).semantics { role = Role.DropdownList; stateDescription = "정렬" },
             trailingIcon = { Icon(Icons.Rounded.ExpandMore, null, Modifier.size(18.dp)) })
         DropdownMenu(open, { open = false }) {
             ListSort.entries.forEach { s ->
@@ -336,8 +343,8 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
         }
         HomeBanner.NOTIFICATIONS_OFF -> InfoBanner(Icons.Rounded.NotificationsOff, "알림이 꺼져 있어 만료를 알려 드릴 수 없어요", s.reviewContainer, cs.onSurface) {
             BannerButton(onClick = {
-                if (Build.VERSION.SDK_INT >= 33 && !(context as MainActivity).settings.notificationAsked) {
-                    context.settings.notificationAsked = true
+                if (Build.VERSION.SDK_INT >= 33 && !vm.notificationAsked) {
+                    vm.notificationsAsked()
                     request(Manifest.permission.POST_NOTIFICATIONS)
                 } else openNotificationSettings(context)
             }, "켜기")
@@ -351,7 +358,7 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
                 if (c.type == CouponType.AMOUNT) BannerButton("쓴 금액 입력") {
                     vm.answerUseAsk(c.id, used = false); nav.navigate(Route.Detail(c.id, openUse = true))
                 } else BannerButton("썼어요") {
-                    vm.answerUseAsk(c.id, used = true); snackbar.show("$nm 사용 완료했어요", "되돌리기") { vm.undoUse(c.id) }
+                    val log = vm.answerUseAsk(c.id, used = true); snackbar.show("$nm ${Copy.USED}", Copy.UNDO) { vm.undoUse(c.id, log) }
                 }
             }
         }

@@ -1,5 +1,7 @@
 package com.ouor.mycoupon.ui.settings
 
+import com.ouor.mycoupon.ui.component.offsetsLabel
+import com.ouor.mycoupon.ui.component.timeLabel
 import android.app.StatusBarManager
 import android.content.ComponentName
 import android.content.Context
@@ -68,17 +70,8 @@ import com.ouor.mycoupon.ui.Sharing
 import com.ouor.mycoupon.ui.component.AppTopBar
 import com.ouor.mycoupon.ui.component.LocalSnackbar
 import com.ouor.mycoupon.ui.component.SectionTitle
-import com.ouor.mycoupon.ui.coupon.offsetsLabel
 import com.ouor.mycoupon.ui.theme.Spacing
 import com.ouor.mycoupon.ui.toHome
-
-fun timeLabel(minute: Int): String {
-    val h = minute / 60
-    val m = minute % 60
-    val ampm = if (h < 12) "오전" else "오후"
-    val h12 = (h % 12).let { if (it == 0) 12 else it }
-    return "$ampm $h12:${"%02d".format(m)}"
-}
 
 @Composable
 internal fun SettingRow(icon: ImageVector?, title: String, sub: String? = null, danger: Boolean = false, chevron: Boolean = true, onClick: (() -> Unit)?) {

@@ -1,5 +1,13 @@
 package com.ouor.mycoupon.ui.importing
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
+import com.ouor.mycoupon.ui.HomeLinks
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -73,8 +81,6 @@ import com.ouor.mycoupon.data.Duplicate
 import com.ouor.mycoupon.domain.Draft
 import com.ouor.mycoupon.domain.DraftStage
 import com.ouor.mycoupon.domain.ImportOrigin
-import com.ouor.mycoupon.ui.home.HomeViewModel
-import com.ouor.mycoupon.ui.MainActivity
 import com.ouor.mycoupon.ui.Route
 import com.ouor.mycoupon.ui.component.AppTopBar
 import com.ouor.mycoupon.ui.component.BottomCta
@@ -105,10 +111,7 @@ private fun order(d: Draft): Int = when {
 
 /** S3 + S4 (F2-F4). */
 @Composable
-fun ImportScreen(nav: NavHostController) {
-    val activity = LocalActivity.current as MainActivity
-    val vm: ImportViewModel = hiltViewModel(activity)
-    val homeVm: HomeViewModel = hiltViewModel(activity)
+fun ImportScreen(nav: NavHostController, vm: ImportViewModel, home: HomeLinks) {
     val st by vm.state.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbar.current
     var confirmClose by remember { mutableStateOf(false) }
@@ -131,7 +134,7 @@ fun ImportScreen(nav: NavHostController) {
             // C10: a second, concurrent call gets [] from the core; the first call already announced and left
             if (ids.isEmpty()) return@register
             snackbar.show("쿠폰 ${ids.size}개를 등록했어요")
-            homeVm.registered()
+            home.registered()
             nav.toHome()
         }
     }
@@ -164,7 +167,7 @@ fun ImportScreen(nav: NavHostController) {
             if (st.running) item(key = "progress") {
                 // TalkBack hears the progress in 10 % steps only
                 val step = (st.done * 10 / maxOf(1, st.total))
-                Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite; contentDescription = "${st.total}장 중 ${st.done}장 읽음, ${step * 10}퍼센트" }) {
+                Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite; contentDescription = "${st.total}장 중 ${step * 10}퍼센트 읽음" }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${st.total}장 중 ${minOf(st.done + 1, st.total)}장 읽는 중", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                         TextButton(vm::stop) { Text("그만 읽기") }
@@ -273,7 +276,17 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
     }
     Card(
         onClick = onOpen, enabled = !readingNow,
-        modifier = modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+        // code review U-17: the card is the one TalkBack node (it read twice: card, then box); double tap toggles, 수정하기 is an action
+        modifier = modifier.fillMaxWidth().clearAndSetSemantics {
+            contentDescription = spoken
+            if (readingNow) disabled()
+            else if (d.duplicate == null) {
+                role = Role.Checkbox
+                toggleableState = ToggleableState(d.checked)
+                onClick(if (d.checked) "등록 안 함으로" else "등록함으로") { onCheck(!d.checked); true }
+                customActions = listOf(CustomAccessibilityAction("수정하기") { onOpen(); true })
+            } else onClick("수정하기") { onOpen(); true }
+        },
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = if (d.checked || readingNow) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLow,
             disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -282,11 +295,7 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
         Row(Modifier.padding(end = Spacing.l, top = Spacing.xs, bottom = Spacing.l), verticalAlignment = Alignment.Top) {
             // C2-05: one card node reads "등록함, …" first; the box toggles by double tap, the card's tap is the 수정하기 action
             // round-2 V3: an already registered / used card cannot be registered, so it has no box (same width kept)
-            if (d.duplicate != null) Spacer(Modifier.width(48.dp)) else Checkbox(d.checked, onCheck, enabled = !readingNow,
-                modifier = Modifier.semantics {
-                    contentDescription = spoken; stateDescription = if (d.checked) "등록함" else "등록 안 함"
-                    if (!readingNow) customActions = listOf(CustomAccessibilityAction("수정하기") { onOpen(); true })
-                })
+            if (d.duplicate != null) Spacer(Modifier.width(48.dp)) else Checkbox(d.checked, onCheck, enabled = !readingNow)
             Column(Modifier.weight(1f).padding(top = Spacing.m)) {
                 Row(verticalAlignment = Alignment.Top) {
                     if (!large) {

@@ -1,5 +1,8 @@
 package com.ouor.mycoupon.ui.gallery
 
+import com.ouor.mycoupon.ui.ImportStarter
+import com.ouor.mycoupon.ui.component.Promise
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -51,8 +54,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.ouor.mycoupon.domain.ImportOrigin
 import com.ouor.mycoupon.gallery.ScanRange
-import com.ouor.mycoupon.ui.importing.ImportViewModel
-import com.ouor.mycoupon.ui.MainActivity
 import com.ouor.mycoupon.ui.Route
 import com.ouor.mycoupon.ui.component.AppTopBar
 import com.ouor.mycoupon.ui.component.BottomCta
@@ -60,7 +61,6 @@ import com.ouor.mycoupon.ui.component.CouponThumb
 import com.ouor.mycoupon.ui.component.EmptyState
 import com.ouor.mycoupon.ui.component.PrimaryButton
 import com.ouor.mycoupon.ui.component.SecondaryButton
-import com.ouor.mycoupon.ui.onboarding.Promise
 import com.ouor.mycoupon.ui.theme.Spacing
 import java.text.NumberFormat
 import java.util.Locale
@@ -69,10 +69,9 @@ private fun n(v: Int) = NumberFormat.getNumberInstance(Locale.KOREA).format(v)
 
 /** S9 (F9): ① permission rationale → ② range → ③ progress, one screen. Leaving pauses (the ViewModel cancels the scan). */
 @Composable
-fun GalleryScreen(nav: NavHostController) {
-    val activity = LocalActivity.current as MainActivity
+fun GalleryScreen(nav: NavHostController, importer: ImportStarter) {
+    val activity = LocalActivity.current as Activity
     val vm: GalleryViewModel = hiltViewModel()
-    val importVm: ImportViewModel = hiltViewModel(activity)
     val p by vm.progress.collectAsStateWithLifecycle()
     var granted by remember { mutableStateOf(vm.hasPermission()) }
     var denied by rememberSaveable { mutableStateOf(false) }
@@ -82,14 +81,17 @@ fun GalleryScreen(nav: NavHostController) {
     val request = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         granted = vm.hasPermission()
         // denied twice: the system no longer shows its dialog → settings
-        denied = !granted && vm.permissions().none { ActivityCompat.shouldShowRequestPermissionRationale(activity as Activity, it) }
+        denied = !granted && vm.permissions().none { ActivityCompat.shouldShowRequestPermissionRationale(activity, it) }
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { uris ->
-        if (uris.isNotEmpty()) { importVm.start(uris, ImportOrigin.PICKER); nav.navigate(Route.Import) { popUpTo(Route.Home) } }
+        if (uris.isNotEmpty()) { importer.start(uris, ImportOrigin.PICKER); nav.navigate(Route.Import) { popUpTo(Route.Home) } }
     }
     val pick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
     val partial = granted && vm.isPartialAccess() // C5: only the photos the user allowed, no range
-    LaunchedEffect(granted, range) { if (granted) photos = vm.count(range) }
+    // code review U-09: back from the system settings (allowed, or a different "selected photos" set): read it again
+    var resumed by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(Unit) { granted = vm.hasPermission(); resumed++; onPauseOrDispose {} }
+    LaunchedEffect(granted, range, resumed) { if (granted) photos = vm.count(range) }
     // back on this screen after a pause: resume (screens.md S9 "이어서 찾을게요")
     LaunchedEffect(granted) { if (granted && started && !p.finished && !p.running) vm.scan(range) }
     DisposableEffect(Unit) { onDispose { vm.pause() } }

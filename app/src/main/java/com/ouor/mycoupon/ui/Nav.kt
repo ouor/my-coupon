@@ -1,5 +1,15 @@
 package com.ouor.mycoupon.ui
 
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ouor.mycoupon.ui.component.LocalTts
+import com.ouor.mycoupon.ui.component.TtsHolder
+import com.ouor.mycoupon.ui.home.HomeViewModel
+import com.ouor.mycoupon.ui.importing.ImportViewModel
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -49,13 +59,22 @@ object Route {
     @Serializable data object Licenses
 }
 
+/**
+ * Code review A2-05: the only place that knows the Activity. The two Activity-wide ViewModels (S1 state for the undo Snackbar,
+ * the import session) are handed to the screens that need them, as [HomeLinks] / [ImportStarter] across features.
+ */
 @Composable
 fun AppNavHost(nav: NavHostController, start: Any) {
     val host = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     val snackbar = remember { AppSnackbar(host, scope, undoMillis(context)) }
-    CompositionLocalProvider(LocalSnackbar provides snackbar) {
+    val activity = LocalActivity.current as ComponentActivity
+    val homeVm: HomeViewModel = hiltViewModel(activity)
+    val importVm: ImportViewModel = hiltViewModel(activity)
+    val tts = remember { TtsHolder(context) }
+    DisposableEffect(tts) { onDispose { tts.shutdown() } }
+    CompositionLocalProvider(LocalSnackbar provides snackbar, LocalTts provides tts) {
         // design-system §5: S1 → S6 within 200 ms; system "remove animations" scales these to 0
         NavHost(nav, startDestination = start,
             enterTransition = { fadeIn(tween(150)) + slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(200), initialOffset = { it / 12 }) },
@@ -63,14 +82,22 @@ fun AppNavHost(nav: NavHostController, start: Any) {
             popEnterTransition = { fadeIn(tween(150)) },
             popExitTransition = { fadeOut(tween(100)) + slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(200), targetOffset = { it / 12 }) },
         ) {
-            composable<Route.Onboarding> { OnboardingScreen { nav.navigate(Route.Home) { popUpTo(Route.Onboarding) { inclusive = true } } } }
-            composable<Route.Home> { HomeScreen(nav) }
-            composable<Route.Import> { ImportScreen(nav) }
-            composable<Route.EditDraft> { EditDraftScreen(it.toRoute<Route.EditDraft>().key, nav) }
+            composable<Route.Onboarding> {
+                OnboardingScreen { homeVm.finishOnboarding(); nav.navigate(Route.Home) { popUpTo(Route.Onboarding) { inclusive = true } } }
+            }
+            composable<Route.Home> { HomeScreen(nav, homeVm, importVm) }
+            composable<Route.Import> { ImportScreen(nav, importVm, homeVm) }
+            composable<Route.EditDraft> {
+                val key = it.toRoute<Route.EditDraft>().key
+                val st by importVm.state.collectAsStateWithLifecycle()
+                val brands by importVm.brands.collectAsStateWithLifecycle()
+                EditDraftScreen(st.drafts.firstOrNull { d -> d.key == key }?.coupon, brands, nav,
+                    onSave = { c -> importVm.edit(key, c) }, onExclude = { importVm.exclude(key) })
+            }
             composable<Route.EditCoupon> { EditCouponScreen(it.toRoute<Route.EditCoupon>().id, nav) }
-            composable<Route.Detail> { val r = it.toRoute<Route.Detail>(); DetailScreen(r.id, r.fromReminder, nav, r.swiped, r.openUse) }
+            composable<Route.Detail> { val r = it.toRoute<Route.Detail>(); DetailScreen(r.id, r.fromReminder, nav, homeVm, r.swiped, r.openUse) }
             composable<Route.BarcodeFull> { BarcodeFullScreen(it.toRoute<Route.BarcodeFull>().id, nav) }
-            composable<Route.Gallery> { GalleryScreen(nav) }
+            composable<Route.Gallery> { GalleryScreen(nav, importVm) }
             composable<Route.Settings> { SettingsScreen(nav) }
             composable<Route.Reminders> { RemindersScreen(nav) }
             composable<Route.Backup> { BackupScreen(nav) }

@@ -1,6 +1,6 @@
 package com.ouor.mycoupon.ui.onboarding
 
-import androidx.activity.compose.LocalActivity
+import com.ouor.mycoupon.ui.component.Promise
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -14,27 +14,22 @@ import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PhonelinkLock
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.ouor.mycoupon.ui.MainActivity
 import com.ouor.mycoupon.ui.component.BottomCta
 import com.ouor.mycoupon.ui.theme.Spacing
 
 /** S0 (F13): no permission asks here. */
 @Composable
 fun OnboardingScreen(start: () -> Unit) {
-    val activity = LocalActivity.current as MainActivity
-    Scaffold(bottomBar = { BottomCta("시작하기", { activity.settings.onboarded = true; start() }, hint = "가입 없이 바로 써요") }) { pad ->
+    Scaffold(bottomBar = { BottomCta("시작하기", start, hint = "가입 없이 바로 써요") }) { pad ->
         Column(Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(horizontal = Spacing.l, vertical = Spacing.xxl)) {
             Surface(Modifier.size(64.dp), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.primary) {
                 Icon(Icons.Rounded.ConfirmationNumber, null, Modifier.padding(14.dp), tint = MaterialTheme.colorScheme.onPrimary)
@@ -49,15 +44,4 @@ fun OnboardingScreen(start: () -> Unit) {
             Promise(Icons.Rounded.ConfirmationNumber, "위젯·알림을 누르면 바로 바코드", null)
         }
     }
-}
-
-@Composable
-fun Promise(icon: ImageVector, title: String, sub: String?) {
-    ListItem(
-        headlineContent = { Text(title, style = MaterialTheme.typography.bodyLarge) },
-        supportingContent = sub?.let { { Text(it, style = MaterialTheme.typography.bodyMedium) } },
-        leadingContent = { Icon(icon, null, tint = MaterialTheme.colorScheme.primary) },
-        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.semantics(mergeDescendants = true) {},
-    )
 }

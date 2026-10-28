@@ -1,5 +1,9 @@
 package com.ouor.mycoupon.ui.home
 
+import com.ouor.mycoupon.ui.HomeLinks
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ouor.mycoupon.crash.CrashLog
@@ -64,7 +68,7 @@ class HomeViewModel @Inject constructor(
     private val scanner: GalleryScanner,
     private val actions: CouponActions,
     private val reminders: ReminderScheduler,
-) : ViewModel() {
+) : ViewModel(), HomeLinks {
     val filter = MutableStateFlow(ListFilter.AVAILABLE)
     val sort = MutableStateFlow(ListSort.EXPIRY)
     val query = MutableStateFlow("")
@@ -107,11 +111,13 @@ class HomeViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeState())
 
-    /** Call from onResume: permission state can change outside the app. Also runs the F9 new-image check. */
+    /** Call from onResume: permission state can change outside the app. */
     fun refresh() {
         notificationsOff.value = !notifier.canPost()
-        viewModelScope.launch { runCatching { scanner.checkNew() } }
     }
+
+    /** F9 new-image check; core P-04: S1 runs it only while started and cancels the job on stop (checked images stay logged). */
+    fun checkNew(): Job = viewModelScope.launch { runCatching { scanner.checkNew() } }
 
     fun crashBannerShown() {
         settings.crashBannerSeen = crashLog.files().firstOrNull()?.name
@@ -122,9 +128,9 @@ class HomeViewModel @Inject constructor(
     fun hideEndingBanner() { settings.hideExpiringBanner(); endingOnly.value = false }
 
     /** C2-17: any answer ends the question for that coupon; [used] marks it like S6 [사용 완료] (undo Snackbar on S1). */
-    fun answerUseAsk(id: Long, used: Boolean) {
+    fun answerUseAsk(id: Long, used: Boolean): Deferred<Long?>? {
         settings.answerUseAsk(id)
-        if (used) viewModelScope.launch { actions.markUsed(id) }
+        return if (used) viewModelScope.async { actions.markUsed(id) } else null
     }
 
     /** C2-08: the time picked in the permission sheet; kept even if the permission is then refused (AC2). */
@@ -143,8 +149,11 @@ class HomeViewModel @Inject constructor(
     fun openedFromReminder(ids: LongArray) = viewModelScope.launch { ids.forEach { actions.openedFromReminder(it) } }
 
     /** Snackbar [되돌리기] after S8/F16 (S6's ViewModel is gone by then) and S13 card [되돌리기]. */
-    fun undoUse(id: Long) = viewModelScope.launch { actions.undoUse(id) }
-    fun undoLastBalance(id: Long) = viewModelScope.launch { actions.undoLastBalance(id) }
+    override fun undoUse(id: Long, log: Deferred<Long?>?) = viewModelScope.launch { actions.undoUse(id, log?.await()) }
+    override fun undoLastBalance(id: Long, log: Deferred<Long?>?) = viewModelScope.launch { actions.undoLastBalance(id, log?.await()) }
+
+    override val availableIds: StateFlow<List<Long>> = state.map { s -> s.coupons.filter { it.isAvailable(s.today) }.map { it.id } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** D8: S1 shows the notification rationale sheet once, after the first registration. */
     val notificationRationale = MutableStateFlow(false)
@@ -153,10 +162,12 @@ class HomeViewModel @Inject constructor(
      * open the card that slid under the finger.
      */
     var cardTapsFrom = 0L
-    fun arrivedFromFinish() { cardTapsFrom = android.os.SystemClock.elapsedRealtime() + 1_200 }
+    override fun arrivedFromFinish() { cardTapsFrom = android.os.SystemClock.elapsedRealtime() + 1_200 }
 
-    fun registered() { if (!settings.notificationAsked && !notifier.canPost()) notificationRationale.value = true }
+    override fun registered() { if (!settings.notificationAsked && !notifier.canPost()) notificationRationale.value = true }
     fun notificationsAsked() { settings.notificationAsked = true; notificationRationale.value = false }
+    val notificationAsked: Boolean get() = settings.notificationAsked
+    fun finishOnboarding() { settings.onboarded = true }
 
     /** F19 banner [오류 기록 보내기] shares the newest scrubbed crash file. */
     fun crashFile(): File? = crashLog.files().firstOrNull()
