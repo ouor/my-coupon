@@ -1,5 +1,8 @@
 package com.ouor.mycoupon.ui.coupon
 
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.ouor.mycoupon.ui.component.BarcodeRenderer
@@ -94,11 +97,12 @@ fun BarcodeFullScreen(id: Long, nav: NavHostController) = MyCouponTheme(forceLig
     BoxWithConstraints(Modifier.fillMaxSize().background(BarcodeColors.background)) {
         // code review U-02: sized by the landscape height, so the whole code and its number fit the first screen
         val codeMax = maxHeight * (if (BarcodeRenderer.is2d(coupon.codeFormat)) 0.6f else 0.45f)
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.xl, vertical = Spacing.l),
+        // QA C2Q-05: [✕] and its hint have their own column, so they never cover the bars or the quiet zone (200 % included)
+        Row(Modifier.fillMaxSize()) {
+        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(start = Spacing.xl, end = Spacing.s, top = Spacing.l, bottom = Spacing.l),
             horizontalAlignment = Alignment.CenterHorizontally) {
-            // the clerk's check line, kept clear of the close button
-            // round-2 V9: the brightness chip sits on this line, not alone in a corner
-            Row(Modifier.fillMaxWidth().padding(end = 72.dp), verticalAlignment = Alignment.CenterVertically) {
+            // round-2 V9: the brightness chip sits on the clerk's check line, not alone in a corner
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(listOfNotNull(coupon.brand, coupon.name()).joinToString(" "), Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (bright) BrightnessChip(Modifier.padding(start = Spacing.s))
@@ -113,10 +117,12 @@ fun BarcodeFullScreen(id: Long, nav: NavHostController) = MyCouponTheme(forceLig
             Spacer(Modifier.height(Spacing.xl))
         }
         // round-2 V9: how to close is always written under [✕]
-        Column(Modifier.align(Alignment.TopEnd).padding(Spacing.s), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.width(88.dp).padding(vertical = Spacing.s), horizontalAlignment = Alignment.CenterHorizontally) {
             HoldToClose(Modifier, onClose = { nav.popBackStack() }, onShort = { hint = true })
             // code review U-29: TalkBack closes with a double tap, so this hint is for sight only
-            Text("길게 눌러 닫기", Modifier.clearAndSetSemantics {}, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("길게 눌러 닫기", Modifier.clearAndSetSemantics {}, style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        }
         }
         if (hint) Text("길게 누르면 닫혀요", Modifier.align(Alignment.BottomCenter).padding(Spacing.l)
             .background(MaterialTheme.colorScheme.inverseSurface, MaterialTheme.shapes.small).padding(horizontal = Spacing.m, vertical = Spacing.s),

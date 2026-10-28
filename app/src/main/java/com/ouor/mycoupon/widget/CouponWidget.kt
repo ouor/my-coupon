@@ -124,8 +124,9 @@ class CouponWidget : GlanceAppWidget() {
                             if (line2.isNotEmpty()) Text(line2, style = TextStyle(fontSize = 13.sp, color = sub), maxLines = 1)
                         }
                         val near = d != null && d <= 7
-                        // code review U-25 (P4): soon is said in words too, not by red alone
-                        if (near) Text("곧 ", style = TextStyle(fontSize = 13.sp, color = soon, fontWeight = FontWeight.Medium))
+                        // code review U-25 (P4): soon is said in words too, not by red alone;
+                        // QA C2Q-06: not at 150 %+, where it left the name 4-5 letters (red + the spoken sentence remain)
+                        if (near && fs < 1.5f) Text("곧 ", style = TextStyle(fontSize = 13.sp, color = soon, fontWeight = FontWeight.Medium))
                         Text(WidgetData.dday(c, today), style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold,
                             color = if (near) soon else fg))
                     }
