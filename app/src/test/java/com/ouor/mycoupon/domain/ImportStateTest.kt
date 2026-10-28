@@ -35,6 +35,19 @@ class ImportStateTest {
         assertEquals((0 until 11).toList(), g.keys)
     }
 
+    /** UI request (2026-10-28): not-a-coupon / already-registered cards and NOT_FOUND fields are never grouped. */
+    @Test
+    fun groupsSkipNonCouponsDuplicatesAndNotFound() {
+        val r = mapOf("expiryDate" to listOf("NO_KEYWORD"), "code" to listOf("NOT_FOUND"))
+        val st = ImportState(drafts = listOf(
+            draft(0, coupon(review = r)), draft(1, coupon(review = r)),
+            draft(2, coupon(review = r), isCoupon = false), draft(3, coupon(review = r), dup = Duplicate.REGISTERED),
+        ))
+        val g = st.reviewGroups().single()
+        assertEquals("expiryDate", g.field)
+        assertEquals(listOf(0, 1), g.keys)
+    }
+
     @Test
     fun capturedMarksEveryField() {
         val c = ImportSession.captured(coupon(review = mapOf("expiryDate" to listOf("NO_KEYWORD"))).copy(type = CouponType.AMOUNT))

@@ -84,14 +84,15 @@ data class ImportState(
     }
 
     /**
-     * C2-09 [모두 맞아요] rows: 2+ finished cards with equal brand, product, expiry and type that all need a check on the
+     * C2-09 [모두 맞아요] rows: 2+ finished new coupons (a coupon, not a duplicate) with equal brand, product, expiry and type that all need a check on the
      * same field (AC3: any other difference, no group). Card order; a card can be in one group per field.
      */
     fun reviewGroups(): List<ReviewGroup> {
-        val read = drafts.filter { it.stage == DraftStage.DONE && it.coupon != null }
+        // new coupons only, and only fields whose value was read: a NOT_FOUND field has nothing to agree with
+        val read = drafts.filter { it.stage == DraftStage.DONE && it.coupon != null && it.isCoupon && it.duplicate == null }
         val fields = read.flatMap { it.coupon!!.needsReview.keys }.distinct()
         return fields.flatMap { f ->
-            read.filter { f in it.coupon!!.needsReview }
+            read.filter { d -> d.coupon!!.needsReview[f]?.let { "NOT_FOUND" !in it } == true }
                 .groupBy { val c = it.coupon!!; listOf(c.brand, c.productName, c.expiryDate, c.type) }
                 .values.filter { it.size >= 2 }
                 .map { g -> val c = g.first().coupon!!; ReviewGroup(f, c.brand, c.productName, c.expiryDate, c.type, g.map { it.key }) }
