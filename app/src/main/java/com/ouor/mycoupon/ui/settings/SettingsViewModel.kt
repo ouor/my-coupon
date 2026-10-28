@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.settings
 
+import com.ouor.mycoupon.reminder.ReminderNotifier
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -66,7 +67,15 @@ class SettingsViewModel @Inject constructor(
     private val reminders: ReminderScheduler,
     private val backup: BackupManager,
     private val data: AppData,
+    private val notifier: ReminderNotifier,
 ) : ViewModel() {
+    /** C2-16 "앱이 쓰는 공간"; null while measuring. */
+    val storage = MutableStateFlow<AppData.Storage?>(null)
+    fun measureStorage() = viewModelScope.launch { storage.value = data.storage() }
+
+    /** C2-08 [알림 소리 바꾸기] */
+    fun channelSettingsIntent() = notifier.channelSettingsIntent()
+
     private val crash = MutableStateFlow(crashLog.files())
     val state: StateFlow<SettingsState> = combine(settings.observeApp(), repo.observeAll(), crash, settings.observeLastBackup()) { a, all, c, last ->
         SettingsState(a, Stats.of(all), c, all.size, last.takeIf { it > 0 })
@@ -83,6 +92,7 @@ class SettingsViewModel @Inject constructor(
     fun wipeAll(done: () -> Unit) = viewModelScope.launch {
         data.wipeAll()
         crash.value = emptyList()
+        measureStorage()
         done()
     }
 

@@ -1,5 +1,23 @@
 package com.ouor.mycoupon.ui.settings
 
+import android.app.StatusBarManager
+import android.content.ComponentName
+import android.content.Context
+import android.graphics.drawable.Icon
+import android.os.Build
+import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.core.content.ContextCompat
+import com.ouor.mycoupon.R
+import com.ouor.mycoupon.tile.CouponTileService
+import com.ouor.mycoupon.ui.component.AppSheet
+import com.ouor.mycoupon.ui.component.PrimaryButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -83,7 +101,10 @@ fun SettingsScreen(nav: NavHostController) {
     val context = LocalContext.current
     val snackbar = LocalSnackbar.current
     var wipeStep by remember { mutableStateOf(0) }
+    var tileGuide by remember { mutableStateOf(false) }
     val count = st.coupons
+    val storage by vm.storage.collectAsStateWithLifecycle()
+    LaunchedEffect(st.coupons) { vm.measureStorage() }
 
     Scaffold(topBar = { AppTopBar("설정", onBack = { nav.popBackStack() }) }, snackbarHost = { SnackbarHost(snackbar.host) }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -100,10 +121,28 @@ fun SettingsScreen(nav: NavHostController) {
                 }
             }
             SectionTitle("알림")
-            SettingRow(Icons.Rounded.Notifications, "만료 알림", "${offsetsLabel(st.app.reminderOffsets)}, ${timeLabel(st.app.reminderMinute)}") { nav.navigate(Route.Reminders) }
+            // C2-08: says when and how often, with a real button to change it
+            ListItem(
+                headlineContent = { Text("만료 알림", style = MaterialTheme.typography.bodyLarge) },
+                supportingContent = {
+                    Text("매일 ${timeLabel(st.app.reminderMinute)} · 하루 한 번, 여러 장이면 한 알림으로\n${offsetsLabel(st.app.reminderOffsets)}",
+                        style = MaterialTheme.typography.bodyMedium)
+                },
+                leadingContent = { Icon(Icons.Rounded.Notifications, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                trailingContent = { OutlinedButton({ nav.navigate(Route.Reminders) }, Modifier.heightIn(min = Spacing.touch)) { Text("바꾸기") } },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                modifier = Modifier.clickable(role = Role.Button) { nav.navigate(Route.Reminders) },
+            )
+            SettingRow(Icons.Rounded.MusicNote, "알림 소리 바꾸기") { context.startActivity(vm.channelSettingsIntent()) }
+            // C2-14
+            SettingRow(Icons.Rounded.Dashboard, "빠른 설정에 '내 쿠폰' 넣기", "알림창에서 바로 바코드를 열어요") {
+                if (Build.VERSION.SDK_INT >= 33) requestAddTile(context) { msg -> snackbar.show(msg) } else tileGuide = true
+            }
             SectionTitle("데이터")
             SettingRow(Icons.Rounded.Save, "백업·복원", "파일로 저장하고 새 폰에서 가져와요") { nav.navigate(Route.Backup) }
-            SettingRow(Icons.Rounded.DeleteForever, "모든 데이터 삭제", danger = true, chevron = false) { wipeStep = 1 }
+            // C2-16: read only
+            SettingRow(Icons.Rounded.Storage, "앱이 쓰는 공간",
+                storage?.let { "${mb(it.bytes)} · 쿠폰 이미지 ${it.images}장" } ?: "재는 중", chevron = false, onClick = null)
             SectionTitle("도움")
             SettingRow(Icons.Rounded.PhonelinkLock, "개인정보 안내", "이 앱은 인터넷을 쓰지 않아요") { nav.navigate(Route.Privacy) }
             SettingRow(Icons.Rounded.BugReport, "오류 기록 보내기", if (st.crashFiles.isEmpty()) "기록이 없어요" else "기록 ${st.crashFiles.size}건") {
@@ -113,10 +152,18 @@ fun SettingsScreen(nav: NavHostController) {
             SettingRow(Icons.Rounded.Code, "오픈소스 라이선스") { nav.navigate(Route.Licenses) }
             SettingRow(null, "버전", BuildConfig.VERSION_NAME, chevron = false, onClick = null)
             if (BuildConfig.DEBUG) SettingRow(null, "(디버그) 강제 종료", chevron = false) { throw RuntimeException("QA forced crash 1234567890 스타벅스") }
+            // C2-27: the destructive row last, apart from the rest
+            HorizontalDivider(Modifier.padding(vertical = Spacing.s), color = MaterialTheme.colorScheme.outlineVariant)
+            SettingRow(Icons.Rounded.DeleteForever, "모든 데이터 삭제", danger = true, chevron = false) { wipeStep = 1 }
             Spacer(Modifier.height(Spacing.xl))
         }
     }
 
+    if (tileGuide) AppSheet({ tileGuide = false }, "빠른 설정에 '내 쿠폰' 넣기") {
+        Text("알림창을 두 번 내려 연필(편집) 단추를 누르고, '내 쿠폰'을 위로 끌어 넣어요.", style = MaterialTheme.typography.bodyLarge)
+        Spacer(Modifier.height(Spacing.l))
+        PrimaryButton("알겠어요", { tileGuide = false })
+    }
     if (wipeStep == 1) AlertDialog(
         onDismissRequest = { wipeStep = 0 },
         title = { Text("모든 쿠폰을 지울까요?") },
@@ -162,6 +209,23 @@ private fun TextPage(title: String, sections: List<Pair<String, String>>, nav: N
                 }
             }
             Spacer(Modifier.height(Spacing.xl))
+        }
+    }
+}
+
+private fun mb(bytes: Long): String = if (bytes < 1_000_000) "1MB 미만" else "${(bytes + 500_000) / 1_000_000}MB"
+
+/** C2-14: Android 13+ system "add tile" dialog; the result comes back as a Snackbar line. */
+@RequiresApi(33)
+private fun requestAddTile(context: Context, show: (String) -> Unit) {
+    val sbm = context.getSystemService(StatusBarManager::class.java) ?: return show("이 폰에서는 바로 넣을 수 없어요")
+    sbm.requestAddTileService(ComponentName(context, CouponTileService::class.java), context.getString(R.string.tile_label),
+        Icon.createWithResource(context, R.drawable.ic_tile), ContextCompat.getMainExecutor(context)) { r ->
+        when (r) {
+            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED -> show("빠른 설정에 넣었어요")
+            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> show("이미 빠른 설정에 있어요")
+            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_NOT_ADDED -> {}
+            else -> show("지금은 넣을 수 없어요. 알림창 편집에서 넣어 주세요")
         }
     }
 }

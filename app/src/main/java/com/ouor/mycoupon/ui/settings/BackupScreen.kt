@@ -88,7 +88,7 @@ fun BackupScreen(nav: NavHostController) {
     Scaffold(topBar = { AppTopBar("백업·복원", onBack = { nav.popBackStack() }) }, snackbarHost = { SnackbarHost(snackbar.host) }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {
             InfoBanner(Icons.Rounded.Lock, "백업 파일에는 바코드 번호가 들어 있어요. 비밀번호로 잠가서 저장해요. 비밀번호를 잊으면 아무도 열 수 없어요.",
-                MaterialTheme.statusColors.reviewContainer, MaterialTheme.colorScheme.onSurface, Modifier.padding(horizontal = Spacing.l))
+                MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.onSurface, Modifier.padding(horizontal = Spacing.l))
             Spacer(Modifier.height(Spacing.m))
             val last = st.lastBackupAt?.let { " · 마지막 백업 " + com.ouor.mycoupon.ui.component.epochDay(it).let { d -> "${d.monthValue}월 ${d.dayOfMonth}일" } } ?: ""
             SettingRow(Icons.Rounded.Save, "백업 파일 만들기", if (st.coupons == 0) "백업할 쿠폰이 없어요" else "쿠폰 ${st.coupons}개$last",

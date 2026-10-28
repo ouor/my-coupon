@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.settings
 
+import androidx.compose.material.icons.rounded.MusicNote
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -77,8 +78,10 @@ fun RemindersScreen(nav: NavHostController) {
             }
             SectionTitle("알림 시각")
             SettingRow(Icons.Rounded.Schedule, timeLabel(st.app.reminderMinute)) { timeDialog = true }
-            Text("하루에 한 번만, 그날 챙길 쿠폰을 모아 알려 드려요.", Modifier.padding(horizontal = Spacing.l, vertical = Spacing.s),
+            Text("하루에 한 번만, 그날 챙길 쿠폰을 모아 알려 드려요. 같은 상품 여러 장은 한 줄로 합쳐요.", Modifier.padding(horizontal = Spacing.l, vertical = Spacing.s),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // C2-08 AC3: the system settings of this app's "만료 알림" channel
+            SettingRow(Icons.Rounded.MusicNote, "알림 소리 바꾸기") { activity.startActivity(vm.channelSettingsIntent()) }
             if (!ignoresBattery(activity)) {
                 Spacer(Modifier.height(Spacing.l))
                 InfoBanner(Icons.Rounded.Notifications, "알림이 늦게 오면 배터리 설정에서 ‘제한 없음’으로 바꿔 주세요",
