@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.component
 
+import androidx.compose.material3.OutlinedButton
 import android.content.Context
 import android.os.Build
 import android.speech.tts.TextToSpeech
@@ -111,8 +112,9 @@ fun UndoBar(text: String, secondsLeft: Int, onUndo: () -> Unit) {
                 Text(text, Modifier.fillMaxWidth().semantics { contentDescription = "$text, 되돌리기 ${secondsLeft}초" },
                     style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.heightIn(min = Spacing.s))
-                Button(onUndo, Modifier.fillMaxWidth().heightIn(min = Spacing.cta), shape = MaterialTheme.shapes.large) {
-                    Text("되돌리기 · $secondsLeft", style = MaterialTheme.typography.labelLarge)
+                // round-2 V10: a secondary (outlined) button, and the number says it is seconds
+                OutlinedButton(onUndo, Modifier.fillMaxWidth().heightIn(min = Spacing.cta), shape = MaterialTheme.shapes.large) {
+                    Text("되돌리기 · ${secondsLeft}초", style = MaterialTheme.typography.labelLarge)
                 }
             }
         }

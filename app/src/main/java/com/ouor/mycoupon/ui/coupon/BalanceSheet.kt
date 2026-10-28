@@ -68,7 +68,7 @@ internal fun UseSheet(c: Coupon, startSpent: Boolean, onMode: (Boolean) -> Unit,
             label = { Text(if (spentMode) "쓴 금액" else "남은 금액") }, suffix = { Text("원") },
             textStyle = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"), singleLine = true,
             isError = error != null, supportingText = error?.let { { Text(it, Modifier.semantics { error(it) }) } },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), visualTransformation = ThousandsTransformation,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword) /* round-2 V6: digits only, no - , . */, visualTransformation = ThousandsTransformation,
         )
         if (remaining != null) Text(
             if (spentMode) "남는 금액 ${won(bal - n)}" else "이번에 쓴 금액 ${won(bal - n)}",

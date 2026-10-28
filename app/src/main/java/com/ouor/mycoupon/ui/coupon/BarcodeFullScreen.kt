@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.coupon
 
+import androidx.compose.foundation.layout.Row
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import androidx.activity.compose.LocalActivity
@@ -91,8 +92,12 @@ fun BarcodeFullScreen(id: Long, nav: NavHostController) = MyCouponTheme(forceLig
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.xl, vertical = Spacing.l),
             horizontalAlignment = Alignment.CenterHorizontally) {
             // the clerk's check line, kept clear of the close button
-            Text(listOfNotNull(coupon.brand, coupon.name()).joinToString(" "), Modifier.fillMaxWidth().padding(end = 64.dp),
-                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // round-2 V9: the brightness chip sits on this line, not alone in a corner
+            Row(Modifier.fillMaxWidth().padding(end = 72.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(listOfNotNull(coupon.brand, coupon.name()).joinToString(" "), Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (bright) BrightnessChip(Modifier.padding(start = Spacing.s))
+            }
             Spacer(Modifier.height(Spacing.s))
             if (coupon.codeView() != CodeView.PIN) BarcodeImage(coupon)
             coupon.code?.let {
@@ -102,8 +107,11 @@ fun BarcodeFullScreen(id: Long, nav: NavHostController) = MyCouponTheme(forceLig
             coupon.authCode?.let { AuthCodeRow(it, onCopy = null) }
             Spacer(Modifier.height(Spacing.xl))
         }
-        HoldToClose(Modifier.align(Alignment.TopEnd).padding(Spacing.s), onClose = { nav.popBackStack() }, onShort = { hint = true })
-        if (bright) BrightnessChip(Modifier.align(Alignment.BottomStart).padding(Spacing.l))
+        // round-2 V9: how to close is always written under [✕]
+        Column(Modifier.align(Alignment.TopEnd).padding(Spacing.s), horizontalAlignment = Alignment.CenterHorizontally) {
+            HoldToClose(Modifier, onClose = { nav.popBackStack() }, onShort = { hint = true })
+            Text("길게 눌러 닫기", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         if (hint) Text("길게 누르면 닫혀요", Modifier.align(Alignment.BottomCenter).padding(Spacing.l)
             .background(MaterialTheme.colorScheme.inverseSurface, MaterialTheme.shapes.small).padding(horizontal = Spacing.m, vertical = Spacing.s),
             color = MaterialTheme.colorScheme.inverseOnSurface, style = MaterialTheme.typography.bodyMedium)

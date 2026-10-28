@@ -231,6 +231,7 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController, swiped
     // and right after an undo, so a second tap on the same spot does not mark it used again
     var ctaFrom by remember { mutableLongStateOf(if (swiped) openedAt + 1_000 else 0L) }
     val tts = rememberTts()
+    val scroll = rememberScrollState()
 
     val share = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
     val trash = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { vm.trashAnswered(); finishing?.let { leave(nav, snackbar, homeVm, id, it) } }
@@ -299,7 +300,7 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController, swiped
                     IconButton({ go(-1) }, Modifier.size(Spacing.cta), enabled = pos > 0) {
                         Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, if (pos > 0) "이전 쿠폰" else "이전 쿠폰 없음")
                     }
-                    Text("${pos + 1}/${ring.size}", Modifier.semantics { contentDescription = "${ring.size}개 중 ${pos + 1}번째" },
+                    Text("${pos + 1}/${ring.size}장", Modifier.semantics { contentDescription = "${ring.size}개 중 ${pos + 1}번째" },
                         style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"), color = MaterialTheme.colorScheme.onSurface)
                     IconButton({ go(1) }, Modifier.size(Spacing.cta), enabled = pos < ring.lastIndex) {
                         Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, if (pos < ring.lastIndex) "다음 쿠폰" else "다음 쿠폰 없음")
@@ -324,12 +325,12 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController, swiped
                     vm.undoUse(); snackbar.show("다시 쓸 수 있게 되돌렸어요")
                 }
                 finishing != null -> Unit // leaving: F10 sheet or S1 next
-                coupon.status != CouponStatus.ACTIVE -> BottomCta("되돌리기", { vm.undoUse(); revealed = false; snackbar.show("다시 쓸 수 있게 되돌렸어요") }, outlined = true)
+                coupon.status != CouponStatus.ACTIVE -> BottomCta("되돌리기", { vm.undoUse(); revealed = false; snackbar.show("다시 쓸 수 있게 되돌렸어요") }, outlined = true, raised = scroll.canScrollForward)
                 // review U4: the amount CTA says what it does ("사용 기록" read as "show history")
-                coupon.type == CouponType.AMOUNT -> BottomCta("쓴 금액 입력", { useSheet = true })
+                coupon.type == CouponType.AMOUNT -> BottomCta("쓴 금액 입력", { useSheet = true }, raised = scroll.canScrollForward)
                 else -> BottomCta("사용 완료", {
                     if (SystemClock.elapsedRealtime() >= ctaFrom) { vm.markUsed(); undoLeft = undoSeconds; finishing = "$nm 사용 완료했어요" }
-                })
+                }, raised = scroll.canScrollForward)
             }
         },
         snackbarHost = { SnackbarHost(snackbar.host) },
@@ -343,14 +344,15 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController, swiped
                 if (pos >= 0) detectHorizontalDragGestures(onDragStart = { drag = 0f }, onHorizontalDrag = { _, d -> drag += d },
                     onDragEnd = { val t = size.width / 4f; if (drag < -t) go(1) else if (drag > t) go(-1) })
             }
-            .verticalScroll(rememberScrollState()).padding(horizontal = Spacing.l)) {
+            .verticalScroll(scroll).padding(horizontal = Spacing.l)) {
             // C2-02: the band first (also TalkBack's first stop), then the title
             if (past) PastCouponBand(coupon, today, Modifier.padding(bottom = Spacing.m).focusRequester(title).focusable())
             // C2-03: "〈브랜드〉에서 사용" always (never hidden at 200 %), the product name in at most two lines
             coupon.brand?.let { Text("${it}에서 사용", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface) }
             Text(nm, (if (past) Modifier else Modifier.focusRequester(title).focusable()).semantics { heading() }, // A19: focusable, or requestFocus fails silently
                 style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            FlowRow(Modifier.padding(top = Spacing.xs, bottom = Spacing.s), itemVerticalAlignment = Alignment.CenterVertically,
+            // round-2 V7: the band already says the state and the date
+            if (!past) FlowRow(Modifier.padding(top = Spacing.xs, bottom = Spacing.s), itemVerticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
                 DdayBadge(coupon, today)
                 val sub = when (coupon.state(today)) {
@@ -401,7 +403,7 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController, swiped
             Row(Modifier.fillMaxWidth().padding(vertical = Spacing.m), horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
                 if (coupon.code != null) QuickAction(Icons.Rounded.Image, if (showOriginal) "원본 닫기" else "원본 보기", Modifier.weight(1f)) { showOriginal = !showOriginal }
                 QuickAction(Icons.Rounded.Notifications, "알림", Modifier.weight(1f)) { reminderSheet = true }
-                QuickAction(Icons.AutoMirrored.Rounded.Send, "보내기", Modifier.weight(1f)) {
+                QuickAction(Icons.AutoMirrored.Rounded.Send, "공유", Modifier.weight(1f)) {
                     // code review A21: copying a multi-MB original and stripping EXIF stays off the main thread
                     scope.launch {
                         val i = withContext(Dispatchers.IO) {
@@ -505,7 +507,8 @@ private fun Notice(text: String) {
 
 @Composable
 private fun QuickAction(icon: ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {
-    FilledTonalButton(onClick, modifier.heightIn(min = Spacing.cta), shape = MaterialTheme.shapes.medium,
+    // round-2 V11: the same outlined shape as [점원에게 보여 주기] (button rule: self-review §7)
+    OutlinedButton(onClick, modifier.heightIn(min = Spacing.cta), shape = MaterialTheme.shapes.large,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Spacing.xs, vertical = Spacing.s)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(icon, null, Modifier.size(20.dp))

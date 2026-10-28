@@ -195,7 +195,9 @@ fun BarcodeBlock(
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 c.authCode?.let { auth -> AuthCodeRow(auth) { copyCode(context, auth); onCopied(true) } }
                 Spacer(Modifier.height(Spacing.s))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.s, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                // round-2 V7: a dimmed card has [그래도 보기] in this row's place instead of on top of the number
+                if (dimmed) Spacer(Modifier.height(Spacing.cta))
+                else FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.s, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
                     OutlinedButton({ copyCode(context, code); onCopied(false) }, Modifier.heightIn(min = Spacing.touch), enabled = !dimmed) {
                         Icon(Icons.Rounded.ContentCopy, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(Spacing.s))
@@ -208,7 +210,7 @@ fun BarcodeBlock(
                     }
                 }
             }
-            if (dimmed) OutlinedButton(onReveal, Modifier.heightIn(min = Spacing.cta), colors = ButtonDefaults.outlinedButtonColors(containerColor = BarcodeColors.background)) {
+            if (dimmed) OutlinedButton(onReveal, Modifier.align(Alignment.BottomCenter).padding(bottom = Spacing.l).heightIn(min = Spacing.cta), colors = ButtonDefaults.outlinedButtonColors(containerColor = BarcodeColors.background)) {
                 Text("그래도 보기", style = MaterialTheme.typography.labelLarge)
             }
         }

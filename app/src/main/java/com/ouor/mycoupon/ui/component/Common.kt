@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.component
 
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -112,15 +113,20 @@ fun AppTopBar(title: String, onBack: (() -> Unit)? = null, close: Boolean = fals
 fun InfoBanner(
     icon: ImageVector, text: String, container: Color, content: Color,
     modifier: Modifier = Modifier, onClick: (() -> Unit)? = null,
+    sub: String? = null,
     actions: @Composable () -> Unit = {},
 ) {
     val colors = CardDefaults.cardColors(containerColor = container, contentColor = content)
     val body: @Composable ColumnScope.() -> Unit = {
-        Row(Modifier.padding(start = Spacing.l, end = Spacing.s, top = Spacing.m, bottom = Spacing.m).heightIn(min = 24.dp),
+        // round-2 review V4: one compact block; [sub] says which coupon (same product names repeat)
+        Row(Modifier.padding(start = Spacing.l, end = Spacing.s, top = Spacing.s, bottom = Spacing.xs).heightIn(min = 24.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null)
             Spacer(Modifier.size(Spacing.m))
-            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            Column(Modifier.weight(1f)) {
+                Text(text, style = MaterialTheme.typography.bodyMedium)
+                sub?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            }
         }
         Row(Modifier.fillMaxWidth().padding(end = Spacing.s, bottom = Spacing.xs), horizontalArrangement = Arrangement.End) { actions() }
     }
@@ -155,7 +161,10 @@ fun EmptyState(
 fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, danger: Boolean = false) {
     Button(onClick, modifier.fillMaxWidth().heightIn(min = Spacing.cta), enabled = enabled, shape = MaterialTheme.shapes.large,
         colors = if (danger) androidx.compose.material3.ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError) else androidx.compose.material3.ButtonDefaults.buttonColors(),
+            containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)
+        else if (MaterialTheme.colorScheme.background.luminance() < 0.5f) androidx.compose.material3.ButtonDefaults.buttonColors(
+            containerColor = Color(0xFF3B6FE0), contentColor = Color.White) // round-2 V12: white on it 4.6:1
+        else androidx.compose.material3.ButtonDefaults.buttonColors(),
     ) { Text(text, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center) }
 }
 
@@ -168,8 +177,9 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
 
 /** design-system §6.9: fixed bottom button area, with an optional reason line above a disabled button. */
 @Composable
-fun BottomCta(text: String, onClick: () -> Unit, enabled: Boolean = true, hint: String? = null, outlined: Boolean = false) {
-    Surface(color = MaterialTheme.colorScheme.surface) {
+fun BottomCta(text: String, onClick: () -> Unit, enabled: Boolean = true, hint: String? = null, outlined: Boolean = false, raised: Boolean = false) {
+    // round-2 V1: [raised] while the page scrolls on under the bar, so a half-hidden row reads as "more below"
+    Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = if (raised) 8.dp else 0.dp) {
         Column(Modifier.navigationBarsPadding()) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Column(Modifier.padding(horizontal = Spacing.l, vertical = Spacing.m)) {
