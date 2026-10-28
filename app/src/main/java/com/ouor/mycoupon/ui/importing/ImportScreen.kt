@@ -1,5 +1,15 @@
 package com.ouor.mycoupon.ui.importing
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.heading
+import com.ouor.mycoupon.domain.ImportSession
+import com.ouor.mycoupon.domain.ReviewGroup
+import com.ouor.mycoupon.reminder.ReminderPlanner
+import com.ouor.mycoupon.ui.component.fieldLabel
+import com.ouor.mycoupon.ui.component.subject
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -139,7 +149,12 @@ fun ImportScreen(nav: NavHostController) {
         topBar = { AppTopBar("결과 확인", onBack = { confirmClose = true }, close = true) },
         bottomBar = {
             BottomCta("${st.checkedCount}개 등록", { if (st.running) confirmEarly = true else register() },
-                enabled = st.checkedCount > 0 && !registering, hint = if (st.checkedCount == 0 && st.done > 0) "등록할 쿠폰을 골라 주세요" else null)
+                enabled = st.checkedCount > 0 && !registering, hint = when {
+                    st.checkedCount == 0 && st.done > 0 -> "등록할 쿠폰을 골라 주세요"
+                    // C2-09: review cards need not block registering (F3 already lets them be fixed later from S1)
+                    reviewCount > 0 -> "확인 필요 쿠폰도 지금 등록하고 나중에 고칠 수 있어요"
+                    else -> null
+                })
         },
         snackbarHost = { SnackbarHost(snackbar.host) },
     ) { pad ->
@@ -161,19 +176,36 @@ fun ImportScreen(nav: NavHostController) {
                 EmptyState(Icons.Rounded.BrokenImage, "사진에서 쿠폰을 읽지 못했어요", "직접 입력하거나 다른 사진을 골라 주세요",
                     primary = "다른 사진 고르기" to { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) })
             } else if (st.done > 0) item(key = "summary") {
-                // review U8: the headline number is the same one the [N개 등록] button uses; the rest says where the others went
-                val done = st.drafts.filter { it.stage != DraftStage.READING }
+                // C2-09: the title is the [N개 등록] number; with nothing new it says why instead of "0개"
+                val n = st.counts(today)
                 val parts = listOfNotNull(
-                    "확인 필요 ${reviewCount}".takeIf { reviewCount > 0 },
-                    done.count { it.duplicate != null }.takeIf { it > 0 }?.let { "이미 등록 $it" },
-                    done.count { it.isCoupon && expired(it) }.takeIf { it > 0 }?.let { "만료 $it" },
-                    folded.size.takeIf { it > 0 }?.let { "쿠폰 아님 $it" },
-                    done.count { it.stage == DraftStage.FAILED }.takeIf { it > 0 }?.let { "못 읽음 $it" },
+                    "확인 필요 $reviewCount".takeIf { reviewCount > 0 && st.checkedCount > 0 },
+                    n.registered.takeIf { it > 0 }?.let { "이미 등록 $it" },
+                    n.expired.takeIf { it > 0 }?.let { "만료 $it" },
+                    n.notCoupon.takeIf { it > 0 }?.let { "쿠폰 아님 $it" },
+                    n.failed.takeIf { it > 0 }?.let { "못 읽음 $it" },
                 )
-                Column(Modifier.semantics(mergeDescendants = true) {}) {
-                    Text("${done.size}장 중 ${st.checkedCount}개를 등록해요", style = MaterialTheme.typography.titleMedium)
-                    if (parts.isNotEmpty()) Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val sub = if (st.checkedCount > 0) parts.joinToString(" · ") else {
+                    val all = st.done
+                    when (all) {
+                        n.registered -> "${all}장 모두 이미 등록됨"
+                        n.notCoupon -> "${all}장 모두 쿠폰이 아닌 것 같아요"
+                        n.expired -> "${all}장 모두 기간이 지났어요"
+                        else -> parts.joinToString(" · ")
+                    }
+                }
+                Column(Modifier.semantics(mergeDescendants = true) { heading() }) {
+                    Text(if (st.checkedCount > 0) "새 쿠폰 ${st.checkedCount}개" else "새 쿠폰이 없어요", style = MaterialTheme.typography.titleLarge)
+                    if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            items(st.reviewGroups(), key = { "group-${it.field}-${it.keys.first()}" }) { g ->
+                GroupConfirmRow(g, Modifier.animateItem()) {
+                    val before = st.drafts.filter { it.key in g.keys }
+                    vm.confirmGroup(g)
+                    snackbar.show("${g.keys.size}장의 ${fieldLabel[g.field] ?: "항목"}${"을".takeIf { (fieldLabel[g.field] ?: "항목").last().hasBatchim() } ?: "를"} 확인했어요", "되돌리기") {
+                        before.forEach { d -> d.coupon?.let { vm.edit(d.key, it) }; if (!d.checked) vm.setChecked(d.key, false) }
+                    }
                 }
             }
             items(shown, key = { it.key }) { d ->
@@ -221,16 +253,19 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
     // review U8: an expired card shows one warning (만료), not 만료 + 확인 필요
     val review = d.stage == DraftStage.DONE && d.isCoupon && d.duplicate == null && c?.needsCheck == true && !expired
     val large = isLargeFont()
+    val captured = c?.needsReview?.values?.any { ImportSession.CAPTURED in it } == true
     val spoken = when {
         readingNow -> "읽는 중"
         d.stage == DraftStage.FAILED -> "읽지 못했어요, 직접 입력"
         else -> listOfNotNull(
-            c?.brand, c?.name(),
-            c?.expiryDate?.let { "유효기간 ${it.spoken()}" } ?: "유효기간 없음",
-            "확인 필요".takeIf { review },
+            if (d.checked) "등록함" else "등록 안 함",
             when (d.duplicate) { Duplicate.USED -> "이미 사용한 쿠폰이에요"; Duplicate.REGISTERED, Duplicate.IN_BATCH -> "이미 등록된 쿠폰"; null -> null },
             "쿠폰이 아닌 것 같아요".takeIf { !d.isCoupon },
             "이미 만료됐어요".takeIf { expired && d.isCoupon && d.duplicate == null },
+            (if (captured) "확인 필요, 찍은 사진은 직접 확인해 주세요" else "확인 필요").takeIf { review },
+            c?.brand, c?.name(),
+            c?.expiryDate?.let { "유효기간 ${it.spoken()}까지" } ?: "유효기간 없음",
+            c?.code?.let(::codeTail),
         ).joinToString(", ")
     }
     Card(
@@ -242,8 +277,12 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
         border = if (review) BorderStroke(2.dp, s.reviewBorder) else null,
     ) {
         Row(Modifier.padding(end = Spacing.l, top = Spacing.xs, bottom = Spacing.l), verticalAlignment = Alignment.Top) {
+            // C2-05: one card node reads "등록함, …" first; the box toggles by double tap, the card's tap is the 수정하기 action
             Checkbox(d.checked, onCheck, enabled = !readingNow,
-                modifier = Modifier.semantics { contentDescription = spoken; stateDescription = if (d.checked) "선택됨" else "선택 안 됨" })
+                modifier = Modifier.semantics {
+                    contentDescription = spoken; stateDescription = if (d.checked) "등록함" else "등록 안 함"
+                    if (!readingNow) customActions = listOf(CustomAccessibilityAction("수정하기") { onOpen(); true })
+                })
             Column(Modifier.weight(1f).padding(top = Spacing.m)) {
                 Row(verticalAlignment = Alignment.Top) {
                     if (!large) {
@@ -283,6 +322,8 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
                     }
                 }
                 if (d.stage == DraftStage.DONE && c != null) {
+                    // C2-24: every field of a photo taken with the camera needs a look
+                    if (captured && review) ReviewMark(Modifier.padding(top = Spacing.s), "찍은 사진은 직접 확인해 주세요")
                     HorizontalDivider(Modifier.padding(vertical = Spacing.m), color = MaterialTheme.colorScheme.outlineVariant)
                     Text("유효기간", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(c.expiryDate?.dotted() ?: "기간 없음", style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"),
@@ -296,7 +337,8 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
                     Text(line, Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (other && review && !c.needsReview.containsKey("expiryDate")) ReviewMark()
                     // review U2: doubtful cards (확인 필요, or a not-a-coupon the user ticked) can be dropped from the card itself
-                    if (onExclude != null && (review || (!d.isCoupon && d.checked))) TextButton(onExclude, Modifier.heightIn(min = Spacing.touch)) {
+                    if (onExclude != null && (review || (!d.isCoupon && d.checked))) OutlinedButton(onExclude,
+                        Modifier.padding(top = Spacing.s).heightIn(min = Spacing.touch)) {
                         Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge)
                     }
                 }
@@ -304,3 +346,30 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
         }
     }
 }
+
+@OptIn(ExperimentalLayoutApi::class)
+/** design-system §6.18 (C2-09): N cards that differ in nothing but need the same field checked, confirmed at once. */
+@Composable
+private fun GroupConfirmRow(g: ReviewGroup, modifier: Modifier, onConfirm: () -> Unit) {
+    val summary = listOfNotNull(
+        ReminderPlanner.shortName(g.brand, g.productName)?.let { listOfNotNull(g.brand, it).joinToString(" ") } ?: g.brand,
+        g.expiryDate?.let { "${it.monthValue}.${it.dayOfMonth}까지" },
+        "${g.keys.size}장",
+    ).joinToString(" · ")
+    val field = fieldLabel[g.field] ?: "항목"
+    Card(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(2.dp, MaterialTheme.statusColors.reviewBorder)) {
+        FlowRow(Modifier.fillMaxWidth().padding(Spacing.m), verticalArrangement = Arrangement.Center,
+            itemVerticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(end = Spacing.s).semantics(mergeDescendants = true) {}) {
+                Text(summary, style = MaterialTheme.typography.titleSmall)
+                ReviewMark(text = "확인 필요 · $field")
+            }
+            OutlinedButton(onConfirm, Modifier.heightIn(min = Spacing.touch).semantics { contentDescription = "${g.keys.size}장 모두 ${field.subject()} 맞아요" }) {
+                Text("모두 맞아요", style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
+}
+
+private fun Char.hasBatchim() = this in '가'..'힣' && (this - '가') % 28 != 0
