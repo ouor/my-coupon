@@ -28,4 +28,17 @@ class ImageStoreTest {
         assertFalse(File(orphan).exists())
         assertTrue(File(fresh).exists())
     }
+
+    /** D-18: names that match none of our files (a path format we do not know) delete nothing. */
+    @Test
+    fun foreignNamesDeleteNothing() {
+        val store = ImageStore(ApplicationProvider.getApplicationContext())
+        val a = store.save(byteArrayOf(4)).path
+        File(a).setLastModified(1_000)
+        assertEquals(0, store.removeOrphans(setOf("/elsewhere/zzz.jpg"), before = 5_000))
+        assertTrue(File(a).exists())
+        // the DB keeps names (v3): a name keeps its file
+        assertEquals(0, store.removeOrphans(setOf(File(a).name), before = 5_000))
+        assertTrue(File(a).exists())
+    }
 }

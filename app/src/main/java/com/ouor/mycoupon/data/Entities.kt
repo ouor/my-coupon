@@ -2,6 +2,7 @@ package com.ouor.mycoupon.data
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -58,7 +59,10 @@ data class Coupon(
     val fieldBoxes: Map<String, List<Double>> = emptyMap(),
     /** expiry candidates for the S5 chips */
     val expiryCandidates: List<LocalDate> = emptyList(),
-    /** app-internal copy of the original bytes */
+    /**
+     * App-internal copy of the original bytes. In memory an absolute path; in the DB only the file name (schema v3, A2-01):
+     * CouponRepository converts both ways, so moving the app's data dir never orphans a copy.
+     */
     val imagePath: String,
     val thumbPath: String,
     val imageWidth: Int = 0,
@@ -113,10 +117,14 @@ data class UsageLog(
 
 enum class ScanResult { COUPON, NOT_COUPON, REGISTERED, DISMISSED }
 
-/** spec §6.2: F9 resume + no re-suggestion. Keyed by MediaStore image id. */
+/**
+ * spec §6.2: F9 resume + no re-suggestion. Keyed by MediaStore image id; [dateAdded] (MediaStore DATE_ADDED, seconds,
+ * schema v3) tells a reused id from the image that was checked (A2-01 / A-12). 0 = unknown (rows from v2), trusted.
+ */
 @Entity(tableName = "scan_log")
 data class ScanLog(
     @PrimaryKey val mediaId: Long,
     val result: ScanResult,
     val at: Long,
+    @ColumnInfo(defaultValue = "0") val dateAdded: Long = 0,
 )

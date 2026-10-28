@@ -15,6 +15,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,6 +33,7 @@ object AppModule {
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "mycoupon.db")
+            .addMigrations(AppDatabase.MIGRATION_2_3)
             // S-03: deleted coupons are overwritten with zeros, not left in free pages
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onOpen(db: SupportSQLiteDatabase) {
@@ -41,7 +43,10 @@ object AppModule {
             .build()
 
     @Provides @Singleton @AppScope
-    fun appScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    fun appScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e ->
+        // D-11: a failed background job is logged (class name only, O-12), it does not end the app
+        android.util.Log.w("AppScope", "job failed: ${e.javaClass.name}")
+    })
 }
 
 @Module

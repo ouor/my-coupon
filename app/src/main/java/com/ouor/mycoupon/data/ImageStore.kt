@@ -72,11 +72,22 @@ class ImageStore @Inject constructor(@ApplicationContext private val context: Co
 
     fun delete(vararg paths: String?) = paths.filterNotNull().forEach { File(it).delete() }
 
-    /** Deletes copies not in [keep] and last modified before [before] (code review A4). Returns how many. */
-    fun removeOrphans(keep: Set<String>, before: Long): Int =
-        listOf(imageDir, thumbDir).flatMap { it.listFiles().orEmpty().asList() }
-            .filter { it.absolutePath !in keep && it.lastModified() < before }
-            .count { it.delete() }
+    /** DB file name (schema v3) -> absolute path; an empty or already absolute value is kept. */
+    fun image(name: String) = resolve(imageDir, name)
+    fun thumb(name: String) = resolve(thumbDir, name)
+    private fun resolve(dir: File, name: String) = if (name.isEmpty() || name.contains('/')) name else File(dir, name).path
+
+    /**
+     * Deletes copies whose file name is not in [keep] and last modified before [before] (code review A4). Compared by name,
+     * not path (D-18); when there are copies to keep but none of them is on disk, the names are not ours and nothing is
+     * deleted. Returns how many.
+     */
+    fun removeOrphans(keep: Set<String>, before: Long): Int {
+        val names = keep.map { File(it).name }.filter { it.isNotEmpty() }.toSet()
+        val files = listOf(imageDir, thumbDir).flatMap { it.listFiles().orEmpty().asList() }
+        if (names.isNotEmpty() && files.isNotEmpty() && files.none { it.name in names }) return 0
+        return files.filter { it.name !in names && it.lastModified() < before }.count { it.delete() }
+    }
 
     fun wipe() {
         imageDir.deleteRecursively(); imageDir.mkdirs()

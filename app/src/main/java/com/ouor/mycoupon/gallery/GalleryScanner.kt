@@ -115,7 +115,8 @@ class GalleryScanner @Inject constructor(
         val coll = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
         context.contentResolver.query(
             coll, arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DATE_ADDED),
-            "${MediaStore.Images.Media.DATE_ADDED} > ?", arrayOf(sinceSec.toString()),
+            // D-16: >= so an image added in the same second as the last look is not lost; ScanLog skips the ones seen
+            "${MediaStore.Images.Media.DATE_ADDED} >= ?", arrayOf(sinceSec.toString()),
             "${MediaStore.Images.Media.DATE_ADDED} DESC",
         )?.use { c ->
             while (c.moveToNext()) {
@@ -143,11 +144,11 @@ class GalleryScanner @Inject constructor(
     suspend fun scan(range: ScanRange) = withContext(Dispatchers.Default) { lock.withLock { scanLocked(range) } }
 
     private suspend fun scanLocked(range: ScanRange) {
-        val done = repo.scannedIds()
+        val done = repo.scanned()
         val prev = _progress.value
         val known = prev.found.mapNotNull { it.mediaId }.toSet()
         val all = query(since(range))
-        val media = all.filter { it.id !in done }
+        val media = all.filter { !settled(done, it) }
         // shortcut: the resume point lives in memory only; after process death ScanLog still skips checked images, the count restarts
         val resumed = if (prev.range == range && !prev.finished && prev.checked > 0) prev.checked else 0
         _progress.update {
@@ -188,9 +189,9 @@ class GalleryScanner @Inject constructor(
             settings.lastGalleryScanSec = System.currentTimeMillis() / 1000
             return 0
         }
-        val done = repo.scannedIds()
+        val done = repo.scanned()
         val known = _progress.value.found.mapNotNull { it.mediaId }.toSet()
-        val media = query(last).filter { it.id !in done && it.id !in known }
+        val media = query(last).filter { !settled(done, it) && it.id !in known }
         for (m in media) check(m)?.let { d -> _progress.update { it.copy(found = it.found + d) } }
         settings.lastGalleryScanSec = maxOf(last, media.maxOfOrNull { it.addedSec } ?: last)
         return _progress.value.found.size
@@ -205,20 +206,23 @@ class GalleryScanner @Inject constructor(
     private suspend fun check(m: Media): Draft? {
         val pass = runCatching { screen(m.uri) }.getOrDefault(false)
         if (!pass) {
-            repo.markScan(m.id, ScanResult.NOT_COUPON)
+            repo.markScan(m.id, ScanResult.NOT_COUPON, m.addedSec)
             _progress.update { it.copy(notCoupon = it.notCoupon + 1) }
             return null
         }
         val d = import.readDraft(0, ImportSession.Source(m.uri, m.uri.toString(), m.id), _progress.value.found.mapNotNull { it.coupon })
         if (!d.isCoupon || d.duplicate != null) { // already registered images are not suggested again
             import.dropFiles(d)
-            repo.markScan(m.id, if (d.isCoupon) ScanResult.REGISTERED else ScanResult.NOT_COUPON)
+            repo.markScan(m.id, if (d.isCoupon) ScanResult.REGISTERED else ScanResult.NOT_COUPON, m.addedSec)
             _progress.update { if (d.isCoupon) it.copy(registered = it.registered + 1) else it.copy(notCoupon = it.notCoupon + 1) }
             return null
         }
-        repo.markScan(m.id, ScanResult.COUPON)
+        repo.markScan(m.id, ScanResult.COUPON, m.addedSec)
         return d
     }
+
+    /** Checked before, and the id still names that image (MediaStore reuses ids, A-12); unknown dates are trusted. */
+    private fun settled(done: Map<Long, Long>, m: Media) = done[m.id]?.let { it == 0L || it == m.addedSec } == true
 
     companion object {
         const val SCREEN_SIDE = 1200

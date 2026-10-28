@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import java.io.File
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -43,13 +45,18 @@ class CouponRepository @Inject constructor(
     private val coupons = db.coupons()
     private val usage = db.usage()
 
-    fun observeAll(): Flow<List<Coupon>> = coupons.observeAll()
-    fun observe(id: Long): Flow<Coupon?> = coupons.observe(id)
+    // schema v3 (A2-01): the DB keeps image file names, everything above the repository sees absolute paths
+    private fun Coupon.loaded() = copy(imagePath = images.image(imagePath), thumbPath = images.thumb(thumbPath))
+    private fun Coupon.stored() = copy(imagePath = File(imagePath).name, thumbPath = File(thumbPath).name)
+    private fun List<Coupon>.loaded() = map { it.loaded() }
+
+    fun observeAll(): Flow<List<Coupon>> = coupons.observeAll().map { it.loaded() }
+    fun observe(id: Long): Flow<Coupon?> = coupons.observe(id).map { it?.loaded() }
     fun observeUsage(id: Long): Flow<List<UsageLog>> = usage.observe(id)
     fun observeBrands(): Flow<List<String>> = coupons.observeBrands()
-    suspend fun get(id: Long) = coupons.get(id)
-    suspend fun all() = coupons.all()
-    suspend fun active() = coupons.active()
+    suspend fun get(id: Long) = coupons.get(id)?.loaded()
+    suspend fun all() = coupons.all().loaded()
+    suspend fun active() = coupons.active().loaded()
     suspend fun usageOf(id: Long) = usage.list(id)
     suspend fun allUsage() = usage.all()
 
@@ -66,10 +73,10 @@ class CouponRepository @Inject constructor(
         }
     }.distinctUntilChanged()
 
-    suspend fun insertAll(list: List<Coupon>): List<Long> = db.withTransaction { list.map { coupons.insert(it) } }.also { changed() }
+    suspend fun insertAll(list: List<Coupon>): List<Long> = db.withTransaction { list.map { coupons.insert(it.stored()) } }.also { changed() }
 
     suspend fun update(c: Coupon) {
-        coupons.update(c.copy(codeKey = Coupon.codeKey(c.code), updatedAt = System.currentTimeMillis()))
+        coupons.update(c.stored().copy(codeKey = Coupon.codeKey(c.code), updatedAt = System.currentTimeMillis()))
         changed()
     }
 
@@ -97,8 +104,14 @@ class CouponRepository @Inject constructor(
         return if (coupons.byImageHash(c.imageHash).isNotEmpty()) Duplicate.REGISTERED else null
     }
 
-    suspend fun markScan(mediaId: Long, r: ScanResult) = db.scans().put(ScanLog(mediaId, r, System.currentTimeMillis()))
-    suspend fun scannedIds(): Set<Long> = db.scans().settledIds().toSet()
+    /** [dateAdded] null keeps the one already stored (S4 marks know only the id). */
+    suspend fun markScan(mediaId: Long, r: ScanResult, dateAdded: Long? = null) = db.withTransaction {
+        val d = dateAdded ?: db.scans().get(mediaId)?.dateAdded ?: 0
+        db.scans().put(ScanLog(mediaId, r, System.currentTimeMillis(), d))
+    }
+
+    /** Settled images: MediaStore id -> DATE_ADDED it had when checked (0 = unknown, from schema v2). */
+    suspend fun scanned(): Map<Long, Long> = db.scans().settled().associate { it.mediaId to it.dateAdded }
 
     /** F14: everything app-side (gallery originals untouched). */
     suspend fun wipe() {

@@ -1,6 +1,10 @@
 package com.ouor.mycoupon.data
 
 import androidx.room.AutoMigration
+import androidx.room.migration.Migration
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.execSQL
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
@@ -81,9 +85,12 @@ interface UsageDao {
 
 @Dao
 interface ScanDao {
-    /** settled images: everything except found-but-not-yet-reviewed coupons (those are re-offered after a restart) */
-    @Query("SELECT mediaId FROM scan_log WHERE result != 'COUPON'")
-    suspend fun settledIds(): List<Long>
+    /** settled images: everything except found-but-not-yet-reviewed coupons (S9 offers those again after a restart) */
+    @Query("SELECT * FROM scan_log WHERE result != 'COUPON'")
+    suspend fun settled(): List<ScanLog>
+
+    @Query("SELECT * FROM scan_log WHERE mediaId = :id")
+    suspend fun get(id: Long): ScanLog?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun put(l: ScanLog)
@@ -97,9 +104,10 @@ interface ScanDao {
  */
 @Database(
     entities = [Coupon::class, UsageLog::class, ScanLog::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
-    // v2 (cycle 2): coupon.authCode (C2-19), coupon.givenTo (C2-25), both nullable TEXT, so existing rows keep every value
+    // v2 (cycle 2): coupon.authCode (C2-19), coupon.givenTo (C2-25), both nullable TEXT, so existing rows keep every value.
+    // v3 (code review 2, A2-01): MIGRATION_2_3 below
     autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
 @TypeConverters(Converters::class)
@@ -107,4 +115,21 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun coupons(): CouponDao
     abstract fun usage(): UsageDao
     abstract fun scans(): ScanDao
+
+    companion object {
+        /**
+         * v3 (A2-01, before the first release): image paths become file names (SQLite has no basename: rtrim drops the name's
+         * characters, leaving the folder, which replace() then removes), and scan_log gets dateAdded (0 = unknown, A-12).
+         */
+        private val V3 = listOf(
+            "UPDATE coupon SET imagePath = replace(imagePath, rtrim(imagePath, replace(imagePath, '/', '')), ''), " +
+                "thumbPath = replace(thumbPath, rtrim(thumbPath, replace(thumbPath, '/', '')), '')",
+            "ALTER TABLE scan_log ADD COLUMN dateAdded INTEGER NOT NULL DEFAULT 0",
+        )
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) = V3.forEach(db::execSQL)
+            override fun migrate(connection: SQLiteConnection) = V3.forEach { connection.execSQL(it) }
+        }
+    }
 }
