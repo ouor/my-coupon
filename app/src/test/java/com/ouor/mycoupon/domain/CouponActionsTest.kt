@@ -10,6 +10,8 @@ import com.ouor.mycoupon.data.CouponType
 import com.ouor.mycoupon.data.ImageStore
 import com.ouor.mycoupon.data.UsageKind
 import com.ouor.mycoupon.data.UsedReason
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -167,5 +169,38 @@ class CouponActionsTest {
         val id = amount()
         CouponActions(counted).recordRemaining(id, 8_000)
         assertEquals(1, calls)
+    }
+
+    /**
+     * U-28: two screens writing the same coupon at once (S6 [사용 완료], S1 confirm) keep both changes. Every CouponActions
+     * write reads and writes inside one Room transaction, and Room runs one write transaction at a time (file DB, real pool).
+     */
+    @Test
+    fun overlappingWritesKeepBoth() = runBlocking {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val fileDb = Room.databaseBuilder(ctx, AppDatabase::class.java, "u28.db").build()
+        try {
+            val r = CouponRepository(fileDb, ImageStore(ctx), emptySet())
+            val a = CouponActions(r)
+            val ids = r.insertAll(List(40) {
+                Coupon(code = "U$it", needsReview = mapOf("brand" to listOf("x"), "code" to listOf("y")), imagePath = "x", thumbPath = "x", imageHash = "h$it")
+            })
+            ids.map { id ->
+                listOf(
+                    async(Dispatchers.IO) { a.markUsed(id) },
+                    async(Dispatchers.IO) { a.confirm(id, "brand") },
+                    async(Dispatchers.IO) { a.setReminderOffsets(id, listOf(3)) },
+                )
+            }.flatten().forEach { it.await() }
+            ids.forEach { id ->
+                val c = r.get(id)!!
+                assertEquals(CouponStatus.USED, c.status)
+                assertEquals(setOf("code"), c.needsReview.keys)
+                assertEquals(listOf(3), c.reminderOffsets)
+            }
+        } finally {
+            fileDb.close()
+            ctx.deleteDatabase("u28.db")
+        }
     }
 }
