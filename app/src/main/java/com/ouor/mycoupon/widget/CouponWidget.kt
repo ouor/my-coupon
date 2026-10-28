@@ -88,7 +88,8 @@ class CouponWidget : GlanceAppWidget() {
             val today = LocalDate.now()
             // C2Q-01: rows grow with the system font size (200 %: two-line rows overlapped at a fixed 52 dp), so fewer fit
             val fs = context.resources.configuration.fontScale.coerceAtLeast(1f)
-            val rowH = 52f * fs
+            // round-2 V2: a two-line row needs about 26 dp more per +100 % (52 × scale left 2/3 of the widget empty)
+            val rowH = 52f + 26f * (fs - 1f)
             val rows = ((LocalSize.current.height.value - 20f - 24f * fs) / rowH).toInt().coerceIn(1, 6)
             val top = WidgetData.top(all, today, rows)
             val more = all.count { it.isAvailable(today) } - top.size
@@ -116,8 +117,8 @@ class CouponWidget : GlanceAppWidget() {
                         c.balance?.takeIf { c.type == CouponType.AMOUNT }?.let { "잔액 ${ReminderPlanner.won(it)}" }).joinToString(" · ")
                     // C2-05: one sentence like the list card, not "D 마이너스 3"
                     val spoken = listOf(name, line2, ddaySpoken(c, today), "누르면 바코드").filter { it.isNotEmpty() }.joinToString(", ")
-                    Row(GlanceModifier.fillMaxWidth().height(rowH.dp).clickable(actionStartActivity(row)).semantics { contentDescription = spoken },
-                        verticalAlignment = Alignment.CenterVertically) {
+                    Row(GlanceModifier.fillMaxWidth().defaultWeight().clickable(actionStartActivity(row)).semantics { contentDescription = spoken },
+                        verticalAlignment = Alignment.Top) { // round-2 V15: D-day on the name line, not between the two lines
                         Column(GlanceModifier.defaultWeight()) {
                             Text(name, style = TextStyle(fontSize = 16.sp, color = fg, fontWeight = FontWeight.Medium), maxLines = 1)
                             if (line2.isNotEmpty()) Text(line2, style = TextStyle(fontSize = 13.sp, color = sub), maxLines = 1)

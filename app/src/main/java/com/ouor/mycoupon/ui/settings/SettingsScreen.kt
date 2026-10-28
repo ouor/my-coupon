@@ -125,7 +125,7 @@ fun SettingsScreen(nav: NavHostController) {
             ListItem(
                 headlineContent = { Text("만료 알림", style = MaterialTheme.typography.bodyLarge) },
                 supportingContent = {
-                    Text("매일 ${timeLabel(st.app.reminderMinute)} · 하루 한 번, 여러 장이면 한 알림으로\n${offsetsLabel(st.app.reminderOffsets)}",
+                    Text("매일 ${timeLabel(st.app.reminderMinute)} · 하루 한 번\n여러 장이면 한 알림으로\n${offsetsLabel(st.app.reminderOffsets)}",
                         style = MaterialTheme.typography.bodyMedium)
                 },
                 leadingContent = { Icon(Icons.Rounded.Notifications, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
@@ -135,17 +135,17 @@ fun SettingsScreen(nav: NavHostController) {
             )
             SettingRow(Icons.Rounded.MusicNote, "알림 소리 바꾸기") { context.startActivity(vm.channelSettingsIntent()) }
             // C2-14
-            SettingRow(Icons.Rounded.Dashboard, "빠른 설정에 '내 쿠폰' 넣기", "알림창에서 바로 바코드를 열어요") {
+            SettingRow(Icons.Rounded.Dashboard, "알림창 버튼에 '내 쿠폰' 넣기", "화면 위에서 내려 바로 바코드를 열어요") {
                 if (Build.VERSION.SDK_INT >= 33) requestAddTile(context) { msg -> snackbar.show(msg) } else tileGuide = true
             }
             SectionTitle("데이터")
             SettingRow(Icons.Rounded.Save, "백업·복원", "파일로 저장하고 새 폰에서 가져와요") { nav.navigate(Route.Backup) }
             // C2-16: read only
-            SettingRow(Icons.Rounded.Storage, "앱이 쓰는 공간",
+            SettingRow(Icons.Rounded.Storage, "앱이 차지하는 공간",
                 storage?.let { "${mb(it.bytes)} · 쿠폰 이미지 ${it.images}장" } ?: "재는 중", chevron = false, onClick = null)
             SectionTitle("도움")
             SettingRow(Icons.Rounded.PhonelinkLock, "개인정보 안내", "이 앱은 인터넷을 쓰지 않아요") { nav.navigate(Route.Privacy) }
-            SettingRow(Icons.Rounded.BugReport, "오류 기록 보내기", if (st.crashFiles.isEmpty()) "기록이 없어요" else "기록 ${st.crashFiles.size}건") {
+            SettingRow(Icons.Rounded.BugReport, "앱 문제 알리기 (오류 기록 보내기)", if (st.crashFiles.isEmpty()) "기록이 없어요" else "기록 ${st.crashFiles.size}건") {
                 val f = st.crashFiles.firstOrNull()
                 if (f == null) snackbar.show("보낼 오류 기록이 없어요") else context.startActivity(Sharing.intent(context, f, f.name, "text/plain"))
             }
