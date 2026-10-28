@@ -21,6 +21,7 @@ import androidx.work.WorkerParameters
 import com.ouor.mycoupon.R
 import com.ouor.mycoupon.data.AppSettings
 import com.ouor.mycoupon.data.Coupon
+import com.ouor.mycoupon.domain.CouponText
 import com.ouor.mycoupon.data.CouponChangeListener
 import com.ouor.mycoupon.data.CouponRepository
 import com.ouor.mycoupon.di.AppScope
@@ -33,13 +34,11 @@ import com.ouor.mycoupon.AppIntents
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.text.NumberFormat
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -60,25 +59,10 @@ object ReminderPlanner {
 
     private fun amount(c: Coupon) = if (c.type == CouponType.AMOUNT) c.balance ?: c.faceValue ?: 0 else 0
 
-    fun won(v: Long): String = NumberFormat.getNumberInstance(Locale.KOREA).format(v) + "원"
-
-    fun title(c: Coupon): String = listOfNotNull(c.brand, shortName(c.brand, c.productName)).joinToString(" ").ifEmpty { "쿠폰" }
-
-    private val leadingBracket = Regex("""^\s*[(\[（【]([^)\]）】]*)[)\]）】]\s*""")
-    private fun norm(s: String) = s.filterNot(Char::isWhitespace).lowercase()
-
-    /**
-     * Display only (review U1): issuers repeat the brand in front of the name, "(메가MGC커피)팥빙 젤라또" with brand 메가MGC커피
-     * → "팥빙 젤라또", "[CU] 30,000원권" → "30,000원권". Stored data and recognition stay as they are.
-     */
-    fun shortName(brand: String?, name: String?): String? {
-        if (name == null || brand.isNullOrBlank()) return name
-        val m = leadingBracket.find(name) ?: return name
-        val inner = norm(m.groupValues[1])
-        val b = norm(brand)
-        val rest = name.substring(m.range.last + 1).trim()
-        return if (rest.isNotEmpty() && inner.isNotEmpty() && (inner == b || inner.contains(b) || b.contains(inner))) rest else name
-    }
+    // A2-06: the wording lives in CouponText; these stay until the UI calls CouponText itself (docs/ui/core-requests.md)
+    fun won(v: Long): String = CouponText.won(v)
+    fun title(c: Coupon): String = CouponText.title(c)
+    fun shortName(brand: String?, name: String?): String? = CouponText.shortName(brand, name)
 
     /** N1 single: "3일 남았어요 · 11월 3일까지", amount: "잔액 12,400원 · 3일 남았어요", the day: "오늘까지예요". */
     fun body(c: Coupon, today: LocalDate): String {

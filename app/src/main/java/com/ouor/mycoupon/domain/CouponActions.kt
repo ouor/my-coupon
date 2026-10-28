@@ -36,7 +36,7 @@ class UsageInputException(val error: UsageError, message: String) : IllegalArgum
 
 /** Pure checks for S8 input; [balance] is the current balance. Returns the balance left after the input. */
 object UsageInput {
-    private fun won(v: Long) = "%,d원".format(v)
+    private fun won(v: Long) = CouponText.won(v) // A2-06: "%,d" followed the phone's locale
 
     fun remaining(balance: Long, remaining: Long): Long {
         if (remaining < 0) throw UsageInputException(UsageError.NEGATIVE, "0원보다 적게 입력할 수 없어요")

@@ -6,7 +6,6 @@ import com.ouor.mycoupon.ui.component.ddaySpoken
 import com.ouor.mycoupon.data.CouponType
 import androidx.glance.LocalSize
 import androidx.glance.appwidget.SizeMode
-import com.ouor.mycoupon.reminder.ReminderPlanner
 import android.content.Context
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,6 +39,7 @@ import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponChangeListener
 import com.ouor.mycoupon.data.CouponRepository
 import com.ouor.mycoupon.di.AppScope
+import com.ouor.mycoupon.domain.CouponText
 import com.ouor.mycoupon.domain.Stats
 import com.ouor.mycoupon.AppIntents
 import dagger.hilt.EntryPoint
@@ -60,11 +60,7 @@ object WidgetData {
         .sortedWith(compareBy<Coupon> { it.expiryDate == null }.thenBy { it.expiryDate })
         .take(n)
 
-    fun dday(c: Coupon, today: LocalDate): String = when (val d = Stats.daysLeft(c, today)) {
-        null -> "기간 없음"
-        0L -> "오늘"
-        else -> "D-$d"
-    }
+    fun dday(c: Coupon, today: LocalDate): String = CouponText.dday(c, today)
 }
 
 @EntryPoint
@@ -112,9 +108,9 @@ class CouponWidget : GlanceAppWidget() {
                     val row = AppIntents.coupon(context, c.id)
                     val d = Stats.daysLeft(c, today)
                     // review U14: name on its own larger line, brand (+ balance) under it; U1 short name
-                    val name = ReminderPlanner.shortName(c.brand, c.productName) ?: c.brand ?: "쿠폰"
+                    val name = CouponText.shortName(c.brand, c.productName) ?: c.brand ?: "쿠폰"
                     val line2 = listOfNotNull(c.brand?.takeIf { it != name },
-                        c.balance?.takeIf { c.type == CouponType.AMOUNT }?.let { "잔액 ${ReminderPlanner.won(it)}" }).joinToString(" · ")
+                        c.balance?.takeIf { c.type == CouponType.AMOUNT }?.let { "잔액 ${CouponText.won(it)}" }).joinToString(" · ")
                     // C2-05: one sentence like the list card, not "D 마이너스 3"
                     val spoken = listOf(name, line2, ddaySpoken(c, today), "누르면 바코드").filter { it.isNotEmpty() }.joinToString(", ")
                     Row(GlanceModifier.fillMaxWidth().defaultWeight().clickable(actionStartActivity(row)).semantics { contentDescription = spoken },
