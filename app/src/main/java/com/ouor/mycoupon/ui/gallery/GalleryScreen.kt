@@ -129,6 +129,9 @@ fun GalleryScreen(nav: NavHostController) {
                 !started -> {
                     Spacer(Modifier.height(Spacing.l))
                     Text(if (partial) "허용한 사진에서 찾아볼게요" else "어디까지 찾아볼까요?", style = MaterialTheme.typography.headlineSmall)
+                    // C2-11: says it is a one-off the user starts, not a background watcher
+                    Text("버튼을 누를 때만 찾아요. 몰래 계속 찾지 않아요.", Modifier.padding(top = Spacing.s), style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(Spacing.l))
                     if (!partial) SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                         ScanRange.entries.forEachIndexed { i, r ->
@@ -152,8 +155,12 @@ fun GalleryScreen(nav: NavHostController) {
                         primary = "다른 기간 찾기" to { started = false }, secondary = "사진 고르기" to pick)
                     p.total == 0 -> EmptyState(Icons.Rounded.ImageSearch, "새로 확인할 사진이 없어요", "이 기간의 사진 ${n(p.inRange)}장은 지난번에 모두 확인했어요.",
                         primary = "다른 기간 찾기" to { started = false }, secondary = "사진 고르기" to pick)
-                    else -> EmptyState(Icons.Rounded.ImageSearch, "쿠폰 같은 사진을 찾지 못했어요", "바코드 없는 상품권은 [사진 고르기]로 추가해 주세요",
-                        primary = "사진 고르기" to pick, secondary = "다른 기간 찾기" to { started = false })
+                    // C2-11 (QA): "찾지 못했어요" read as a failure; the reasons say the photos were seen and set aside
+                    else -> EmptyState(Icons.Rounded.ImageSearch, "새로 찾은 쿠폰이 없어요", listOfNotNull(
+                        p.registered.takeIf { it > 0 }?.let { "이미 등록한 쿠폰 ${n(it)}장 제외" },
+                        p.notCoupon.takeIf { it > 0 }?.let { "쿠폰이 아닌 사진 ${n(it)}장 제외" },
+                        "바코드 없는 상품권은 [사진 고르기]로 추가해 주세요",
+                    ).joinToString("\n"), primary = "사진 고르기" to pick, secondary = "다른 기간 찾기" to { started = false })
                 }
                 else -> {
                     Spacer(Modifier.height(Spacing.l))
@@ -161,7 +168,8 @@ fun GalleryScreen(nav: NavHostController) {
                         Modifier.semantics { liveRegion = LiveRegionMode.Polite }, style = MaterialTheme.typography.headlineMedium)
                     Spacer(Modifier.height(Spacing.l))
                     LinearProgressIndicator(progress = { p.checked.toFloat() / maxOf(1, p.total) }, Modifier.fillMaxWidth())
-                    Text("${n(p.total)}장 중 ${n(p.checked)}장 확인", Modifier.padding(top = Spacing.s), style = MaterialTheme.typography.bodyLarge)
+                    Text("${p.checked * 100 / maxOf(1, p.total)}% · ${n(p.total)}장 중 ${n(p.checked)}장 확인", Modifier.padding(top = Spacing.s),
+                        style = MaterialTheme.typography.bodyLarge)
                     // C6: resumed after leaving the screen
                     if (p.resumedFrom > 0 && !p.finished) Text("${n(p.resumedFrom)}장까지 확인했어요. 이어서 찾을게요", Modifier.padding(top = Spacing.s),
                         style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
@@ -169,9 +177,13 @@ fun GalleryScreen(nav: NavHostController) {
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (p.found.isNotEmpty()) {
                         Spacer(Modifier.height(Spacing.l))
-                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
-                            p.found.takeLast(5).forEach { CouponThumb(it.coupon?.thumbPath, size = 56.dp) }
-                            if (p.found.size > 5) Text("+${p.found.size - 5}", Modifier.padding(top = Spacing.l), style = MaterialTheme.typography.titleMedium)
+                        // C2-27: the latest six in a 3-column grid, the rest as "+N"
+                        val shown = p.found.takeLast(6)
+                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                            shown.chunked(3).forEach { row ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) { row.forEach { CouponThumb(it.coupon?.thumbPath, size = 96.dp) } }
+                            }
+                            if (p.found.size > 6) Text("+${p.found.size - 6}장 더", style = MaterialTheme.typography.titleMedium)
                         }
                     }
                 }
