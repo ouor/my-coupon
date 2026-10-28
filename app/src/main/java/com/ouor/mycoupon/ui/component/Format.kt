@@ -66,6 +66,7 @@ fun reasonText(field: String, reason: String): String = when (reason) {
     "AMBIGUOUS" -> "비슷한 상품 이름이 더 있어요. 맞는지 봐 주세요"
     "NO_KEYWORD" -> "유효기간 글자를 찾지 못해 추정했어요"
     "LOW_CONFIDENCE" -> "글자가 흐려 잘못 읽었을 수 있어요"
+    "CAPTURED" -> "찍은 사진은 직접 확인해 주세요"
     "NOT_FOUND" -> when (field) {
         "expiryDate" -> "날짜를 찾지 못했어요. 직접 골라 주세요"
         "code" -> "번호를 찾지 못했어요. 직접 입력해 주세요"

@@ -1,5 +1,20 @@
 package com.ouor.mycoupon.ui.coupon
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.ouor.mycoupon.domain.ImportSession
 import androidx.compose.runtime.saveable.rememberSaveable
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
@@ -72,7 +87,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
@@ -150,6 +164,8 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
     var datePicker by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
     var notesOpen by remember { mutableStateOf(false) }
+    // C2-18: null = closed, "" = whole image, else the fieldBoxes key the viewer zooms to
+    var viewer by rememberSaveable { mutableStateOf<String?>(null) }
     fun confirm(field: String) { c = c.copy(needsReview = c.needsReview - field) }
     val changed = c != initial
     val leave = { if (changed) confirmLeave = true else onBack() }
@@ -173,21 +189,28 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
     Scaffold(
         topBar = { AppTopBar("쿠폰 확인", onBack = leave) {
             // review U2: a receipt read as a coupon must be removable right here; review U7: [저장] only at the bottom
-            TextButton(onNotCoupon, Modifier.heightIn(min = Spacing.touch)) { Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge) }
+            OutlinedButton(onNotCoupon, Modifier.padding(end = Spacing.s).heightIn(min = 40.dp)) { Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge) }
         } },
         bottomBar = { BottomCta("저장", ::save) },
     ) { pad ->
         // code review A18: number and memo fields scroll above the keyboard
         Column(Modifier.padding(pad).consumeWindowInsets(pad).imePadding().fillMaxSize().verticalScroll(rememberScrollState())) {
-            SourceImage(c)
             Column(Modifier.padding(Spacing.l), verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                if (c.needsReview.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.ErrorOutline, null, tint = MaterialTheme.statusColors.review)
-                    Text("  확인할 항목 ${c.needsReview.size}개", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.statusColors.review)
+                // C2-18: the 40 % image is gone (it pushed the fields off small / 200 % screens); crops sit above each review field
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, itemVerticalAlignment = Alignment.CenterVertically) {
+                    if (c.needsReview.isNotEmpty()) Row(Modifier.padding(end = Spacing.s), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.ErrorOutline, null, tint = MaterialTheme.statusColors.review)
+                        Text("  확인할 항목 ${c.needsReview.size}개", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.statusColors.review)
+                    }
+                    OutlinedButton({ viewer = "" }, Modifier.heightIn(min = Spacing.touch)) {
+                        Icon(Icons.Rounded.Image, null, Modifier.padding(end = Spacing.xs)); Text("원본 전체 보기")
+                    }
                 }
+                if ("brand" in c.needsReview) SourceCrop(c, "brand") { viewer = it }
                 BrandField(c.brand ?: "", brands, review = c.needsReview["brand"]) { c = c.copy(brand = it.ifBlank { null }); confirm("brand") }
                 ReviewLine("brand", c.needsReview["brand"]) { confirm("brand") }
 
+                if ("productName" in c.needsReview) SourceCrop(c, "productName") { viewer = it }
                 Field("상품명", c.productName ?: "", review = c.needsReview["productName"]) { c = c.copy(productName = it.ifBlank { null }); confirm("productName") }
                 ReviewLine("productName", c.needsReview["productName"]) { confirm("productName") }
 
@@ -199,6 +222,7 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                         SegmentedButtonDefaults.itemShape(1, 2), Modifier.heightIn(min = Spacing.touch)) { Text("금액권") }
                 }
                 if (c.type == CouponType.AMOUNT) {
+                    if ("faceValue" in c.needsReview) SourceCrop(c, "faceValue") { viewer = it }
                     Field("금액", c.faceValue?.let(numberFormat::format) ?: "", review = c.needsReview["faceValue"], number = true, suffix = "원") { v ->
                         val n = v.filter(Char::isDigit).take(9).toLongOrNull()
                         c = c.copy(faceValue = n, balance = if (c.balance == null || c.balance == c.faceValue) n else c.balance); confirm("faceValue")
@@ -211,10 +235,13 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
 
                 // expiry: read-only field + date picker (§6.10)
                 val expiryReview = c.needsReview["expiryDate"]
+                val candidates = expiryReview != null && "MULTIPLE_CANDIDATES" in expiryReview && c.expiryCandidates.size > 1
+                if (expiryReview != null && !candidates && !noExpiry) SourceCrop(c, "expiryDate") { viewer = it }
                 Surface(onClick = { if (!noExpiry) datePicker = true }, enabled = !noExpiry) {
                     OutlinedTextField(
                         if (noExpiry) "기간 없음" else c.expiryDate?.dotted() ?: "", {}, Modifier.fillMaxWidth(), readOnly = true, enabled = false,
                         label = { Text("유효기간") }, placeholder = { Text("날짜를 골라 주세요") },
+                        leadingIcon = reviewIcon(expiryReview != null),
                         trailingIcon = { Icon(Icons.Rounded.CalendarMonth, "유효기간 고르기") },
                         textStyle = MaterialTheme.typography.titleMedium,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -226,8 +253,10 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                         ),
                     )
                 }
-                if (expiryReview != null && "MULTIPLE_CANDIDATES" in expiryReview && c.expiryCandidates.size > 1) FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
-                    c.expiryCandidates.forEach { d ->
+                // C2-18: each candidate with the part of the image it was read from, crop above its chip
+                if (candidates) c.expiryCandidates.forEach { d ->
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        SourceCrop(c, ImportSession.candidateBoxKey(d), label = "유효기간 후보 ${d.dotted()}") { viewer = it }
                         FilterChip(c.expiryDate == d, { c = c.copy(expiryDate = d); confirm("expiryDate") }, { Text(d.dotted()) }, Modifier.heightIn(min = Spacing.touch))
                     }
                 }
@@ -237,11 +266,21 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                     Text("유효기간 없음", style = MaterialTheme.typography.bodyLarge)
                 }
 
+                if ("code" in c.needsReview) SourceCrop(c, "code") { viewer = it }
                 Field("번호", c.code ?: "", review = c.needsReview["code"], error = codeError, mono = true) {
                     c = c.copy(code = it.trim().ifBlank { null }); confirm("code"); codeError = null
                 }
                 ReviewLine("code", c.needsReview["code"]) { confirm("code") }
 
+                // C2-19: a PIN / 인증번호 apart from the barcode, typed by hand (never recognised)
+                OutlinedTextField(c.authCode ?: "", { v -> c = c.copy(authCode = v.filter(Char::isLetterOrDigit).uppercase().take(32).ifBlank { null }) },
+                    Modifier.fillMaxWidth(), label = { Text("인증번호(선택)") }, singleLine = true,
+                    supportingText = { Text("바코드와 따로 있는 인증번호·PIN") },
+                    textStyle = MaterialTheme.typography.titleMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontFeatureSettings = "tnum"),
+                    visualTransformation = FourGroups,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, capitalization = KeyboardCapitalization.Characters, autoCorrectEnabled = false))
+
+                if ("sender" in c.needsReview) SourceCrop(c, "sender") { viewer = it }
                 Field("메모", c.memo ?: "", review = c.needsReview["sender"], singleLine = false) { c = c.copy(memo = it.ifBlank { null }); confirm("sender") }
                 ReviewLine("sender", c.needsReview["sender"]) { confirm("sender") }
 
@@ -252,6 +291,7 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                     }
                     if (notesOpen) Text(notes, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+
                 Spacer(Modifier.height(Spacing.xl))
             }
         }
@@ -270,6 +310,14 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
             },
             dismissButton = { TextButton({ datePicker = false }) { Text("취소") } },
         ) { DatePicker(state) }
+    }
+    viewer?.let { key ->
+        Dialog({ viewer = null }, DialogProperties(usePlatformDefaultWidth = false)) {
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
+                SourceImage(c, c.fieldBoxes[key], Modifier.fillMaxSize())
+                IconButton({ viewer = null }, Modifier.align(Alignment.TopEnd).padding(Spacing.s).size(56.dp)) { Icon(Icons.Rounded.Close, "닫기") }
+            }
+        }
     }
     if (confirmLeave) AlertDialog(
         onDismissRequest = { confirmLeave = false },
@@ -297,6 +345,7 @@ private fun Field(
         textStyle = if (mono) MaterialTheme.typography.titleMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontFeatureSettings = "tnum")
         else MaterialTheme.typography.bodyLarge,
         keyboardOptions = if (number) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
+        leadingIcon = reviewIcon(review != null && error == null),
         colors = fieldColors(review != null && error == null),
     )
 }
@@ -308,7 +357,8 @@ private fun BrandField(value: String, brands: List<String>, review: List<String>
     val options = brands.filter { it.contains(value.trim(), ignoreCase = true) && it != value }.take(6)
     ExposedDropdownMenuBox(open && options.isNotEmpty(), { open = it }) {
         OutlinedTextField(value, { onChange(it); open = true }, Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable),
-            label = { Text("브랜드") }, singleLine = true, textStyle = MaterialTheme.typography.bodyLarge, colors = fieldColors(review != null))
+            label = { Text("브랜드") }, singleLine = true, textStyle = MaterialTheme.typography.bodyLarge, colors = fieldColors(review != null),
+            leadingIcon = reviewIcon(review != null))
         ExposedDropdownMenu(open && options.isNotEmpty(), { open = false }) {
             options.forEach { b -> DropdownMenuItem({ Text(b, style = MaterialTheme.typography.bodyLarge) }, { onChange(b); open = false }) }
         }
@@ -338,14 +388,14 @@ private fun ReviewLine(field: String, reasons: List<String>?, onConfirm: () -> U
             }
             Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (reason != "NOT_FOUND") TextButton({ onConfirm(); justConfirmed = true }, Modifier.heightIn(min = Spacing.touch)
+        if (reason != "NOT_FOUND") OutlinedButton({ onConfirm(); justConfirmed = true }, Modifier.heightIn(min = Spacing.touch)
             .semantics { contentDescription = "${(fieldLabel[field] ?: "").subject()} 맞아요" }) { Text("맞아요", style = MaterialTheme.typography.labelLarge) }
     }
 }
 
-/** Original image (40 % of the screen height), pinch to zoom, review boxes outlined. */
+/** C2-18 viewer: the whole original, pinch to zoom, review boxes outlined, opened zoomed onto [focus] (original px). */
 @Composable
-private fun SourceImage(c: Coupon) {
+private fun SourceImage(c: Coupon, focus: List<Double>?, modifier: Modifier) {
     var bmp by remember(c.imagePath) { mutableStateOf<Bitmap?>(null) }
     var failed by remember(c.imagePath) { mutableStateOf(false) }
     LaunchedEffect(c.imagePath) { bmp = loadImage(c.imagePath, 2000); failed = bmp == null }
@@ -355,10 +405,9 @@ private fun SourceImage(c: Coupon) {
         scale = (scale * zoom).coerceIn(1f, 6f)
         offset = if (scale == 1f) Offset.Zero else offset + pan
     }
-    val h = (LocalConfiguration.current.screenHeightDp * 0.4f).dp
     val border = MaterialTheme.statusColors.reviewBorder
     BoxWithConstraints(
-        Modifier.fillMaxWidth().height(h).clipToBounds().background(MaterialTheme.colorScheme.surfaceContainerHighest)
+        modifier.clipToBounds().background(MaterialTheme.colorScheme.surfaceContainerHighest)
             .semantics { contentDescription = "쿠폰 원본 이미지, 두 손가락으로 확대" }
             .transformable(tf),
         contentAlignment = Alignment.Center,
@@ -373,6 +422,16 @@ private fun SourceImage(c: Coupon) {
         val fit = minOf(boxW / b.width, boxH / b.height)
         val dw = b.width * fit
         val dh = b.height * fit
+        LaunchedEffect(b, focus) {
+            val r = focus?.takeIf { it.size >= 4 } ?: return@LaunchedEffect
+            val k0 = fit * b.width / (if (c.imageWidth > 0) c.imageWidth.toFloat() else b.width.toFloat())
+            val w = ((r[2] - r[0]).toFloat() * k0).coerceAtLeast(1f)
+            scale = (boxW * 0.8f / w).coerceIn(1f, 6f)
+            // graphicsLayer scales about the centre: move the box centre there
+            val cx = (boxW - dw) / 2 + (r[0] + r[2]).toFloat() / 2 * k0 - boxW / 2
+            val cy = (boxH - dh) / 2 + (r[1] + r[3]).toFloat() / 2 * k0 - boxH / 2
+            offset = Offset(-cx * scale, -cy * scale)
+        }
         Box(Modifier.fillMaxSize().graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y }) {
             Image(b.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
             val srcW = if (c.imageWidth > 0) c.imageWidth.toFloat() else b.width.toFloat()
@@ -388,5 +447,39 @@ private fun SourceImage(c: Coupon) {
                 }
             }
         }
+    }
+}
+
+/**
+ * design-system SourceCrop (C2-18): the part of the original a review value was read from, at least twice its size;
+ * the whole image when there is no box. Tap = the full viewer zoomed there.
+ */
+@Composable
+private fun SourceCrop(c: Coupon, key: String, label: String = "${fieldLabel[key] ?: "값"}", onOpen: (String) -> Unit) {
+    val box = c.fieldBoxes[key]
+    val bmp by produceState<Bitmap?>(null, c.imagePath, key) { value = loadImage(c.imagePath, 2000, box, c.imageWidth) }
+    val b = bmp ?: return
+    Surface({ onOpen(key) }, Modifier.fillMaxWidth().semantics { contentDescription = "원본에서 ${label}${if (box == null) "" else "을 읽은 부분"}, 누르면 크게 보기" },
+        shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
+        Image(b.asImageBitmap(), null, Modifier.fillMaxWidth().heightIn(min = 72.dp, max = if (box == null) 200.dp else 160.dp).padding(Spacing.xs),
+            contentScale = ContentScale.Fit)
+    }
+}
+
+/** C2-07: review fields carry a shape too (readable in grey scale), not only the orange border. */
+@Composable
+private fun reviewIcon(on: Boolean): (@Composable () -> Unit)? =
+    if (on) ({ Icon(Icons.Rounded.ErrorOutline, "확인 필요", tint = MaterialTheme.statusColors.review) }) else null
+
+/** C2-19: "ABCD EFGH 1234" while typing; the stored value has no spaces. */
+internal object FourGroups : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val raw = text.text
+        val out = raw.chunked(4).joinToString(" ")
+        return TransformedText(AnnotatedString(out), object : OffsetMapping {
+            override fun originalToTransformed(offset: Int) = offset + (offset - 1).coerceAtLeast(0) / 4
+            override fun transformedToOriginal(offset: Int) = (offset - offset / 5).coerceIn(0, raw.length)
+        })
     }
 }
