@@ -189,7 +189,7 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
     Scaffold(
         topBar = { AppTopBar("쿠폰 확인", onBack = leave) {
             // review U2: a receipt read as a coupon must be removable right here; review U7: [저장] only at the bottom
-            OutlinedButton(onNotCoupon, Modifier.padding(end = Spacing.s).heightIn(min = 40.dp)) { Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge) }
+            OutlinedButton(onNotCoupon, Modifier.padding(end = Spacing.m).heightIn(min = 40.dp)) { Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge) }
         } },
         bottomBar = { BottomCta("저장", ::save) },
     ) { pad ->
@@ -357,7 +357,8 @@ private fun BrandField(value: String, brands: List<String>, review: List<String>
     val options = brands.filter { it.contains(value.trim(), ignoreCase = true) && it != value }.take(6)
     ExposedDropdownMenuBox(open && options.isNotEmpty(), { open = it }) {
         OutlinedTextField(value, { onChange(it); open = true }, Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable),
-            label = { Text("브랜드") }, singleLine = true, textStyle = MaterialTheme.typography.bodyLarge, colors = fieldColors(review != null),
+            label = { Text("브랜드") }, singleLine = true,
+            supportingText = if (value.isBlank()) ({ Text("쿠폰을 쓰는 가게 이름이에요 (예: 스타벅스, CU)") }) else null, textStyle = MaterialTheme.typography.bodyLarge, colors = fieldColors(review != null),
             leadingIcon = reviewIcon(review != null))
         ExposedDropdownMenu(open && options.isNotEmpty(), { open = false }) {
             options.forEach { b -> DropdownMenuItem({ Text(b, style = MaterialTheme.typography.bodyLarge) }, { onChange(b); open = false }) }
@@ -456,13 +457,14 @@ private fun SourceImage(c: Coupon, focus: List<Double>?, modifier: Modifier) {
  */
 @Composable
 private fun SourceCrop(c: Coupon, key: String, label: String = "${fieldLabel[key] ?: "값"}", onOpen: (String) -> Unit) {
-    val box = c.fieldBoxes[key]
+    // round-2 V5: no box → no crop (the whole image repeated per field filled the screen); [원본 전체 보기] covers it
+    val box = c.fieldBoxes[key] ?: return
     val bmp by produceState<Bitmap?>(null, c.imagePath, key) { value = loadImage(c.imagePath, 2000, box, c.imageWidth) }
     val b = bmp ?: return
-    Surface({ onOpen(key) }, Modifier.fillMaxWidth().semantics { contentDescription = "원본에서 ${label}${if (box == null) "" else "을 읽은 부분"}, 누르면 크게 보기" },
+    Surface({ onOpen(key) }, Modifier.fillMaxWidth().semantics { contentDescription = "원본에서 ${label}을 읽은 부분, 누르면 크게 보기" },
         shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHighest,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-        Image(b.asImageBitmap(), null, Modifier.fillMaxWidth().heightIn(min = 72.dp, max = if (box == null) 200.dp else 160.dp).padding(Spacing.xs),
+        Image(b.asImageBitmap(), null, Modifier.fillMaxWidth().heightIn(min = 56.dp, max = 96.dp).padding(Spacing.xs),
             contentScale = ContentScale.Fit)
     }
 }

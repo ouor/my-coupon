@@ -148,7 +148,9 @@ fun ImportScreen(nav: NavHostController) {
     Scaffold(
         topBar = { AppTopBar("결과 확인", onBack = { confirmClose = true }, close = true) },
         bottomBar = {
-            BottomCta("${st.checkedCount}개 등록", { if (st.running) confirmEarly = true else register() },
+            // round-2 V3: nothing new to register is an answer, not a dead end: one [닫기]
+            if (!st.running && st.done > 0 && st.checkedCount == 0) BottomCta("닫기", { vm.discard(); nav.toHome() })
+            else BottomCta("${st.checkedCount}개 등록", { if (st.running) confirmEarly = true else register() },
                 enabled = st.checkedCount > 0 && !registering, hint = when {
                     st.checkedCount == 0 && st.done > 0 -> "등록할 쿠폰을 골라 주세요"
                     // C2-09: review cards need not block registering (F3 already lets them be fixed later from S1)
@@ -279,7 +281,8 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
     ) {
         Row(Modifier.padding(end = Spacing.l, top = Spacing.xs, bottom = Spacing.l), verticalAlignment = Alignment.Top) {
             // C2-05: one card node reads "등록함, …" first; the box toggles by double tap, the card's tap is the 수정하기 action
-            Checkbox(d.checked, onCheck, enabled = !readingNow,
+            // round-2 V3: an already registered / used card cannot be registered, so it has no box (same width kept)
+            if (d.duplicate != null) Spacer(Modifier.width(48.dp)) else Checkbox(d.checked, onCheck, enabled = !readingNow,
                 modifier = Modifier.semantics {
                     contentDescription = spoken; stateDescription = if (d.checked) "등록함" else "등록 안 함"
                     if (!readingNow) customActions = listOf(CustomAccessibilityAction("수정하기") { onOpen(); true })
@@ -316,8 +319,10 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
                                         Text("등록하면 지난 쿠폰으로 가요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
-                                c?.brand?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                                Text(c?.name() ?: "상품 이름 없음", style = MaterialTheme.typography.titleMedium)
+                                // round-2 V3: no brand line when the name already starts with it; the name outranks the date
+                                c?.brand?.takeIf { b -> c.name()?.startsWith(b) != true }
+                                    ?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                Text(c?.name() ?: "상품 이름 없음", style = MaterialTheme.typography.titleLarge)
                             }
                         }
                     }
@@ -327,7 +332,7 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
                     if (captured && review) ReviewMark(Modifier.padding(top = Spacing.s), "찍은 사진은 직접 확인해 주세요")
                     HorizontalDivider(Modifier.padding(vertical = Spacing.m), color = MaterialTheme.colorScheme.outlineVariant)
                     Text("유효기간", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(c.expiryDate?.dotted() ?: "기간 없음", style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"),
+                    Text(c.expiryDate?.dotted() ?: "기간 없음", style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
                         modifier = Modifier.alpha(if (d.checked) 1f else 0.87f))
                     if (c.needsReview.containsKey("expiryDate") && review) ReviewMark()
                     val other = c.needsReview.keys.any { it != "expiryDate" }
