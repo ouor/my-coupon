@@ -83,7 +83,7 @@ class PaddleOcrEngine private constructor(
         }
         if (!rec.outputNames.containsAll(listOf(BEST, BEST_P))) {
             close()
-            throw IllegalStateException("rec model lacks the $BEST/$BEST_P outputs (tools/rec_argmax.py)")
+            throw IllegalStateException("rec model lacks the best/best_p outputs (tools/rec_argmax.py)")
         }
     }
 

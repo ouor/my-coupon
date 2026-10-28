@@ -73,7 +73,7 @@ class BackupFormatTest {
         assertEquals(5_000L, c.balance)
         val n = BackupFormat.toEntity(CouponV1(type = "AMOUNT", faceValue = 5_000, balance = null, imagePath = "images/0"), "", "", "h")
         assertEquals(5_000L, n.balance)
-        val u = BackupFormat.toEntity(CouponV1(type = "PRODUCT", status = "USED", updatedAt = 77, imagePath = "images/0"), "", "", "h")
+        val u = BackupFormat.toEntity(CouponV1(type = "EXCHANGE", status = "USED", updatedAt = 77, imagePath = "images/0"), "", "", "h")
         assertEquals(77L, u.usedAt)
     }
 }
