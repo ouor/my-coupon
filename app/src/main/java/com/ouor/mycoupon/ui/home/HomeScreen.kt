@@ -1,5 +1,7 @@
 package com.ouor.mycoupon.ui.home
 
+import com.ouor.mycoupon.ui.component.codeTail
+import com.ouor.mycoupon.ui.component.won
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -305,10 +307,9 @@ private fun SortMenu(sort: ListSort, onSort: (ListSort) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val label = { s: ListSort -> if (s == ListSort.EXPIRY) "만료 임박순" else "최근 등록순" }
     Box {
-        TextButton({ open = true }, Modifier.heightIn(min = Spacing.touch)) {
-            Text(label(sort), style = MaterialTheme.typography.labelLarge)
-            Icon(Icons.Rounded.ExpandMore, null, Modifier.size(20.dp))
-        }
+        // round-2 V13: a chip like its neighbours, not blue text
+        FilterChip(false, { open = true }, { Text(label(sort), style = MaterialTheme.typography.labelLarge) }, Modifier.heightIn(min = Spacing.touch),
+            trailingIcon = { Icon(Icons.Rounded.ExpandMore, null, Modifier.size(18.dp)) })
         DropdownMenu(open, { open = false }) {
             ListSort.entries.forEach { s ->
                 DropdownMenuItem({ Text(label(s), style = MaterialTheme.typography.bodyLarge) }, { open = false; onSort(s) })
@@ -343,7 +344,9 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
         }
         HomeBanner.USE_ASK -> st.useAsk?.let { c ->
             val nm = c.title()
-            InfoBanner(Icons.Rounded.TaskAlt, "아까 $nm 썼어요?", cs.surfaceContainerHighest, cs.onSurface) {
+            InfoBanner(Icons.Rounded.TaskAlt, "아까 $nm 썼어요?", cs.surfaceContainerHighest, cs.onSurface,
+                sub = listOfNotNull(c.brand, c.balance?.takeIf { c.type == CouponType.AMOUNT }?.let { "잔액 ${won(it)}" }, c.code?.let(::codeTail))
+                    .joinToString(" · ").ifEmpty { null }) {
                 BannerButton("아니요") { vm.answerUseAsk(c.id, used = false) }
                 if (c.type == CouponType.AMOUNT) BannerButton("쓴 금액 입력") {
                     vm.answerUseAsk(c.id, used = false); nav.navigate(Route.Detail(c.id, openUse = true))
@@ -368,11 +371,11 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
 @Composable
 private fun AddSheet(onDismiss: () -> Unit, onShare: () -> Unit, onPick: () -> Unit, onCamera: (() -> Unit)?, onGallery: () -> Unit, onKakao: () -> Unit) {
     AppSheet(onDismiss, "쿠폰 추가") {
-        AddOption(Icons.Rounded.Share, "카톡·문자에서 [공유]로 넣기", "사진을 길게 눌러 공유 → 내 쿠폰", onShare)
+        AddOption(Icons.Rounded.Share, "카톡·문자에서 [공유]로 넣는 법", "사진을 길게 눌러 공유 → 내 쿠폰", onShare)
         AddOption(Icons.Rounded.PhotoLibrary, "사진 고르기", "한 번에 30장까지 골라요", onPick)
         if (onCamera != null) AddOption(Icons.Rounded.PhotoCamera, "카메라로 찍기", "종이 쿠폰을 찍어 넣어요", onCamera)
         AddOption(Icons.Rounded.ImageSearch, "갤러리에서 쿠폰 찾기", "쿠폰 같은 사진을 대신 찾아 드려요", onGallery)
-        AddOption(Icons.Rounded.Redeem, "카카오톡 선물함 쿠폰", "선물함 → 이미지 저장 → 사진 고르기", onKakao)
+        AddOption(Icons.Rounded.Redeem, "카카오톡 선물함 쿠폰 넣는 법", "선물함 → 이미지 저장 → 사진 고르기", onKakao)
     }
 }
 
@@ -440,7 +443,8 @@ private fun BrandChipRow(brands: List<String>, selected: String, onPick: (String
     val surface = MaterialTheme.colorScheme.surface
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val step = with(LocalDensity.current) { maxWidth.toPx() * 0.8f }
-        LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(Spacing.s), modifier = Modifier.semantics { contentDescription = "브랜드로 거르기" }) {
+        // round-2 V13: the last chip can scroll clear of the arrow
+        LazyRow(state = state, contentPadding = PaddingValues(end = 56.dp), horizontalArrangement = Arrangement.spacedBy(Spacing.s), modifier = Modifier.semantics { contentDescription = "브랜드로 거르기" }) {
             items(brands, key = { it }) { b ->
                 FilterChip(selected == b, { onPick(b) }, { Text(b, style = MaterialTheme.typography.labelLarge) }, Modifier.heightIn(min = Spacing.touch))
             }
