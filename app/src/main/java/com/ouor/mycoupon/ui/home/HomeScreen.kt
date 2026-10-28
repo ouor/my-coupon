@@ -246,7 +246,7 @@ fun HomeScreen(nav: NavHostController) {
             // review U3: identical names get the last four digits so they can be told apart
             val twins = st.coupons.groupingBy { it.brand to it.title() }.eachCount().filterValues { it > 1 }.keys
             items(st.coupons, key = { it.id }) { c ->
-                CouponCard(c, st.today, onClick = { nav.navigate(Route.Detail(c.id)) }, modifier = Modifier.animateItem(),
+                CouponCard(c, st.today, onClick = { if (android.os.SystemClock.elapsedRealtime() >= vm.cardTapsFrom) nav.navigate(Route.Detail(c.id)) }, modifier = Modifier.animateItem(),
                     codeTail = (c.brand to c.title()) in twins,
                     onUndo = if (c.status == CouponStatus.USED) ({
                         vm.undoUse(c.id); snackbar.show("${c.title()} 다시 쓸 수 있게 되돌렸어요")

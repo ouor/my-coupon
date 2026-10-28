@@ -148,6 +148,13 @@ class HomeViewModel @Inject constructor(
 
     /** D8: S1 shows the notification rationale sheet once, after the first registration. */
     val notificationRationale = MutableStateFlow(false)
+    /**
+     * C2-04 (core-found defect): S6 just finished a coupon and returned here; a tap still aimed at its undo bar must not
+     * open the card that slid under the finger.
+     */
+    var cardTapsFrom = 0L
+    fun arrivedFromFinish() { cardTapsFrom = android.os.SystemClock.elapsedRealtime() + 1_200 }
+
     fun registered() { if (!settings.notificationAsked && !notifier.canPost()) notificationRationale.value = true }
     fun notificationsAsked() { settings.notificationAsked = true; notificationRationale.value = false }
 

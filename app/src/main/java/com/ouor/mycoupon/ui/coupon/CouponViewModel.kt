@@ -12,6 +12,7 @@ import com.ouor.mycoupon.domain.UsageInputException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -49,7 +50,13 @@ class CouponViewModel @Inject constructor(
     }
 
     // code review A14: screens navigate away right after these writes; leaving clears this ViewModel, the write must still land
-    private fun act(block: suspend (Long) -> Unit) { id.value?.let { viewModelScope.launch(NonCancellable) { block(it) } } }
+    // C2-04: writes run in tap order, so an undo tapped before [사용 완료] has landed cannot be overtaken by it
+    private var lastAct: Job? = null
+    private fun act(block: suspend (Long) -> Unit) {
+        val v = id.value ?: return
+        val prev = lastAct
+        lastAct = viewModelScope.launch(NonCancellable) { prev?.join(); block(v) }
+    }
 
     /** [givenTo]: C2-25 "누구에게(선택)" for [UsedReason.GIVEN]; blank = nobody named. */
     fun markUsed(reason: UsedReason = UsedReason.USED, givenTo: String? = null) = act { actions.markUsed(it, reason, givenTo) }

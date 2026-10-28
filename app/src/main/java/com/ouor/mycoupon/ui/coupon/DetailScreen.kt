@@ -87,6 +87,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -227,7 +228,8 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController, swiped
     val undoSeconds = remember { (undoMillis(activity) / 1000).toInt() }
     val openedAt = remember { SystemClock.elapsedRealtime() }
     // C2-04: right after a swipe to this coupon the CTA ignores presses for a second (a palm swipe must not mark it used)
-    val ctaFrom = remember { if (swiped) openedAt + 1_000 else 0L }
+    // and right after an undo, so a second tap on the same spot does not mark it used again
+    var ctaFrom by remember { mutableLongStateOf(if (swiped) openedAt + 1_000 else 0L) }
     val tts = rememberTts()
 
     val share = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
@@ -275,6 +277,8 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController, swiped
         val msg = finishing ?: return@LaunchedEffect
         if (coupon.status != CouponStatus.USED) return@LaunchedEffect
         while (undoLeft > 0) { delay(1000); undoLeft-- }
+        // C2-04 (core-found defect): an undo tapped while this coroutine was waking must win over leaving the screen
+        if (finishing == null) return@LaunchedEffect
         // F10: offer to trash the gallery original once (API 30+, MediaStore uri that still exists)
         val canTrash = !coupon.trashAsked && Build.VERSION.SDK_INT >= 30 && coupon.sourceUri?.startsWith("content://media/") == true &&
             withContext(Dispatchers.IO) {
@@ -316,7 +320,7 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController, swiped
             when {
                 // C2-04: the CTA spot becomes "〈상품명〉 사용 완료했어요" + [되돌리기 · 8], then F10 and S1 (+ Snackbar undo)
                 undoLeft > 0 -> UndoBar("$nm 사용 완료했어요", undoLeft) {
-                    undoLeft = 0; finishing = null
+                    undoLeft = 0; finishing = null; ctaFrom = SystemClock.elapsedRealtime() + 1_000
                     vm.undoUse(); snackbar.show("다시 쓸 수 있게 되돌렸어요")
                 }
                 finishing != null -> Unit // leaving: F10 sheet or S1 next
@@ -483,6 +487,7 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController, swiped
 }
 
 internal fun leave(nav: NavHostController, snackbar: com.ouor.mycoupon.ui.component.AppSnackbar, homeVm: HomeViewModel, id: Long, msg: String) {
+    homeVm.arrivedFromFinish()
     nav.toHome()
     snackbar.show(msg, "되돌리기") { homeVm.undoUse(id) }
 }
