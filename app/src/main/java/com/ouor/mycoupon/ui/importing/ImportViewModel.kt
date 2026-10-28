@@ -2,6 +2,9 @@ package com.ouor.mycoupon.ui.importing
 
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
+import com.ouor.mycoupon.data.ImageStore
+import com.ouor.mycoupon.domain.ReviewGroup
+import java.io.File
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ouor.mycoupon.data.Coupon
@@ -23,6 +26,7 @@ import kotlinx.coroutines.launch
 class ImportViewModel @Inject constructor(
     private val session: ImportSession,
     repo: CouponRepository,
+    private val images: ImageStore,
     private val saved: SavedStateHandle,
 ) : ViewModel() {
     val state: StateFlow<ImportState> = session.state
@@ -51,6 +55,11 @@ class ImportViewModel @Inject constructor(
     }
 
     fun start(uris: List<Uri>, origin: ImportOrigin) = session.start(uris.map { ImportSession.Source(it) }, origin)
+    /** C2-24: file + FileProvider uri for the system camera app (paths are kept by the caller across a process death). */
+    fun newCapture(): Pair<File, Uri> = images.newCapture()
+    fun startCapture(file: File, uri: Uri) = session.startCapture(file, uri)
+    /** C2-09 [모두 맞아요]: clears that field's check on every card of the group. */
+    fun confirmGroup(g: ReviewGroup) = session.confirmGroup(g)
     fun setChecked(key: Int, v: Boolean) = session.setChecked(key, v)
     fun exclude(key: Int) = session.exclude(key)
     fun edit(key: Int, c: Coupon) = session.edit(key, c)

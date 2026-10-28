@@ -11,6 +11,7 @@ import com.ouor.mycoupon.data.Settings
 import com.ouor.mycoupon.domain.CouponActions
 import com.ouor.mycoupon.gallery.GalleryScanner
 import com.ouor.mycoupon.reminder.ReminderNotifier
+import com.ouor.mycoupon.reminder.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
 import java.time.LocalDate
@@ -23,8 +24,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** S1 banner, one at a time in this priority (screens.md D3). */
-enum class HomeBanner { CRASH, NOTIFICATIONS_OFF, NEEDS_REVIEW, NEW_IMAGES }
+/** S1 banner, one at a time in this priority (screens.md D3, cycle 2: USE_ASK C2-17, ENDING_SOON C2-10). */
+enum class HomeBanner { CRASH, NOTIFICATIONS_OFF, USE_ASK, ENDING_SOON, NEEDS_REVIEW, NEW_IMAGES }
 
 data class HomeState(
     val coupons: List<Coupon> = emptyList(),
@@ -43,8 +44,14 @@ data class HomeState(
     val hasCoupons: Boolean = false,
     val newImages: Int = 0,
     val banner: HomeBanner? = null,
-    /** review U9: brand chips, most coupons first (available ones only) */
+    /** review U9 / C2-15: brand chips (latest used brand first, then most available coupons) */
     val brands: List<String> = emptyList(),
+    /** C2-10: available coupons ending today or tomorrow, soonest first */
+    val endingSoon: List<Coupon> = emptyList(),
+    /** C2-10: the list shows only [endingSoon] (banner tapped) */
+    val endingOnly: Boolean = false,
+    /** C2-17: "아까 〈상품명〉 썼어요?" coupon (still available) */
+    val useAsk: Coupon? = null,
 )
 
 /** S1 / S13. */
@@ -56,6 +63,7 @@ class HomeViewModel @Inject constructor(
     private val notifier: ReminderNotifier,
     private val scanner: GalleryScanner,
     private val actions: CouponActions,
+    private val reminders: ReminderScheduler,
 ) : ViewModel() {
     val filter = MutableStateFlow(ListFilter.AVAILABLE)
     val sort = MutableStateFlow(ListSort.EXPIRY)
@@ -64,25 +72,34 @@ class HomeViewModel @Inject constructor(
     private val newImages = scanner.progress.map { it.found.size }
     private val crashPending = MutableStateFlow(crashLog.files().firstOrNull()?.name?.let { it != settings.crashBannerSeen } ?: false)
     private val notificationsOff = MutableStateFlow(false)
+    val endingOnly = MutableStateFlow(false)
+    private val banners = combine(settings.observeExpiringBannerHiddenDay(), settings.observePendingUseAsk(), endingOnly) { h, a, e -> Triple(h, a, e) }
 
     // code review A23: one DB subscription and one midnight timer feed both the list and the counts
     private val all = combine(repo.observeAll(), repo.today()) { a, t -> a to t }
 
     val state: StateFlow<HomeState> = combine(
         combine(all, filter, sort, query) { (a, t), f, s, q -> HomeState(CouponRepository.list(a, f, s, q, t), f, s, q, t) to a },
-        newImages, crashPending, notificationsOff,
-    ) { (base, everything), n, crash, notifOff ->
+        newImages, crashPending, notificationsOff, banners,
+    ) { (base, everything), n, crash, notifOff, (hiddenDay, askId, onlyEnding) ->
         val toReview = everything.filter { it.needsCheck && it.isAvailable(base.today) }
         val review = toReview.size
         val hasCoupons = everything.isNotEmpty()
+        val ending = CouponRepository.endingSoon(everything, base.today)
+        val ask = askId?.let { id -> everything.firstOrNull { it.id == id && it.isAvailable(base.today) } }
         base.copy(
             reviewCount = review, firstReviewId = toReview.minByOrNull { it.expiryDate ?: LocalDate.MAX }?.id, newImages = n, loaded = true, hasCoupons = hasCoupons,
             availableCount = everything.count { it.isAvailable(base.today) },
-            brands = everything.filter { it.isAvailable(base.today) }.mapNotNull { it.brand?.trim()?.ifEmpty { null } }
-                .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }.take(10),
+            brands = CouponRepository.brandOrder(everything, base.today),
+            endingSoon = ending,
+            endingOnly = onlyEnding && ending.isNotEmpty(),
+            coupons = if (onlyEnding && ending.isNotEmpty()) ending else base.coupons,
+            useAsk = ask,
             banner = when {
                 crash -> HomeBanner.CRASH
                 notifOff && hasCoupons -> HomeBanner.NOTIFICATIONS_OFF
+                ask != null -> HomeBanner.USE_ASK
+                ending.isNotEmpty() && hiddenDay != base.today.toEpochDay() -> HomeBanner.ENDING_SOON
                 review > 0 -> HomeBanner.NEEDS_REVIEW
                 n > 0 -> HomeBanner.NEW_IMAGES
                 else -> null
@@ -100,6 +117,22 @@ class HomeViewModel @Inject constructor(
         settings.crashBannerSeen = crashLog.files().firstOrNull()?.name
         crashPending.value = false
     }
+
+    /** C2-10 [닫기]: hidden for today */
+    fun hideEndingBanner() { settings.hideExpiringBanner(); endingOnly.value = false }
+
+    /** C2-17: any answer ends the question for that coupon; [used] marks it like S6 [사용 완료] (undo Snackbar on S1). */
+    fun answerUseAsk(id: Long, used: Boolean) {
+        settings.answerUseAsk(id)
+        if (used) viewModelScope.launch { actions.markUsed(id) }
+    }
+
+    /** C2-08: the time picked in the permission sheet; kept even if the permission is then refused (AC2). */
+    fun setReminderMinute(minute: Int) {
+        settings.app = settings.app.copy(reminderMinute = minute)
+        reminders.reschedule()
+    }
+    val reminderMinute: Int get() = settings.app.reminderMinute
 
     /** "새 쿠폰 이미지 N장" tap → S4 */
     fun reviewNewImages() {

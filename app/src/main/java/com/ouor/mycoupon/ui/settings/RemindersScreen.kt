@@ -90,14 +90,19 @@ fun RemindersScreen(nav: NavHostController) {
             }
         }
     }
-    if (timeDialog) {
-        val state = rememberTimePickerState(st.app.reminderMinute / 60, st.app.reminderMinute % 60, is24Hour = false)
-        AlertDialog(
-            onDismissRequest = { timeDialog = false },
-            title = { Text("알림 시각") },
-            text = { TimePicker(state) },
-            confirmButton = { TextButton({ vm.setReminders(st.app.reminderOffsets, state.hour * 60 + state.minute); timeDialog = false }) { Text("확인") } },
-            dismissButton = { TextButton({ timeDialog = false }) { Text("취소") } },
-        )
-    }
+    if (timeDialog) TimePickDialog(st.app.reminderMinute, { timeDialog = false }) { vm.setReminders(st.app.reminderOffsets, it); timeDialog = false }
+}
+
+/** Reminder time picker, shared by S11 and the first-registration sheet (C2-08). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimePickDialog(minute: Int, onDismiss: () -> Unit, onOk: (Int) -> Unit) {
+    val state = rememberTimePickerState(minute / 60, minute % 60, is24Hour = false)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("알림 시각") },
+        text = { TimePicker(state) },
+        confirmButton = { TextButton({ onOk(state.hour * 60 + state.minute) }) { Text("확인") } },
+        dismissButton = { TextButton(onDismiss) { Text("취소") } },
+    )
 }
