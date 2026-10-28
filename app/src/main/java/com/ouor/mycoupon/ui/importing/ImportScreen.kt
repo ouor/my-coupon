@@ -138,7 +138,7 @@ fun ImportScreen(nav: NavHostController) {
 
     val today = LocalDate.now()
     val expired = { d: Draft -> d.coupon?.expiryDate?.isBefore(today) == true }
-    val reviewCount = st.drafts.count { it.stage == DraftStage.DONE && it.isCoupon && it.duplicate == null && it.coupon?.needsCheck == true && !expired(it) }
+    val reviewCount = st.drafts.count { it.stage == DraftStage.DONE && (it.isCoupon || it.checked) && it.duplicate == null && it.coupon?.needsCheck == true && !expired(it) }
     // review U2: unchecked not-a-coupon drafts fold into one row that can be opened
     val (folded, shown) = st.drafts.sortedBy(::order).partition { it.stage == DraftStage.DONE && !it.isCoupon && !it.checked }
     var foldOpen by rememberSaveable { mutableStateOf(false) }
@@ -199,11 +199,7 @@ fun ImportScreen(nav: NavHostController) {
                     if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            // only real, new coupons whose value was read (a NOT_FOUND field has nothing to agree with; S5 shows no [맞아요] for it)
-            val groups = st.reviewGroups().filter { g ->
-                g.keys.all { k -> st.drafts.first { it.key == k }.let { d -> d.isCoupon && d.duplicate == null && d.coupon?.needsReview?.get(g.field)?.contains("NOT_FOUND") != true } }
-            }
-            items(groups, key = { "group-${it.field}-${it.keys.first()}" }) { g ->
+            items(st.reviewGroups(), key = { "group-${it.field}-${it.keys.first()}" }) { g ->
                 GroupConfirmRow(g, Modifier.animateItem()) {
                     val before = st.drafts.filter { it.key in g.keys }
                     vm.confirmGroup(g)
@@ -255,7 +251,8 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
     val readingNow = d.stage == DraftStage.READING
     val expired = c?.expiryDate?.isBefore(LocalDate.now()) == true
     // review U8: an expired card shows one warning (만료), not 만료 + 확인 필요
-    val review = d.stage == DraftStage.DONE && d.isCoupon && d.duplicate == null && c?.needsCheck == true && !expired
+    // C2Q-03: a ticked not-a-coupon card (forced registration, e.g. a camera photo) is registered with its review marks, so it shows them
+    val review = d.stage == DraftStage.DONE && (d.isCoupon || d.checked) && d.duplicate == null && c?.needsCheck == true && !expired
     val large = isLargeFont()
     val captured = c?.needsReview?.values?.any { ImportSession.CAPTURED in it } == true
     val spoken = when {

@@ -86,7 +86,10 @@ class CouponWidget : GlanceAppWidget() {
             // collected inside the session: updateAll() on a live session only recomposes, it does not re-run provideGlance (QA R1-02)
             val all by repo.observeAll().collectAsState(initial)
             val today = LocalDate.now()
-            val rows = ((LocalSize.current.height.value - 44f) / 52f).toInt().coerceIn(1, 6)
+            // C2Q-01: rows grow with the system font size (200 %: two-line rows overlapped at a fixed 52 dp), so fewer fit
+            val fs = context.resources.configuration.fontScale.coerceAtLeast(1f)
+            val rowH = 52f * fs
+            val rows = ((LocalSize.current.height.value - 20f - 24f * fs) / rowH).toInt().coerceIn(1, 6)
             val top = WidgetData.top(all, today, rows)
             val more = all.count { it.isAvailable(today) } - top.size
             // W1 (screens.md): system day/night colors from the design tokens; never a barcode or number here
@@ -113,7 +116,7 @@ class CouponWidget : GlanceAppWidget() {
                         c.balance?.takeIf { c.type == CouponType.AMOUNT }?.let { "잔액 ${ReminderPlanner.won(it)}" }).joinToString(" · ")
                     // C2-05: one sentence like the list card, not "D 마이너스 3"
                     val spoken = listOf(name, line2, ddaySpoken(c, today), "누르면 바코드").filter { it.isNotEmpty() }.joinToString(", ")
-                    Row(GlanceModifier.fillMaxWidth().height(52.dp).clickable(actionStartActivity(row)).semantics { contentDescription = spoken },
+                    Row(GlanceModifier.fillMaxWidth().height(rowH.dp).clickable(actionStartActivity(row)).semantics { contentDescription = spoken },
                         verticalAlignment = Alignment.CenterVertically) {
                         Column(GlanceModifier.defaultWeight()) {
                             Text(name, style = TextStyle(fontSize = 16.sp, color = fg, fontWeight = FontWeight.Medium), maxLines = 1)

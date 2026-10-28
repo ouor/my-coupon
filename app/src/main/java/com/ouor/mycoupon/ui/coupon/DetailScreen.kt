@@ -379,7 +379,6 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController, swiped
                         Icon(if (history) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = MaterialTheme.colorScheme.primary)
                     }
                 }
-                if (history) UsageHistory(usage) { vm.undoLastBalance(); snackbar.show("마지막 기록을 지우고 잔액을 되돌렸어요") }
             }
 
             if (bright) BrightnessChip(Modifier.padding(bottom = Spacing.s))
@@ -388,6 +387,8 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController, swiped
                 onCopied = { auth -> snackbar.show(if (auth) "인증번호를 복사했어요" else "번호를 복사했어요") },
                 dimmed = dimmed, onReveal = { revealed = true }, onSpeak = tts?.let { t -> { speakCode(t, coupon) } })
             else Notice("번호가 없어요. 원본 이미지를 보여 주세요")
+            // C2Q-02: the opened history goes under the number, so at 200 % it never pushes the number under the bottom CTA
+            if (coupon.type == CouponType.AMOUNT && history) UsageHistory(usage) { vm.undoLastBalance(); snackbar.show("마지막 기록을 지우고 잔액을 되돌렸어요") }
 
             // C2-20: the S7 mode is a visible button, not only a tap on the barcode
             if (coupon.code != null && !dimmed) OutlinedButton({ nav.navigate(Route.BarcodeFull(id)) },
