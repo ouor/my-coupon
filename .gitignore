@@ -19,3 +19,5 @@ local.properties
 /tools/ocr-bench/models
 /tools/ocr-bench/out
 build/
+
+.kotlin/
