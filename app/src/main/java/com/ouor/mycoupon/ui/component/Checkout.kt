@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Build
 import android.speech.tts.TextToSpeech
 import android.view.accessibility.AccessibilityManager
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -113,7 +114,9 @@ fun UndoBar(text: String, secondsLeft: Int, onUndo: () -> Unit) {
                     style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.heightIn(min = Spacing.s))
                 // round-2 V10: a secondary (outlined) button, and the number says it is seconds
-                OutlinedButton(onUndo, Modifier.fillMaxWidth().heightIn(min = Spacing.cta), shape = MaterialTheme.shapes.large) {
+// C2Q-04: M3's default border is outlineVariant, invisible on this bar; outline is the design-system 3:1 border
+                OutlinedButton(onUndo, Modifier.fillMaxWidth().heightIn(min = Spacing.cta), shape = MaterialTheme.shapes.large,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
                     Text("되돌리기 · ${secondsLeft}초", style = MaterialTheme.typography.labelLarge)
                 }
             }
