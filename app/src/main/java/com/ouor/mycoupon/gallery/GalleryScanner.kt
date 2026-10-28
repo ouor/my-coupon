@@ -19,6 +19,7 @@ import com.ouor.mycoupon.ocr.engine.Barcodes
 import com.ouor.mycoupon.ocr.CouponRecognizer
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -107,21 +108,21 @@ class GalleryScanner @Inject constructor(
         else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
     }
 
-    data class Media(val id: Long, val uri: Uri, val addedSec: Long)
+    data class Media(val id: Long, val uri: Uri, val addedSec: Long, val size: Long = 0)
 
     /** Images added since [sinceSec], newest first. With partial access MediaStore returns only the selected ones. */
     fun query(sinceSec: Long): List<Media> {
         val out = ArrayList<Media>()
         val coll = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
         context.contentResolver.query(
-            coll, arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DATE_ADDED),
+            coll, arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DATE_ADDED, MediaStore.Images.Media.SIZE),
             // D-16: >= so an image added in the same second as the last look is not lost; ScanLog skips the ones seen
             "${MediaStore.Images.Media.DATE_ADDED} >= ?", arrayOf(sinceSec.toString()),
             "${MediaStore.Images.Media.DATE_ADDED} DESC",
         )?.use { c ->
             while (c.moveToNext()) {
                 val id = c.getLong(0)
-                out += Media(id, ContentUris.withAppendedId(coll, id), c.getLong(1))
+                out += Media(id, ContentUris.withAppendedId(coll, id), c.getLong(1), c.getLong(2))
             }
         }
         return out
@@ -129,7 +130,8 @@ class GalleryScanner @Inject constructor(
 
     /** Stage 1, tens of ms per image. */
     fun screen(uri: Uri): Boolean {
-        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return false
+        // P-06: never more than readDraft would accept
+        val bytes = context.contentResolver.openInputStream(uri)?.use { ImageCodec.readCapped(it, ImageCodec.MAX_BYTES) } ?: return false
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         if (bounds.outWidth <= 0) return false
@@ -168,6 +170,7 @@ class GalleryScanner @Inject constructor(
             _progress.update { it.copy(finished = true) }
         } finally {
             _progress.update { it.copy(running = false) }
+            withContext(NonCancellable) { recognizer.release() } // P-03 (O-10): ~70 MB of sessions are not kept after the scan
         }
     }
 
@@ -178,6 +181,7 @@ class GalleryScanner @Inject constructor(
         try {
             checkNewLocked()
         } finally {
+            withContext(NonCancellable) { recognizer.release() } // P-03
             lock.unlock()
         }
     }
@@ -192,7 +196,10 @@ class GalleryScanner @Inject constructor(
         val done = repo.scanned()
         val known = _progress.value.found.mapNotNull { it.mediaId }.toSet()
         val media = query(last).filter { !settled(done, it) && it.id !in known }
-        for (m in media) check(m)?.let { d -> _progress.update { it.copy(found = it.found + d) } }
+        for (m in media) {
+            coroutineContext.ensureActive() // P-04: leaving S1 stops here; ScanLog keeps what was checked
+            check(m)?.let { d -> _progress.update { it.copy(found = it.found + d) } }
+        }
         settings.lastGalleryScanSec = maxOf(last, media.maxOfOrNull { it.addedSec } ?: last)
         return _progress.value.found.size
     }
@@ -204,7 +211,8 @@ class GalleryScanner @Inject constructor(
     }
 
     private suspend fun check(m: Media): Draft? {
-        val pass = runCatching { screen(m.uri) }.getOrDefault(false)
+        // P-06: a file over the size cap is not opened; readDraft would refuse it anyway
+        val pass = m.size <= ImageCodec.MAX_BYTES && runCatching { screen(m.uri) }.getOrDefault(false)
         if (!pass) {
             repo.markScan(m.id, ScanResult.NOT_COUPON, m.addedSec)
             _progress.update { it.copy(notCoupon = it.notCoupon + 1) }
