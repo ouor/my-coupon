@@ -4,7 +4,7 @@ import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponStatus
 import com.ouor.mycoupon.data.UsedReason
 import com.ouor.mycoupon.domain.Stats
-import com.ouor.mycoupon.reminder.ReminderPlanner
+import com.ouor.mycoupon.domain.CouponText
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -39,7 +39,7 @@ fun LocalDate.monthDay(): String = "${monthValue}월 ${dayOfMonth}일"
 
 fun epochDay(ms: Long): LocalDate = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalDate()
 
-fun won(v: Long): String = ReminderPlanner.won(v)
+fun won(v: Long): String = CouponText.won(v)
 
 /** "1234 5678 9012 3456" groups (F6 AC5). */
 fun codeGroups(code: String): List<String> = code.filterNot(Char::isWhitespace).chunked(4)
@@ -57,7 +57,7 @@ fun codeSpoken(code: String): String = codeGroups(code).joinToString(", ") { g -
 fun Coupon.title(): String = name() ?: brand ?: "이름 없는 쿠폰"
 
 /** Product name as shown everywhere (brand prefix dropped, review U1). */
-fun Coupon.name(): String? = ReminderPlanner.shortName(brand, productName)
+fun Coupon.name(): String? = CouponText.shortName(brand, productName)
 
 /** S5 copy per reason (screens.md S5): the first reason of a field is shown. */
 fun reasonText(field: String, reason: String): String = when (reason) {

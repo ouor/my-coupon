@@ -7,7 +7,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import com.ouor.mycoupon.domain.ImportSession
 import com.ouor.mycoupon.domain.ReviewGroup
-import com.ouor.mycoupon.reminder.ReminderPlanner
+import com.ouor.mycoupon.domain.CouponText
 import com.ouor.mycoupon.ui.component.fieldLabel
 import com.ouor.mycoupon.ui.component.subject
 import androidx.activity.compose.BackHandler
@@ -358,7 +358,7 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
 @Composable
 private fun GroupConfirmRow(g: ReviewGroup, modifier: Modifier, onConfirm: () -> Unit) {
     val summary = listOfNotNull(
-        ReminderPlanner.shortName(g.brand, g.productName)?.let { listOfNotNull(g.brand, it).joinToString(" ") } ?: g.brand,
+        CouponText.shortName(g.brand, g.productName)?.let { listOfNotNull(g.brand, it).joinToString(" ") } ?: g.brand,
         g.expiryDate?.let { "${it.monthValue}.${it.dayOfMonth}까지" },
         "${g.keys.size}장",
     ).joinToString(" · ")
