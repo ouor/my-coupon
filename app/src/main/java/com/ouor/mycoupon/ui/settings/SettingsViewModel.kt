@@ -51,7 +51,8 @@ enum class BackupFailure {
 sealed interface BackupUi {
     data object Idle : BackupUi
     data object Working : BackupUi
-    data class Exported(val count: Int) : BackupUi
+    /** [missingImages]: coupons whose image file was gone, saved as data only (core D-05) */
+    data class Exported(val count: Int, val missingImages: Int = 0) : BackupUi
     data class Preview(val p: BackupPreview) : BackupUi
     data class Imported(val count: Int) : BackupUi
     data object WrongPassword : BackupUi
@@ -75,6 +76,7 @@ class SettingsViewModel @Inject constructor(
 
     /** C2-08 [알림 소리 바꾸기] */
     fun channelSettingsIntent() = notifier.channelSettingsIntent()
+    fun notificationsOff() = !notifier.canPost()
 
     private val crash = MutableStateFlow(crashLog.files())
     val state: StateFlow<SettingsState> = combine(settings.observeApp(), repo.observeAll(), crash, settings.observeLastBackup()) { a, all, c, last ->
@@ -101,7 +103,7 @@ class SettingsViewModel @Inject constructor(
         (backupUi.value as? BackupUi.Preview)?.let { backup.cancel(it.p) }
     }
 
-    fun export(target: Uri, password: CharArray) = backupJob { BackupUi.Exported(backup.export(target, password)) }
+    fun export(target: Uri, password: CharArray) = backupJob { BackupUi.Exported(backup.export(target, password), backup.lastExportMissingImages) }
     fun open(source: Uri, password: CharArray) = backupJob { BackupUi.Preview(backup.open(source, password)) }
     fun import(p: BackupPreview) = backupJob { BackupUi.Imported(backup.import(p)) }
     fun cancelImport(p: BackupPreview) { backup.cancel(p); backupUi.value = BackupUi.Idle }

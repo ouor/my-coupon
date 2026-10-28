@@ -31,6 +31,9 @@ class CouponTileService : TileService() {
             // security review S-13: on the lock screen the D-day only, no brand or product name
             tile.subtitle = top?.let { listOfNotNull(WidgetData.dday(it, today), if (isLocked) null else it.brand ?: it.productName).joinToString(" ") }
                 ?.ifEmpty { null } ?: "쿠폰 열기"
+            // code review U-30: an action tile, never "on/off"; the subtitle is the state TalkBack reads
+            tile.state = android.service.quicksettings.Tile.STATE_INACTIVE
+            if (Build.VERSION.SDK_INT >= 30) tile.stateDescription = tile.subtitle
             tile.updateTile()
         }
     }

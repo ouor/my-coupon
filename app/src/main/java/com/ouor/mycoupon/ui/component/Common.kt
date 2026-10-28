@@ -1,6 +1,9 @@
 package com.ouor.mycoupon.ui.component
 
-import androidx.compose.ui.graphics.luminance
+import androidx.compose.material3.ModalBottomSheetProperties
+import androidx.compose.material3.SheetValue
+import androidx.lifecycle.compose.dropUnlessResumed
+import com.ouor.mycoupon.ui.theme.statusColors
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,14 +68,28 @@ fun isLargeFont(): Boolean = LocalDensity.current.fontScale >= 1.5f
 
 /** App-wide Snackbar that outlives the screen that asked for it (S8 → S1 "되돌리기"). */
 class AppSnackbar(val host: SnackbarHostState, private val scope: CoroutineScope, private val undoMs: Long = 8_000) {
-    private var job: kotlinx.coroutines.Job? = null
+    private var undo: kotlinx.coroutines.Job? = null
+    private var plain: kotlinx.coroutines.Job? = null
 
-    /** With an [action] (undo) it stays [undoMs] (C2-04: 8 s or the accessibility "time to take action"); M3 Long varies by device. */
+    /**
+     * With an [action] (undo) it stays [undoMs] (C2-04: 8 s or the accessibility "time to take action"); M3 Long varies by device.
+     * Code review U-13: a message without an action waits until a showing undo has gone (only the latest one waits);
+     * a new undo replaces everything.
+     */
     fun show(message: String, action: String? = null, onAction: () -> Unit = {}) {
-        job?.cancel()
-        job = scope.launch {
+        plain?.cancel()
+        if (action == null) {
+            val showing = undo?.takeIf { it.isActive }
+            plain = scope.launch {
+                showing?.join()
+                host.currentSnackbarData?.dismiss()
+                host.showSnackbar(message, null, withDismissAction = false, duration = SnackbarDuration.Short)
+            }
+            return
+        }
+        undo?.cancel()
+        undo = scope.launch {
             host.currentSnackbarData?.dismiss()
-            if (action == null) { host.showSnackbar(message, null, withDismissAction = false, duration = SnackbarDuration.Short); return@launch }
             val r = kotlinx.coroutines.withTimeoutOrNull(undoMs) {
                 host.showSnackbar(message, action, withDismissAction = false, duration = SnackbarDuration.Indefinite)
             }
@@ -99,7 +116,8 @@ fun AppTopBar(title: String, onBack: (() -> Unit)? = null, close: Boolean = fals
     TopAppBar(
         title = { Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() }) },
         navigationIcon = {
-            if (onBack != null) IconButton(onClick = onBack) {
+            // code review U-06: a second tap while the screen is already leaving would pop the screen below as well
+            if (onBack != null) IconButton(onClick = dropUnlessResumed(block = onBack)) {
                 Icon(if (close) Icons.Rounded.Close else Icons.AutoMirrored.Rounded.ArrowBack, if (close) "닫기" else "뒤로")
             }
         },
@@ -162,9 +180,8 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
     Button(onClick, modifier.fillMaxWidth().heightIn(min = Spacing.cta), enabled = enabled, shape = MaterialTheme.shapes.large,
         colors = if (danger) androidx.compose.material3.ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)
-        else if (MaterialTheme.colorScheme.background.luminance() < 0.5f) androidx.compose.material3.ButtonDefaults.buttonColors(
-            containerColor = Color(0xFF3B6FE0), contentColor = Color.White) // round-2 V12: white on it 4.6:1
-        else androidx.compose.material3.ButtonDefaults.buttonColors(),
+        // round-2 V12 / code review U-25: the CTA colour is a theme token (dark: white on it 4.6:1)
+        else androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.statusColors.cta, contentColor = MaterialTheme.statusColors.onCta),
     ) { Text(text, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center) }
 }
 
@@ -187,9 +204,11 @@ fun BottomCta(text: String, onClick: () -> Unit, enabled: Boolean = true, hint: 
                     Text(it, Modifier.fillMaxWidth().padding(bottom = Spacing.s), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
                 }
-                if (outlined) OutlinedButton(onClick, Modifier.fillMaxWidth().heightIn(min = Spacing.cta), enabled = enabled, shape = MaterialTheme.shapes.large) {
+                // code review U-06: ignored once the screen started leaving (S5 [저장] twice popped two screens)
+                val click = dropUnlessResumed(block = onClick)
+                if (outlined) OutlinedButton(click, Modifier.fillMaxWidth().heightIn(min = Spacing.cta), enabled = enabled, shape = MaterialTheme.shapes.large) {
                     Text(text, style = MaterialTheme.typography.labelLarge)
-                } else PrimaryButton(text, onClick, enabled = enabled)
+                } else PrimaryButton(text, click, enabled = enabled)
             }
         }
     }
@@ -200,9 +219,13 @@ fun BottomCta(text: String, onClick: () -> Unit, enabled: Boolean = true, hint: 
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppSheet(onDismiss: () -> Unit, title: String, description: String? = null, content: @Composable ColumnScope.() -> Unit) {
-    ModalBottomSheet(onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentWindowInsets = { WindowInsets(0) }) {
+fun AppSheet(
+    onDismiss: () -> Unit, title: String, description: String? = null, dismissible: Boolean = true, content: @Composable ColumnScope.() -> Unit,
+) {
+    // code review U-10: a progress sheet ([dismissible] false) cannot be swiped or backed away while its work goes on
+    ModalBottomSheet(onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { dismissible || it != SheetValue.Hidden }),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentWindowInsets = { WindowInsets(0) },
+        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = dismissible)) {
         // code review A18: the sheet's text fields (S8 amount, backup password) stay above the keyboard
         Column(Modifier.navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.l).padding(bottom = Spacing.l)) {
             Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })

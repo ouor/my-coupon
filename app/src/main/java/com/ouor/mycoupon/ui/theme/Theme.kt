@@ -65,19 +65,24 @@ data class StatusColors(
     val soon: Color, val soonContainer: Color,
     val ended: Color, val endedContainer: Color,
     val review: Color, val reviewContainer: Color, val reviewBorder: Color,
+    /** main button (code review U-25): primary in light; in dark a deeper blue that keeps white text at 4.6:1 (round-2 V12) */
+    val cta: Color, val onCta: Color,
 )
 
-private val LightStatus = StatusColors(
+/** Shared with the widget (code review U-25), which cannot read MaterialTheme. */
+val LightStatus = StatusColors(
     available = Color(0xFF11744F), availableContainer = Color(0xFFE3F4EC),
     soon = Color(0xFFC62828), soonContainer = Color(0xFFFDECEC),
     ended = Color(0xFF5B6573), endedContainer = Color(0xFFEDEFF2),
     review = Color(0xFFA14800), reviewContainer = Color(0xFFFFF1E2), reviewBorder = Color(0xFFCC6A00),
+    cta = Color(0xFF1F5FD6), onCta = Color.White,
 )
-private val DarkStatus = StatusColors(
+val DarkStatus = StatusColors(
     available = Color(0xFF6FD3A6), availableContainer = Color(0xFF0F2E22),
     soon = Color(0xFFFF9C94), soonContainer = Color(0xFF3D1A1A),
     ended = Color(0xFFA3ACB8), endedContainer = Color(0xFF262A30),
     review = Color(0xFFFFB86B), reviewContainer = Color(0xFF3A2508), reviewBorder = Color(0xFFE08A2E),
+    cta = Color(0xFF3B6FE0), onCta = Color.White,
 )
 
 private val LocalStatusColors = staticCompositionLocalOf { LightStatus }

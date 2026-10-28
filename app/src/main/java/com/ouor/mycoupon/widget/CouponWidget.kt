@@ -1,5 +1,9 @@
 package com.ouor.mycoupon.widget
 
+import com.ouor.mycoupon.ui.theme.DarkColors
+import com.ouor.mycoupon.ui.theme.DarkStatus
+import com.ouor.mycoupon.ui.theme.LightColors
+import com.ouor.mycoupon.ui.theme.LightStatus
 import androidx.glance.semantics.contentDescription
 import androidx.glance.semantics.semantics
 import com.ouor.mycoupon.ui.component.ddaySpoken
@@ -30,7 +34,6 @@ import androidx.glance.layout.padding
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import androidx.compose.ui.graphics.Color
 import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.color.ColorProvider
@@ -90,10 +93,11 @@ class CouponWidget : GlanceAppWidget() {
             val top = WidgetData.top(all, today, rows)
             val more = all.count { it.isAvailable(today) } - top.size
             // W1 (screens.md): system day/night colors from the design tokens; never a barcode or number here
-            val bg = ColorProvider(day = Color.White, night = Color(0xFF121417))
-            val fg = ColorProvider(day = Color(0xFF191F28), night = Color(0xFFE9ECF1))
-            val sub = ColorProvider(day = Color(0xFF4E5968), night = Color(0xFFAEB6C2))
-            val soon = ColorProvider(day = Color(0xFFC62828), night = Color(0xFFFF9C94))
+            // code review U-25: the app theme's own values, not copies
+            val bg = ColorProvider(day = LightColors.surface, night = DarkColors.surface)
+            val fg = ColorProvider(day = LightColors.onSurface, night = DarkColors.onSurface)
+            val sub = ColorProvider(day = LightColors.onSurfaceVariant, night = DarkColors.onSurfaceVariant)
+            val soon = ColorProvider(day = LightStatus.soon, night = DarkStatus.soon)
             Column(GlanceModifier.fillMaxSize().appWidgetBackground().cornerRadius(16.dp).background(bg).padding(horizontal = 14.dp, vertical = 10.dp)) {
                 Row(GlanceModifier.fillMaxWidth().clickable(actionStartActivity(open))) {
                     Text("내 쿠폰", GlanceModifier.defaultWeight(), style = TextStyle(fontSize = 13.sp, color = sub, fontWeight = FontWeight.Medium))
@@ -119,8 +123,11 @@ class CouponWidget : GlanceAppWidget() {
                             Text(name, style = TextStyle(fontSize = 16.sp, color = fg, fontWeight = FontWeight.Medium), maxLines = 1)
                             if (line2.isNotEmpty()) Text(line2, style = TextStyle(fontSize = 13.sp, color = sub), maxLines = 1)
                         }
+                        val near = d != null && d <= 7
+                        // code review U-25 (P4): soon is said in words too, not by red alone
+                        if (near) Text("곧 ", style = TextStyle(fontSize = 13.sp, color = soon, fontWeight = FontWeight.Medium))
                         Text(WidgetData.dday(c, today), style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                            color = if (d != null && d <= 7) soon else fg))
+                            color = if (near) soon else fg))
                     }
                 }
             }

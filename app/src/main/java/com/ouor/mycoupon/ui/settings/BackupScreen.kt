@@ -121,17 +121,19 @@ fun BackupScreen(nav: NavHostController) {
     LaunchedEffect(backup) { if (backup is BackupUi.Preview || backup is BackupUi.Failed) passwordFor = null }
 
     when (val b = backup) {
-        BackupUi.Working -> if (passwordFor == null) AppSheet({}, if (exporting) "백업 파일 만드는 중" else "잠시만요", "백업 파일을 다루는 중이에요") {
+        BackupUi.Working -> if (passwordFor == null) AppSheet({}, if (exporting) "백업 파일 만드는 중" else "잠시만요", "백업 파일을 다루는 중이에요", dismissible = false) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
             Spacer(Modifier.height(Spacing.m))
             if (!importing) SecondaryButton("그만두기", { vm.cancelBackup() })
         }
         is BackupUi.Exported -> AppSheet({ vm.backupUi.value = BackupUi.Idle }, "쿠폰 ${b.count}개를 저장했어요",
-            "새 폰에서는 [백업 파일 가져오기]로 열어요. 비밀번호를 꼭 기억해 주세요.") { PrimaryButton("확인", { vm.backupUi.value = BackupUi.Idle }) }
+            listOfNotNull("이미지가 없는 쿠폰 ${b.missingImages}개는 정보만 저장했어요.".takeIf { b.missingImages > 0 },
+                "새 폰에서는 [백업 파일 가져오기]로 열어요. 비밀번호를 꼭 기억해 주세요.").joinToString(" ")) { PrimaryButton("확인", { vm.backupUi.value = BackupUi.Idle }) }
         is BackupUi.Preview -> {
             val n = b.p.total - b.p.skipped
             AppSheet({ vm.cancelImport(b.p) }, if (n == 0) "새로 가져올 쿠폰이 없어요" else "쿠폰 ${b.p.total}개를 찾았어요",
-                if (n == 0) "이미 모두 있어요." else listOfNotNull("그중 이미 있는 쿠폰 ${b.p.skipped}개는 건너뛰어요.".takeIf { b.p.skipped > 0 }, "사용 기록·알림 설정도 함께 가져와요.").joinToString(" ")) {
+                if (n == 0) "이미 모두 있어요." else listOfNotNull("그중 이미 있는 쿠폰 ${b.p.skipped}개는 건너뛰어요.".takeIf { b.p.skipped > 0 }, // core D-15: merging into a phone in use keeps this phone's reminder settings
+                    if (st.coupons > 0) "사용 기록도 함께 가져와요. 알림 설정은 지금 폰 설정 그대로예요." else "사용 기록·알림 설정도 함께 가져와요.").joinToString(" ")) {
                 if (n > 0) PrimaryButton("${n}개 가져오기", { importing = true; vm.import(b.p) })
                 SecondaryButton(if (n == 0) "닫기" else "취소", { vm.cancelImport(b.p) })
             }
@@ -145,8 +147,9 @@ fun BackupScreen(nav: NavHostController) {
                 SecondaryButton("닫기", { vm.backupUi.value = BackupUi.Idle })
             }
             BackupFailure.IO -> AppSheet({ vm.backupUi.value = BackupUi.Idle },
-                if (exporting) "저장하지 못했어요" else "가져오지 못했어요",
-                if (exporting) "저장 공간을 확인하고 다시 해 주세요." else "파일을 읽지 못했어요. 지금 쿠폰은 그대로예요.") {
+                if (exporting) "백업하지 못했어요" else "가져오지 못했어요",
+                // core D-04: a failed export leaves the picked file as it was
+                if (exporting) "고른 파일은 그대로예요. 저장 공간을 확인하고 다시 해 주세요." else "파일을 읽지 못했어요. 지금 쿠폰은 그대로예요.") {
                 PrimaryButton("다시 하기", {
                     vm.backupUi.value = BackupUi.Idle
                     if (exporting) { password = ""; passwordFor = "export" } else openDoc.launch(arrayOf("*/*"))
