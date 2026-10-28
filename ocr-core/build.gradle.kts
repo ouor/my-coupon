@@ -35,7 +35,8 @@ object GoldenHash {
         if (!f.exists()) return null
         val md = MessageDigest.getInstance("SHA-256")
         val files = if (f.isDirectory) f.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".json") }.sortedBy { it.name } else listOf(f)
-        files.forEach { md.update(it.name.toByteArray()); md.update(it.readBytes()) }
+        // CR dropped: the hash must not depend on git's line-ending conversion
+        files.forEach { md.update(it.name.toByteArray()); md.update(it.readBytes().filter { b -> b != 13.toByte() }.toByteArray()) }
         return md.digest().joinToString("") { b -> "%02x".format(b) }
     }
 }
