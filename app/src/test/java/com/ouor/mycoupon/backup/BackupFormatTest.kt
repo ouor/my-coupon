@@ -65,4 +65,15 @@ class BackupFormatTest {
     fun unknownEnumRefused() {
         BackupFormat.toEntity(CouponV1(type = "GIFT", imagePath = "images/0"), "", "", "")
     }
+
+    /** D-12: a file that breaks the app's rules comes back inside them (balance <= face, a used coupon has usedAt). */
+    @Test
+    fun invariantsRestored() {
+        val c = BackupFormat.toEntity(CouponV1(type = "AMOUNT", faceValue = 5_000, balance = 9_000, imagePath = "images/0"), "", "", "h")
+        assertEquals(5_000L, c.balance)
+        val n = BackupFormat.toEntity(CouponV1(type = "AMOUNT", faceValue = 5_000, balance = null, imagePath = "images/0"), "", "", "h")
+        assertEquals(5_000L, n.balance)
+        val u = BackupFormat.toEntity(CouponV1(type = "PRODUCT", status = "USED", updatedAt = 77, imagePath = "images/0"), "", "", "h")
+        assertEquals(77L, u.usedAt)
+    }
 }

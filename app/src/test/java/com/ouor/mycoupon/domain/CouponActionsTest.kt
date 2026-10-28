@@ -90,7 +90,7 @@ class CouponActionsTest {
     }
 
     @Test(expected = UsageInputException::class)
-    fun overspendRefused() = runBlocking { actions.recordSpent(amount(), 20_000) }
+    fun overspendRefused() = runBlocking<Unit> { actions.recordSpent(amount(), 20_000) }
 
     /** A-04: a use recorded while S5 was open survives the save; a typed balance leaves an ADJUST record that undo reverts. */
     @Test
@@ -124,5 +124,37 @@ class CouponActionsTest {
         val id = amount()
         val opened = get(id)
         actions.edit(id, opened, opened.copy(balance = 50_000))
+    }
+
+    /** D-02: a balance typed at registration (no record before it) comes back on undo, not the face value. */
+    @Test
+    fun undoLastBalanceWithoutEarlierRecord() = runBlocking {
+        val id = repo.insertAll(listOf(Coupon(type = CouponType.AMOUNT, faceValue = 10_000, balance = 5_000, imagePath = "x", thumbPath = "x", imageHash = "h"))).single()
+        actions.recordRemaining(id, 3_000)
+        actions.undoLastBalance(id)
+        assertEquals(5_000L, get(id).balance)
+        assertTrue(logs(id).isEmpty())
+    }
+
+    /** D-07: an undo that names its record does nothing once a newer record exists. */
+    @Test
+    fun lateUndoKeepsNewerRecord() = runBlocking {
+        val id = amount()
+        val first = actions.recordRemaining(id, 8_000)
+        actions.recordRemaining(id, 6_000)
+        actions.undoLastBalance(id, first)
+        assertEquals(6_000L, get(id).balance)
+        assertEquals(2, logs(id).size)
+    }
+
+    /** D-08: an emptied balance is saved as the face value; [사용 완료] then records the face value. */
+    @Test
+    fun emptiedBalanceMeansFaceValue() = runBlocking {
+        val id = amount()
+        val opened = get(id)
+        actions.edit(id, opened, opened.copy(balance = null))
+        assertEquals(10_000L, get(id).balance)
+        actions.markUsed(id)
+        assertEquals(10_000L, logs(id).single().spent)
     }
 }

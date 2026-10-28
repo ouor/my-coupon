@@ -186,12 +186,16 @@ class CoreLogicTest {
         assertEquals(listOf("C", "A", "B"), CouponRepository.brandOrder(all, today)) // C just used; then A(2) = B(2) by name
     }
 
-    /** A15: a run that slipped past midnight keeps its planned day; older or missing plans use today. */
+    /** A15 / D-03: a run planned for yesterday that never sent brings yesterday's still-valid reminders, counted for today. */
     @Test
-    fun reminderRunDay() {
-        assertEquals(today.minusDays(1), ReminderWorker.day(today.minusDays(1).toEpochDay(), today))
-        assertEquals(today, ReminderWorker.day(today.toEpochDay(), today))
-        assertEquals(today, ReminderWorker.day(today.minusDays(2).toEpochDay(), today))
-        assertEquals(today, ReminderWorker.day(Long.MIN_VALUE, today))
+    fun lateRunKeepsBothDays() {
+        val y = today.minusDays(1).toEpochDay()
+        val endsToday = c(today) // due yesterday at D-1 and today at D-0
+        val endedYesterday = c(today.minusDays(1)) // due yesterday at D-0: expired now, left out
+        val sevenFromYesterday = c(today.plusDays(6)) // due yesterday at D-7 only
+        val all = listOf(endsToday, endedYesterday, sevenFromYesterday)
+        assertEquals(listOf(endsToday, sevenFromYesterday), ReminderWorker.dueNow(all, listOf(7, 1, 0), today, y, lastDay = y - 1))
+        assertEquals(listOf(endsToday), ReminderWorker.dueNow(all, listOf(7, 1, 0), today, y, lastDay = y)) // yesterday was sent
+        assertEquals(listOf(endsToday), ReminderWorker.dueNow(all, listOf(7, 1, 0), today, today.toEpochDay(), lastDay = y))
     }
 }

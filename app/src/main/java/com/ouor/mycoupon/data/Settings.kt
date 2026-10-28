@@ -111,7 +111,8 @@ class Settings @Inject constructor(@ApplicationContext context: Context) {
 
     /** Banner answered ([썼어요] / [아니요] / closed): never ask about [id] again. */
     fun answerUseAsk(id: Long) {
-        val set = (asked() + id.toString()).toList().takeLast(MAX_ASKED).toSet()
+        // D-17: ids only grow, so the newest are the largest (a StringSet has no order)
+        val set = (asked() + id.toString()).sortedBy { it.toLongOrNull() ?: 0 }.takeLast(MAX_ASKED).toSet()
         prefs.edit().putStringSet(K_ASKED, set).remove(K_LINGER_ID).remove(K_LINGER_AT).apply()
     }
 

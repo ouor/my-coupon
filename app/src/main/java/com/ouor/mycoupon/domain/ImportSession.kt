@@ -240,7 +240,8 @@ class ImportSession @Inject constructor(
                 if (st.origin == ImportOrigin.GALLERY_SCAN) d.mediaId?.let { repo.markScan(it, ScanResult.DISMISSED) }
             }
         }
-        _state.value = ImportState()
+        // D-10: a batch started while this one was registering is not this one; leave it
+        _state.compareAndSet(st, ImportState())
         scope.launch { recognizer.release() } // O-10: the sessions (~70 MB) are not kept once the batch is over; the next batch reloads them (~200 ms)
         return ids
     }
@@ -253,15 +254,22 @@ class ImportSession @Inject constructor(
 
     private fun clear() {
         job?.cancel()
-        _state.value.drafts.forEach { d -> d.coupon?.let { images.delete(it.imagePath, it.thumbPath) } }
+        // D-10: while register() runs, its copies belong to coupons being inserted; it deletes the unchosen ones itself
+        if (!registering.isLocked) _state.value.drafts.forEach { d -> d.coupon?.let { images.delete(it.imagePath, it.thumbPath) } }
         _state.value = ImportState()
     }
 
     /** Copies and recognises one image; [earlier] = coupons met before it in the same batch (F4 AC3). */
     suspend fun readDraft(key: Int, s: Source, earlier: List<Coupon> = emptyList()): Draft {
         val bytes = (if (s.capture != null) images.readCapture(s.capture) else images.read(s.uri)) ?: return Draft(key, sourceUri = s.mediaUri, mediaId = s.mediaId, stage = DraftStage.FAILED)
-        val stored = images.save(bytes)
-        val thumb = images.saveThumb(bytes)
+        // D-11: a full disk makes this card "읽지 못했어요" instead of ending the app
+        val stored = try { images.save(bytes) } catch (_: java.io.IOException) {
+            return Draft(key, sourceUri = s.mediaUri, mediaId = s.mediaId, stage = DraftStage.FAILED)
+        }
+        val thumb = try { images.saveThumb(bytes) } catch (_: java.io.IOException) {
+            images.delete(stored.path)
+            return Draft(key, sourceUri = s.mediaUri, mediaId = s.mediaId, stage = DraftStage.FAILED)
+        }
         try {
             return readStored(key, s, earlier, bytes, stored, thumb)
         } catch (e: CancellationException) {

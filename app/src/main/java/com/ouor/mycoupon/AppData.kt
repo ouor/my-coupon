@@ -57,10 +57,15 @@ class AppData @Inject constructor(
      */
     suspend fun cleanUp(before: Long) {
         backup.clearTemp()
-        File(context.cacheDir, ImageStore.CAPTURE_DIR).listFiles()?.filter { it.lastModified() < before }?.forEach { it.delete() } // C2-24
+        // C2-24 / D-01: a photo the camera wrote while this process was dead is read after the restart, so only day-old ones go
+        File(context.cacheDir, ImageStore.CAPTURE_DIR).listFiles()?.filter { it.lastModified() < before - DAY_MS }?.forEach { it.delete() }
         // A8: copies of a batch the previous process left open stay for S4's SavedState restore
         val keep = repo.all().flatMap { listOf(it.imagePath, it.thumbPath) }.toSet() + session.pendingPaths()
         images.removeOrphans(keep, before)
+    }
+
+    private companion object {
+        const val DAY_MS = 24 * 3600_000L
     }
 
     /** C2-16 "앱이 쓰는 공간 ○○MB (쿠폰 이미지 N장)": everything under the app's data dir, as the system app info counts it. */

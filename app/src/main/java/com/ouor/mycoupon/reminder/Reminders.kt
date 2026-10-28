@@ -53,7 +53,10 @@ object ReminderPlanner {
             if (c.status != CouponStatus.ACTIVE || exp < today) return@filter false
             ChronoUnit.DAYS.between(today, exp).toInt() in (c.reminderOffsets ?: defaults)
         }
-        .sortedWith(compareByDescending<Coupon> { amount(it) }.thenBy { it.expiryDate })
+        .sortedWith(ORDER)
+
+    /** N1 order (spec F8): amount desc, then expiry asc */
+    val ORDER: Comparator<Coupon> = compareByDescending<Coupon> { amount(it) }.thenBy { it.expiryDate }
 
     private fun amount(c: Coupon) = if (c.type == CouponType.AMOUNT) c.balance ?: c.faceValue ?: 0 else 0
 
@@ -137,7 +140,10 @@ class ReminderScheduler @Inject constructor(
 
     private fun enqueueNow(policy: ExistingWorkPolicy) {
         val now = LocalDateTime.now()
-        val next = ReminderPlanner.nextRun(now, settings.app.reminderTime)
+        val sentToday = context.getSharedPreferences("reminder", Context.MODE_PRIVATE).getLong(ReminderWorker.LAST_DAY, -1) == now.toLocalDate().toEpochDay()
+        // D-19: a new time that already passed today, before today's run happened, runs now instead of skipping today
+        val next = if (policy == ExistingWorkPolicy.REPLACE && !sentToday && !now.toLocalTime().isBefore(settings.app.reminderTime)) now
+        else ReminderPlanner.nextRun(now, settings.app.reminderTime)
         val req = ReminderWorker.request(now, next)
         wm.enqueueUniqueWork(WORK, policy, req)
     }
@@ -156,13 +162,14 @@ class ReminderWorker @AssistedInject constructor(
     private val notifier: ReminderNotifier,
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val today = day(inputData.getLong(KEY_DAY, Long.MIN_VALUE), LocalDate.now())
+        val today = LocalDate.now()
         val prefs = applicationContext.getSharedPreferences("reminder", Context.MODE_PRIVATE)
+        val lastDay = prefs.getLong(LAST_DAY, -1)
         // at most one notification a day (spec F8), even if the job runs twice
-        if (prefs.getLong("last_day", -1) != today.toEpochDay()) {
-            val due = ReminderPlanner.due(repo.active(), settings.app.reminderOffsets, today)
+        if (lastDay != today.toEpochDay()) {
+            val due = dueNow(repo.active(), settings.app.reminderOffsets, today, inputData.getLong(KEY_DAY, Long.MIN_VALUE), lastDay)
             if (due.isNotEmpty()) notifier.show(due, today)
-            prefs.edit().putLong("last_day", today.toEpochDay()).apply()
+            prefs.edit().putLong(LAST_DAY, today.toEpochDay()).apply()
         }
         // shortcut: W1 D-day refreshes here (reminder time) and on app open, not exactly at midnight
         runCatching { com.ouor.mycoupon.widget.CouponWidget().updateAll(applicationContext) }
@@ -176,6 +183,8 @@ class ReminderWorker @AssistedInject constructor(
 
     companion object {
         private const val KEY_DAY = "day"
+        /** reminder prefs key: epoch day of the last notification run */
+        const val LAST_DAY = "last_day"
 
         /** The run for [next]; its date travels in inputData (code review A15). */
         fun request(now: LocalDateTime, next: LocalDateTime) = OneTimeWorkRequestBuilder<ReminderWorker>()
@@ -184,11 +193,18 @@ class ReminderWorker @AssistedInject constructor(
             .build()
 
         /**
-         * A15: a run delayed past midnight (Doze, a late reminder time) still sends the planned day's reminders instead of
-         * skipping them; more than a day late, or no planned day (older job), it is today.
+         * Who is in today's one notification (A15, D-03). Counted for [today], so D-days are right and expired coupons are out.
+         * A run planned for yesterday that never sent ([lastDay] is not yesterday) also brings yesterday's reminders whose
+         * coupon is still valid, so a run delayed past midnight loses neither day.
          */
-        fun day(planned: Long, now: LocalDate): LocalDate =
-            if (planned == now.toEpochDay() - 1) LocalDate.ofEpochDay(planned) else now
+        fun dueNow(coupons: List<Coupon>, defaults: List<Int>, today: LocalDate, planned: Long, lastDay: Long): List<Coupon> {
+            val todays = ReminderPlanner.due(coupons, defaults, today)
+            val yesterday = today.minusDays(1)
+            if (planned != yesterday.toEpochDay() || lastDay == planned) return todays
+            val missed = ReminderPlanner.due(coupons, defaults, yesterday).filter { it.expiryDate!! >= today }
+            val ids = todays.map { it.id }.toSet()
+            return (todays + missed.filter { it.id !in ids }).sortedWith(ReminderPlanner.ORDER)
+        }
     }
 }
 

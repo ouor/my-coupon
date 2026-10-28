@@ -56,35 +56,39 @@ object UsageInput {
 @Singleton
 class CouponActions @Inject constructor(private val repo: CouponRepository) {
 
-    /** Exchange coupon [사용 완료], or F16 [넘겼어요] with [UsedReason.GIVEN] and the optional "누구에게" ([givenTo], C2-25). */
-    suspend fun markUsed(id: Long, reason: UsedReason = UsedReason.USED, givenTo: String? = null) = repo.transaction {
-        val c = repo.get(id) ?: return@transaction
-        if (c.status == CouponStatus.USED) return@transaction
+    /**
+     * Exchange coupon [사용 완료], or F16 [넘겼어요] with [UsedReason.GIVEN] and the optional "누구에게" ([givenTo], C2-25).
+     * Returns the new record's id (pass it to [undoUse] / [undoLastBalance]), null when nothing was recorded.
+     */
+    suspend fun markUsed(id: Long, reason: UsedReason = UsedReason.USED, givenTo: String? = null): Long? = repo.transaction {
+        val c = repo.get(id) ?: return@transaction null
+        if (c.status == CouponStatus.USED) return@transaction null
         val now = System.currentTimeMillis()
-        if (c.type == CouponType.AMOUNT) {
-            repo.addUsage(UsageLog(couponId = id, at = now, spent = c.balance ?: 0, balanceAfter = 0))
-        } else {
-            repo.addUsage(UsageLog(couponId = id, at = now, spent = null, balanceAfter = null))
-        }
+        // D-08: an amount voucher without a stored balance still has its face value left
+        val log = if (c.type == CouponType.AMOUNT) UsageLog(couponId = id, at = now, spent = c.balance ?: c.faceValue ?: 0, balanceAfter = 0)
+        else UsageLog(couponId = id, at = now, spent = null, balanceAfter = null)
+        val logId = repo.addUsage(log)
         val to = givenTo?.trim()?.take(MAX_GIVEN_TO)?.ifEmpty { null }.takeIf { reason == UsedReason.GIVEN }
         repo.update(used(c, reason, now).copy(balance = if (c.type == CouponType.AMOUNT) 0 else null, givenTo = to))
+        logId
     }
 
     /** Amount voucher: the balance left after this purchase. 0 marks it used; the same balance is refused (no 0원 record). */
-    suspend fun recordRemaining(id: Long, remaining: Long) = repo.transaction {
-        val c = repo.get(id) ?: return@transaction
+    suspend fun recordRemaining(id: Long, remaining: Long): Long? = repo.transaction {
+        val c = repo.get(id) ?: return@transaction null
         val bal = c.balance ?: c.faceValue ?: 0
         if (c.type != CouponType.AMOUNT) throw UsageInputException(UsageError.NOT_AMOUNT, "금액권만 잔액을 기록할 수 있어요")
         UsageInput.remaining(bal, remaining)
         val now = System.currentTimeMillis()
-        repo.addUsage(UsageLog(couponId = id, at = now, spent = bal - remaining, balanceAfter = remaining))
+        val logId = repo.addUsage(UsageLog(couponId = id, at = now, spent = bal - remaining, balanceAfter = remaining))
         repo.update(if (remaining == 0L) used(c, UsedReason.USED, now).copy(balance = 0) else c.copy(balance = remaining))
+        logId
     }
 
     /** Amount voucher: the amount spent (S8 "쓴 금액으로 입력"). Must not exceed the balance (F7 AC2). */
-    suspend fun recordSpent(id: Long, spent: Long) = repo.transaction {
+    suspend fun recordSpent(id: Long, spent: Long): Long? = repo.transaction {
         // read and write in one transaction: a second record in between must not be checked against a stale balance (A-05)
-        val c = repo.get(id) ?: return@transaction
+        val c = repo.get(id) ?: return@transaction null
         val bal = c.balance ?: c.faceValue ?: 0
         recordRemaining(id, UsageInput.spent(bal, spent))
     }
@@ -104,7 +108,7 @@ class CouponActions @Inject constructor(private val repo: CouponRepository) {
         // the editor's rule: a balance still equal to the face value follows a corrected face value
         val balance = when {
             type != CouponType.AMOUNT -> null
-            after.balance != before.balance -> typedBalance
+            after.balance != before.balance -> typedBalance ?: face // D-08: an emptied balance field means "unused"
             cur.type != CouponType.AMOUNT -> face
             cur.balance == null || cur.balance == cur.faceValue -> face
             else -> cur.balance
@@ -132,11 +136,15 @@ class CouponActions @Inject constructor(private val repo: CouponRepository) {
         repo.get(id)?.let { repo.delete(it) }
     }
 
-    /** S13 [되돌리기]: back to ACTIVE. A use that zeroed an amount voucher is undone with it. */
-    suspend fun undoUse(id: Long) = repo.transaction {
+    /**
+     * S13 [되돌리기]: back to ACTIVE. A use that zeroed an amount voucher is undone with it. With [logId] (from [markUsed]) it
+     * acts only while that record is still the last one, so an undo that runs late never removes an older record (D-07).
+     */
+    suspend fun undoUse(id: Long, logId: Long? = null) = repo.transaction {
         val c = repo.get(id) ?: return@transaction
         if (c.status != CouponStatus.USED) return@transaction
         val last = repo.usageOf(id).firstOrNull()
+        if (logId != null && last?.id != logId) return@transaction
         var balance = c.balance
         if (last != null && (c.type != CouponType.AMOUNT || last.balanceAfter == 0L)) {
             repo.removeUsage(last)
@@ -145,38 +153,45 @@ class CouponActions @Inject constructor(private val repo: CouponRepository) {
         repo.update(c.copy(status = CouponStatus.ACTIVE, usedReason = null, usedAt = null, usedViaReminder = false, balance = balance, givenTo = null))
     }
 
-    /** S6 "마지막 기록 취소" on an amount voucher. */
-    suspend fun undoLastBalance(id: Long) = repo.transaction {
+    /**
+     * S6 "마지막 기록 취소" on an amount voucher. The balance before the removed record comes from that record itself
+     * (D-02: a balance typed at registration has no record before it). [logId] as in [undoUse].
+     */
+    suspend fun undoLastBalance(id: Long, logId: Long? = null) = repo.transaction {
         val c = repo.get(id) ?: return@transaction
-        val logs = repo.usageOf(id)
-        val last = logs.firstOrNull() ?: return@transaction
+        val last = repo.usageOf(id).firstOrNull() ?: return@transaction
+        if (logId != null && last.id != logId) return@transaction
         repo.removeUsage(last)
-        val prev = logs.getOrNull(1)?.balanceAfter ?: c.faceValue
-        val reopened = if (c.status == CouponStatus.USED) c.copy(status = CouponStatus.ACTIVE, usedReason = null, usedAt = null, usedViaReminder = false) else c
-        repo.update(reopened.copy(balance = prev))
+        val face = c.faceValue
+        val before = (last.balanceAfter ?: 0) + (last.spent ?: 0)
+        val prev = if (face != null) before.coerceIn(0, face) else before.coerceAtLeast(0)
+        val reopened = if (c.status == CouponStatus.USED) c.copy(status = CouponStatus.ACTIVE, usedReason = null, usedAt = null, usedViaReminder = false, givenTo = null) else c
+        val next = reopened.copy(balance = if (c.type == CouponType.AMOUNT) prev else null)
+        validate(next) // D-09
+        repo.update(next)
     }
 
     /** S5 [맞아요]: the field (porting-spec key) no longer needs a check. */
-    suspend fun confirm(id: Long, field: String) {
-        val c = repo.get(id) ?: return
+    suspend fun confirm(id: Long, field: String) = repo.transaction { // D-06: the whole-row write sees the latest row
+        val c = repo.get(id) ?: return@transaction
         repo.update(c.copy(needsReview = c.needsReview - field))
     }
 
     /** N1 tap → S6: remembered for F18 "알림 받고 쓴 쿠폰". */
-    suspend fun openedFromReminder(id: Long) {
-        val c = repo.get(id) ?: return
+    suspend fun openedFromReminder(id: Long) = repo.transaction {
+        val c = repo.get(id) ?: return@transaction
         repo.update(c.copy(reminderOpenedAt = System.currentTimeMillis()))
     }
 
     /** F10 [그대로 두기] / after the trash request: do not ask again. */
-    suspend fun trashAnswered(id: Long) {
-        val c = repo.get(id) ?: return
+    suspend fun trashAnswered(id: Long) = repo.transaction {
+        val c = repo.get(id) ?: return@transaction
         repo.update(c.copy(trashAsked = true))
     }
 
     /** S12: null = follow settings. */
-    suspend fun setReminderOffsets(id: Long, offsets: List<Int>?) {
-        val c = repo.get(id) ?: return
+    suspend fun setReminderOffsets(id: Long, offsets: List<Int>?) = repo.transaction {
+        val c = repo.get(id) ?: return@transaction
         repo.update(c.copy(reminderOffsets = offsets?.distinct()?.sortedDescending()))
     }
 
@@ -184,6 +199,8 @@ class CouponActions @Inject constructor(private val repo: CouponRepository) {
     fun validate(c: Coupon) {
         if (c.type == CouponType.EXCHANGE) require(c.faceValue == null && c.balance == null) { "exchange coupon with an amount" }
         c.faceValue?.let { require(it >= 0) { "negative face value" } }
+        // D-08: an amount voucher with a face value always has a balance (edit() saves an emptied balance as the face value)
+        if (c.type == CouponType.AMOUNT && c.faceValue != null) require(c.balance != null) { "amount voucher without a balance" }
         c.balance?.let { b ->
             require(b >= 0) { "negative balance" }
             c.faceValue?.let { require(b <= it) { "balance above face value" } }

@@ -14,6 +14,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -42,20 +43,34 @@ class BackupManager @Inject constructor(
     private val json = Json { ignoreUnknownKeys = true }
     private val tmpDir get() = File(context.cacheDir, "backup").apply { mkdirs() }
 
+    /** Coupons of the last [export] whose image copy was missing; they were backed up without an image (D-05). */
+    @Volatile var lastExportMissingImages = 0
+        private set
+
     /** Writes an encrypted backup of every coupon (fields, image copies, history, per-coupon reminders) and settings. Returns the coupon count. */
     suspend fun export(target: Uri, password: CharArray): Int = withContext(Dispatchers.IO) {
         val zip = File.createTempFile("export", ".zip", tmpDir)
+        val enc = File.createTempFile("export", ".enc", tmpDir)
         val job = coroutineContext.job
+        // D-04: a file the user picked to replace is deleted on failure only if it was empty, i.e. SAF made it for this export
+        val wasEmpty = runCatching {
+            context.contentResolver.query(target, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c -> c.moveToFirst() && c.getLong(0) == 0L }
+        }.getOrNull() == true
         try {
-            val coupons = repo.all()
-            val usage = repo.allUsage().groupBy { it.couponId }
+            // D-14: coupons and history from one snapshot
+            val (coupons, usage) = repo.transaction { repo.all() to repo.allUsage().groupBy { it.couponId } }
+            var missing = 0
             ZipOutputStream(zip.outputStream().buffered()).use { z ->
                 val entries = coupons.mapIndexed { i, c ->
                     job.ensureActive()
-                    val name = "images/$i"
-                    z.putNextEntry(ZipEntry(name))
-                    File(c.imagePath).inputStream().use { it.copyTo(z) }
-                    z.closeEntry()
+                    val img = File(c.imagePath)
+                    // D-05: a lost image copy must not stop the backup of every coupon; the fields still go
+                    val name = if (img.isFile) "images/$i" else "".also { missing++ }
+                    if (name.isNotEmpty()) {
+                        z.putNextEntry(ZipEntry(name))
+                        img.inputStream().use { it.copyTo(z) }
+                        z.closeEntry()
+                    }
                     BackupCoupon(BackupFormat.toFile(c, name), usage[c.id].orEmpty().map(BackupFormat::toFile))
                 }
                 z.putNextEntry(ZipEntry(MANIFEST))
@@ -63,16 +78,21 @@ class BackupManager @Inject constructor(
                 z.closeEntry()
             }
             job.ensureActive()
+            // D-04: the whole encrypted file is made first; the target is touched only once nothing can fail but the copy
+            enc.outputStream().buffered().use { o -> zip.inputStream().buffered().use { BackupCrypto.encrypt(it, o, password, checkpoint = job::ensureActive) } }
+            job.ensureActive()
             val out = context.contentResolver.openOutputStream(target, "wt") ?: error("cannot open target")
-            out.use { o -> zip.inputStream().buffered().use { BackupCrypto.encrypt(it, o, password, checkpoint = job::ensureActive) } }
+            out.use { o -> enc.inputStream().use { it.copyTo(o) } }
             settings.lastBackupAt = System.currentTimeMillis()
+            lastExportMissingImages = missing
             coupons.size
         } catch (e: Exception) {
-            // [그만두기] or a write error: never leave a half-written backup behind (QA R1-04)
-            runCatching { DocumentsContract.deleteDocument(context.contentResolver, target) } // the empty file SAF created for this export
+            // [그만두기] or a write error: no half-written new file (QA R1-04); a file that held an older backup stays (D-04)
+            if (wasEmpty) runCatching { DocumentsContract.deleteDocument(context.contentResolver, target) }
             throw e
         } finally {
             zip.delete()
+            enc.delete()
         }
     }
 
@@ -102,22 +122,27 @@ class BackupManager @Inject constructor(
     /** Merges the preview into the app (spec F15): same number (or same image without a number) is skipped. Returns imported count. */
     suspend fun import(p: BackupPreview): Int = withContext(Dispatchers.IO + NonCancellable) { // a cancel after the commit must not delete the copied images
         val copied = ArrayList<String>()
+        var wasEmpty = false
         try {
             val count = ZipFile(p.zip).use { z ->
                 // decide skips once, also within the file itself
                 val seenKeys = HashSet<String>()
                 val prepared = ArrayList<Pair<Coupon, List<UsageV1>>>()
                 for (bc in p.manifest.coupons) {
-                    val bytes = read(z, bc.coupon.imagePath, MAX_IMAGE)
+                    // D-05: a coupon saved without its image (the copy was lost) comes back with fields only
+                    val bytes = if (bc.coupon.imagePath.isEmpty()) null else read(z, bc.coupon.imagePath, MAX_IMAGE)
                     // S-04: the hash comes from the bytes, never from the file's claim (duplicate check)
-                    val c = BackupFormat.toEntity(bc.coupon, "", "", ImageCodec.sha256(bytes))
+                    val hash = bytes?.let(ImageCodec::sha256) ?: ("none:" + java.util.UUID.randomUUID())
+                    val c = BackupFormat.toEntity(bc.coupon, "", "", hash)
                     if (repo.findDuplicate(c) != null || !seenKeys.add(c.codeKey ?: ("img:" + c.imageHash))) continue
+                    if (bytes == null) { prepared += c to bc.usage; continue }
                     val stored = images.save(bytes)
                     copied += stored.path
                     val thumb = images.saveThumb(bytes)
                     copied += thumb
                     prepared += c.copy(imagePath = stored.path, thumbPath = thumb) to bc.usage
                 }
+                wasEmpty = repo.all().isEmpty()
                 repo.transaction {
                     for ((c, logs) in prepared) {
                         val id = repo.insertAll(listOf(c)).single()
@@ -126,7 +151,8 @@ class BackupManager @Inject constructor(
                 }
                 prepared.size
             }
-            settings.app = BackupFormat.toSettings(p.manifest.settings)
+            // D-15: a merge into a phone already in use keeps its reminder settings; a new phone takes the file's
+            if (wasEmpty) settings.app = BackupFormat.toSettings(p.manifest.settings)
             reminders.reschedule()
             count
         } catch (e: Exception) {

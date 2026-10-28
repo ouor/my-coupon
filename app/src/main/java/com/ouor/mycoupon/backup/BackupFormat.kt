@@ -112,13 +112,20 @@ object BackupFormat {
 
     fun toFile(s: AppSettings) = SettingsV1(s.reminderOffsets, s.reminderMinute)
 
-    /** File -> entity without id, image paths or source uri (the caller fills them). */
+    /**
+     * File -> entity without id, image paths or source uri (the caller fills them). Values that break the app's invariants
+     * (CouponActions.validate, D-12) are brought back into range, so a restored coupon can always be edited and saved.
+     */
     fun toEntity(f: CouponV1, imagePath: String, thumbPath: String, imageHash: String): Coupon {
         val type = enumOf<CouponType>(f.type)
+        val status = enumOf<CouponStatus>(f.status)
+        val face = f.faceValue?.takeIf { type == CouponType.AMOUNT && it >= 0 }
+        val balance = if (type != CouponType.AMOUNT) null
+        else (f.balance?.takeIf { it >= 0 } ?: face)?.let { b -> if (face != null) minOf(b, face) else b }
         return Coupon(
             brand = f.brand.cap(), productName = f.productName.cap(), type = type,
-            faceValue = f.faceValue?.takeIf { type == CouponType.AMOUNT && it >= 0 },
-            balance = f.balance?.takeIf { type == CouponType.AMOUNT && it >= 0 },
+            faceValue = face,
+            balance = balance,
             code = f.code.cap(), codeKey = Coupon.codeKey(f.code.cap()), codeFormat = f.codeFormat.cap(),
             codeSource = f.codeSource?.let { enumOf<CodeSource>(it) },
             expiryDate = f.expiryDate?.let(::date), issuer = f.issuer.cap(), notes = f.notes.cap(), memo = f.memo.cap(),
@@ -129,7 +136,8 @@ object BackupFormat {
             imagePath = imagePath, thumbPath = thumbPath,
             imageWidth = f.imageWidth.coerceAtLeast(0), imageHeight = f.imageHeight.coerceAtLeast(0),
             imageHash = imageHash, sourceUri = null,
-            status = enumOf(f.status), usedReason = f.usedReason?.let { enumOf<UsedReason>(it) }, usedAt = f.usedAt,
+            status = status, usedReason = f.usedReason?.let { enumOf<UsedReason>(it) },
+            usedAt = f.usedAt ?: f.updatedAt.takeIf { status == CouponStatus.USED },
             usedViaReminder = f.usedViaReminder, reminderOpenedAt = f.reminderOpenedAt,
             reminderOffsets = f.reminderOffsets?.let(::offsets), trashAsked = f.trashAsked,
             createdAt = f.createdAt, updatedAt = f.updatedAt,
