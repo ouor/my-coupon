@@ -56,10 +56,6 @@ class PaddleOcrEngine private constructor(
         if (options.arena && options.shrinkArena) addRunConfigEntry("memory.enable_memory_arena_shrinkage", "cpu:0")
     }
 
-    /** Rec batches that could not use the pinned output (T formula did not hold); tests expect 0. */
-    var pinnedMisses = 0
-        private set
-
     @Volatile
     var lastTimings: Timings? = null
         private set
@@ -84,6 +80,10 @@ class PaddleOcrEngine private constructor(
         if (classes != chars.size.toLong()) {
             close()
             throw IllegalStateException("rec model has $classes classes, dict gives ${chars.size}") // O-11: wrong dict = silently wrong text
+        }
+        if (!rec.outputNames.containsAll(listOf(BEST, BEST_P))) {
+            close()
+            throw IllegalStateException("rec model lacks the $BEST/$BEST_P outputs (tools/rec_argmax.py)")
         }
     }
 
@@ -203,33 +203,18 @@ class PaddleOcrEngine private constructor(
         val chunk = b.chunk
         val maxW = b.maxW
         val buf = b.buf
-        run {
-            OnnxTensor.createTensor(env, buf, longArrayOf(chunk.size.toLong(), 3, 48, maxW.toLong())).use { x ->
-                // [N, T, 11947] probabilities reach ~115 MB for 6 wide lines. ORT's getFloatBuffer() copies the native output
-                // to the heap, so the output goes into our own direct buffer instead: one copy, not two (code review O-01).
-                val steps = (maxW + 3) / 8 // PP-OCRv5 rec: T = floor((W + 3) / 8), checked for W 320..720 and 3150..3200
-                val classes = chars.size
-                val probs = direct(chunk.size * steps * classes)
-                val pinned = runCatching {
-                    OnnxTensor.createTensor(env, probs, longArrayOf(chunk.size.toLong(), steps.toLong(), classes.toLong()))
-                }.getOrNull()
-                val ran = pinned?.use { o ->
-                    runCatching { rec.run(mapOf("x" to x), emptySet(), mapOf(recOutput to o), runOptions).close() }.isSuccess
-                } == true
-                if (ran) {
-                    chunk.forEachIndexed { k, i -> res[i] = ctc(probs, k * steps * classes, steps, classes) }
-                } else rec.run(mapOf("x" to x), runOptions).use { out -> // a model whose T differs: the copying path
-                    pinnedMisses++
-                    val t = out[0] as OnnxTensor
-                    val shape = t.info.shape
-                    val p = t.floatBuffer
-                    chunk.forEachIndexed { k, i -> res[i] = ctc(p, k * shape[1].toInt() * shape[2].toInt(), shape[1].toInt(), shape[2].toInt()) }
-                }
+        OnnxTensor.createTensor(env, buf, longArrayOf(chunk.size.toLong(), 3, 48, maxW.toLong())).use { x ->
+            // P-01 (code review 2): only the per-step best class and its probability leave ORT; the [N, T, 11947]
+            // probabilities (~115 MB for 6 wide lines) stay a native intermediate instead of a Java-heap buffer.
+            rec.run(mapOf("x" to x), setOf(BEST, BEST_P), runOptions).use { out ->
+                val best = (out[BEST].get() as OnnxTensor)
+                val steps = best.info.shape[1].toInt()
+                val ids = best.longBuffer
+                val ps = (out[BEST_P].get() as OnnxTensor).floatBuffer
+                chunk.forEachIndexed { k, i -> res[i] = ctc(ids, ps, k * steps, steps) }
             }
         }
     }
-
-    private val recOutput: String = rec.outputNames.first()
 
     /** O-09: prepares the next rec batch; daemon so a forgotten close() never keeps the process alive */
     private val prep = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "ocr-rec-prep").apply { isDaemon = true } }
@@ -245,20 +230,20 @@ class PaddleOcrEngine private constructor(
 
     private companion object {
         const val MAX_REC_W = 3200
+        /** outputs tools/rec_argmax.py adds: ArgMax (first maximum, int64) and ReduceMax over the classes, [N, T] */
+        const val BEST = "best"
+        const val BEST_P = "best_p"
     }
 
-    private fun ctc(p: FloatBuffer, off: Int, steps: Int, classes: Int): Pair<String, Float> {
+    /** CTC greedy decode of one line from the model's per-step best class [ids] and its probability [ps]. */
+    private fun ctc(ids: java.nio.LongBuffer, ps: FloatBuffer, off: Int, steps: Int): Pair<String, Float> {
         val sb = StringBuilder()
         var sum = 0.0
         var n = 0
         var prev = -1
         for (t in 0 until steps) {
-            var best = 0
-            var bp = p[off + t * classes]
-            val row = off + t * classes
-            for (c in 1 until classes) if (p[row + c] > bp) {
-                bp = p[row + c]; best = c
-            }
+            val best = ids[off + t].toInt()
+            val bp = ps[off + t]
             if (best != prev && best != 0) {
                 sb.append(chars[best]); sum += bp; n++
             }

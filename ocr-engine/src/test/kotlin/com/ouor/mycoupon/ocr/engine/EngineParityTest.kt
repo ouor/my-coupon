@@ -112,11 +112,9 @@ class EngineParityTest {
                 }
             }
         }
-        val misses = engine.pinnedMisses
         engine.close()
         val c = Counts(texts, textsSame, images, identical, lines, boxOk, scoreOk)
-        println("engine parity @$maxSide: texts $textsSame/$texts, identical images $identical/$images, boxes $boxOk/$lines, scores $scoreOk/$lines, pinned misses $misses")
-        assertEquals("rec batches that fell back to the copying path", 0, misses)
+        println("engine parity @$maxSide: texts $textsSame/$texts, identical images $identical/$images, boxes $boxOk/$lines, scores $scoreOk/$lines")
         return c
     }
 }
