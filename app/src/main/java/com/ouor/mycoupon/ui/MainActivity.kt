@@ -1,5 +1,7 @@
 package com.ouor.mycoupon.ui
 
+import androidx.glance.appwidget.updateAll
+import com.ouor.mycoupon.widget.CouponWidget
 import com.ouor.mycoupon.ui.home.HomeViewModel
 import com.ouor.mycoupon.ui.importing.ImportViewModel
 import android.content.Intent
@@ -60,6 +62,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         homeVm.refresh()
+        // QA C2Q-07: the font size changed while the process was not watching (or the widget was drawn before): redraw it
+        if (CouponWidget.fontScale(this) != CouponWidget.drawnScale) lifecycleScope.launch { runCatching { CouponWidget().updateAll(applicationContext) } }
     }
 
     private fun handle(intent: Intent, nav: NavHostController) {

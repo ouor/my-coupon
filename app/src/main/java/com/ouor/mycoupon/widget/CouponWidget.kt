@@ -1,5 +1,7 @@
 package com.ouor.mycoupon.widget
 
+import android.database.ContentObserver
+import android.provider.Settings
 import com.ouor.mycoupon.ui.theme.DarkColors
 import com.ouor.mycoupon.ui.theme.DarkStatus
 import com.ouor.mycoupon.ui.theme.LightColors
@@ -77,6 +79,13 @@ class CouponWidget : GlanceAppWidget() {
     // review U14: as many rows as the widget is tall, no empty lower half
     override val sizeMode = SizeMode.Exact
 
+    companion object {
+        /** QA C2Q-07: the system value now; a long-lived process's resources keep the old scale */
+        fun fontScale(context: Context) = Settings.System.getFloat(context.contentResolver, Settings.System.FONT_SCALE, 1f)
+        /** the scale the widget was last drawn with in this process (0 = not yet) */
+        @Volatile var drawnScale = 0f
+    }
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val repo = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java).repository()
         val open = AppIntents.home(context)
@@ -86,7 +95,7 @@ class CouponWidget : GlanceAppWidget() {
             val all by repo.observeAll().collectAsState(initial)
             val today = LocalDate.now()
             // C2Q-01: rows grow with the system font size (200 %: two-line rows overlapped at a fixed 52 dp), so fewer fit
-            val fs = context.resources.configuration.fontScale.coerceAtLeast(1f)
+            val fs = fontScale(context).also { drawnScale = it }.coerceAtLeast(1f)
             // round-2 V2: a two-line row needs about 26 dp more per +100 % (52 × scale left 2/3 of the widget empty)
             val rowH = 52f + 26f * (fs - 1f)
             val rows = ((LocalSize.current.height.value - 20f - 24f * fs) / rowH).toInt().coerceIn(1, 6)
@@ -146,6 +155,12 @@ class WidgetUpdater @Inject constructor(
     @ApplicationContext private val context: Context,
     @AppScope private val scope: CoroutineScope,
 ) : CouponChangeListener {
+    init {
+        // QA C2Q-07: a font size change redraws the rows while the app process is alive (no broadcast reaches a manifest receiver)
+        context.contentResolver.registerContentObserver(Settings.System.getUriFor(Settings.System.FONT_SCALE), false,
+            object : ContentObserver(null) { override fun onChange(selfChange: Boolean) = onCouponsChanged() })
+    }
+
     override fun onCouponsChanged() {
         scope.launch { runCatching { CouponWidget().updateAll(context) } }
     }
