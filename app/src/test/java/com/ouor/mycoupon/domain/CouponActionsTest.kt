@@ -157,4 +157,15 @@ class CouponActionsTest {
         actions.markUsed(id)
         assertEquals(10_000L, logs(id).single().spent)
     }
+
+    /** A2-11: a change inside a transaction tells the listeners once, after the commit. */
+    @Test
+    fun oneNoticeAfterCommit() = runBlocking {
+        var calls = 0
+        val counted = CouponRepository(db, ImageStore(ApplicationProvider.getApplicationContext()),
+            setOf(object : com.ouor.mycoupon.data.CouponChangeListener { override fun onCouponsChanged() { calls++ } }))
+        val id = amount()
+        CouponActions(counted).recordRemaining(id, 8_000)
+        assertEquals(1, calls)
+    }
 }

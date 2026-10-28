@@ -50,8 +50,9 @@ interface CouponDao {
     @Query("SELECT * FROM coupon WHERE id = :id")
     suspend fun get(id: Long): Coupon?
 
-    @Query("SELECT * FROM coupon WHERE status = 'ACTIVE'")
-    suspend fun active(): List<Coupon>
+    // A2-08: enum values as arguments, so the converter names them (no string literal to drift)
+    @Query("SELECT * FROM coupon WHERE status = :status")
+    suspend fun active(status: CouponStatus = CouponStatus.ACTIVE): List<Coupon>
 
     @Query("SELECT * FROM coupon WHERE codeKey = :key")
     suspend fun byCodeKey(key: String): List<Coupon>
@@ -86,8 +87,8 @@ interface UsageDao {
 @Dao
 interface ScanDao {
     /** settled images: everything except found-but-not-yet-reviewed coupons (S9 offers those again after a restart) */
-    @Query("SELECT * FROM scan_log WHERE result != 'COUPON'")
-    suspend fun settled(): List<ScanLog>
+    @Query("SELECT * FROM scan_log WHERE result != :pending")
+    suspend fun settled(pending: ScanResult = ScanResult.COUPON): List<ScanLog>
 
     @Query("SELECT * FROM scan_log WHERE mediaId = :id")
     suspend fun get(id: Long): ScanLog?

@@ -125,7 +125,13 @@ class CouponRepository @Inject constructor(
         changed()
     }
 
-    fun changed() = listeners.forEach { it.onCouponsChanged() }
+    /**
+     * Tells the widget, tile and reminders. Inside [transaction] it waits: the transaction tells them once, after the commit,
+     * so they never read rows that are not committed yet (A2-11).
+     */
+    fun changed() {
+        if (!db.inTransaction()) listeners.forEach { it.onCouponsChanged() }
+    }
 
     companion object {
         /** spec F5 search: brand / product / memo / given-to (C2-25), case- and space-insensitive substring. */
