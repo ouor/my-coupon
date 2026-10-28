@@ -133,9 +133,14 @@ class PaddleOcrEngine private constructor(
         val buf = direct(3 * plane) // direct: ORT uses it in place instead of copying it (code review O-03)
         val mean = floatArrayOf(0.485f, 0.456f, 0.406f)
         val std = floatArrayOf(0.229f, 0.224f, 0.225f)
-        for (i in 0 until plane) for (c in 0 until 3) {
-            buf.put(c * plane + i, ((r.data[i * 3 + c].toInt() and 0xFF) / 255f - mean[c]) / std[c])
+        // P-12: one channel row at a time into a heap array, then one bulk put (same values)
+        val row = FloatArray(rw)
+        for (c in 0 until 3) for (y in 0 until rh) {
+            for (x in 0 until rw) row[x] = ((r.data[(y * rw + x) * 3 + c].toInt() and 0xFF) / 255f - mean[c]) / std[c]
+            buf.position(c * plane + y * rw)
+            buf.put(row)
         }
+        buf.rewind()
         val pred = OnnxTensor.createTensor(env, buf, longArrayOf(1, 3, rh.toLong(), rw.toLong())).use { x ->
             det.run(mapOf("x" to x), runOptions).use { res ->
                 val fb = (res[0] as OnnxTensor).floatBuffer // already a heap copy: take its array, no second copy
@@ -192,10 +197,14 @@ class PaddleOcrEngine private constructor(
             val rw = if (widths[k] >= MAX_REC_W) MAX_REC_W else minOf(widths[k], ceil(48.0 * c.width / c.height).toInt())
             val r = ImageOps.resizeLinear(c, rw.coerceAtLeast(1), 48)
             val base = k * 3 * plane
-            for (y in 0 until 48) for (x in 0 until r.width) for (ch in 0 until 3) {
-                buf.put(base + ch * plane + y * maxW + x, ((r.data[(y * r.width + x) * 3 + ch].toInt() and 0xFF) / 255f - 0.5f) / 0.5f)
+            val row = FloatArray(r.width) // P-12: bulk put per channel row (same values)
+            for (ch in 0 until 3) for (y in 0 until 48) {
+                for (x in 0 until r.width) row[x] = ((r.data[(y * r.width + x) * 3 + ch].toInt() and 0xFF) / 255f - 0.5f) / 0.5f
+                buf.position(base + ch * plane + y * maxW)
+                buf.put(row)
             }
         }
+        buf.rewind()
         return Batch(chunk, maxW, buf)
     }
 
