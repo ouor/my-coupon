@@ -63,7 +63,7 @@ fun RemindersScreen(nav: NavHostController) {
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {
             if (off)
                 InfoBanner(Icons.Rounded.NotificationsOff, "알림이 꺼져 있어요", MaterialTheme.statusColors.reviewContainer, MaterialTheme.colorScheme.onSurface,
-                    Modifier.padding(horizontal = Spacing.l)) { TextButton({ openNotificationSettings(activity) }) { Text("켜기") } }
+                    Modifier.padding(horizontal = Spacing.l), inlineActions = true) { TextButton({ openNotificationSettings(activity) }) { Text("켜기") } }
             SectionTitle("알림 시점")
             Column(Modifier.padding(horizontal = Spacing.l)) {
                 OffsetChecks(st.app.reminderOffsets) { list ->

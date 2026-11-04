@@ -132,6 +132,7 @@ fun InfoBanner(
     icon: ImageVector, text: String, container: Color, content: Color,
     modifier: Modifier = Modifier, onClick: (() -> Unit)? = null,
     sub: String? = null,
+    inlineActions: Boolean = false, // owner feedback 11-04: a single short button sits right of the text, not on its own line
     actions: @Composable () -> Unit = {},
 ) {
     val colors = CardDefaults.cardColors(containerColor = container, contentColor = content)
@@ -145,8 +146,9 @@ fun InfoBanner(
                 Text(text, style = MaterialTheme.typography.bodyMedium)
                 sub?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             }
+            if (inlineActions) actions()
         }
-        Row(Modifier.fillMaxWidth().padding(end = Spacing.s, bottom = Spacing.xs), horizontalArrangement = Arrangement.End) { actions() }
+        if (!inlineActions) Row(Modifier.fillMaxWidth().padding(end = Spacing.s, bottom = Spacing.xs), horizontalArrangement = Arrangement.End) { actions() }
     }
     if (onClick != null) Card(onClick, modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, colors = colors, content = body)
     else Card(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, colors = colors, content = body)

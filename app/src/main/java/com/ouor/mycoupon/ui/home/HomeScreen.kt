@@ -1,7 +1,7 @@
 package com.ouor.mycoupon.ui.home
 
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.layout.Placeable
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material3.AssistChip
 import androidx.compose.ui.semantics.Role
@@ -68,7 +68,6 @@ import androidx.compose.material.icons.rounded.CardGiftcard
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.PhotoLibrary
@@ -223,17 +222,15 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
             verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
             if (!searching) st.banner?.let { b -> item(key = "banner") { HomeBannerView(b, st, vm, nav, notifPermission::launch) } }
             item(key = "filters") {
-                // owner feedback 11-04: always one line. Narrow or large font scrolls the chips sideways (like the brand row); sort shrinks to an icon at large font
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Spacing.s),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        FilterChip(!past, { vm.filter.value = ListFilter.AVAILABLE }, { Text("사용 가능 ${st.availableCount}", style = MaterialTheme.typography.labelLarge, maxLines = 1) },
-                            Modifier.heightIn(min = Spacing.touch))
-                        FilterChip(past, { vm.filter.value = ListFilter.PAST }, { Text("지난 쿠폰", style = MaterialTheme.typography.labelLarge, maxLines = 1) },
-                            Modifier.heightIn(min = Spacing.touch))
-                    }
-                    if (!past) SortMenu(st.sort, compact = isLargeFont()) { vm.sort.value = it }
-                }
+                // owner feedback 11-04: all three on one line, never scrolled or cut, at any width or font
+                FilterRow(
+                    chips = { small ->
+                        val style = if (small) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge
+                        FilterChip(!past, { vm.filter.value = ListFilter.AVAILABLE }, { Text("사용 가능 ${st.availableCount}", style = style, maxLines = 1, softWrap = false) })
+                        FilterChip(past, { vm.filter.value = ListFilter.PAST }, { Text("지난 쿠폰", style = style, maxLines = 1, softWrap = false) })
+                    },
+                    sort = { iconOnly -> if (!past) SortMenu(st.sort, iconOnly) { vm.sort.value = it } },
+                )
             }
             // review U9: find a coupon at the counter in one tap
             // C2-10: the banner tap shows only today's and tomorrow's; this chip undoes it
@@ -307,18 +304,41 @@ private fun SearchTopBar(query: String, onQuery: (String) -> Unit, onClose: () -
     )
 }
 
+/**
+ * Chips left, sort right, one line. Falls back step by step only when the line overflows (large font, narrow phone):
+ * sort chip -> sort icon -> smaller chip text. Chips keep their 48dp touch target (M3 minimumInteractiveComponentSize).
+ */
+@Composable
+private fun FilterRow(chips: @Composable (small: Boolean) -> Unit, sort: @Composable (iconOnly: Boolean) -> Unit) {
+    SubcomposeLayout(Modifier.fillMaxWidth()) { c ->
+        val loose = c.copy(minWidth = 0)
+        val gap = Spacing.s.roundToPx()
+        fun row(key: String, content: @Composable () -> Unit) = subcompose(key, content).map { it.measure(loose) }
+        fun width(p: List<Placeable>) = p.sumOf { it.width } + gap * (p.size - 1).coerceAtLeast(0)
+        var chip = row("chips") { chips(false) }
+        var end = row("sort") { sort(false) }
+        if (width(chip) + gap + width(end) > c.maxWidth) end = row("sortIcon") { sort(true) }
+        if (width(chip) + gap + width(end) > c.maxWidth) chip = row("chipsSmall") { chips(true) }
+        val h = (chip + end).maxOfOrNull { it.height } ?: 0
+        layout(c.maxWidth, h) {
+            var x = 0
+            chip.forEach { it.placeRelative(x, (h - it.height) / 2); x += it.width + gap }
+            var r = c.maxWidth
+            end.asReversed().forEach { r -= it.width; it.placeRelative(r, (h - it.height) / 2) }
+        }
+    }
+}
+
 @Composable
 private fun SortMenu(sort: ListSort, compact: Boolean, onSort: (ListSort) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val label = { s: ListSort -> if (s == ListSort.EXPIRY) "만료 임박순" else "최근 등록순" }
+    // code review U-15: it opens a menu (an unselected FilterChip read as "checkbox, not checked"); TalkBack hears the full name
+    val a11y = Modifier.semantics { role = Role.DropdownList; contentDescription = "정렬"; stateDescription = label(sort) }
     Box {
-        // round-2 V13: a chip like its neighbours, not blue text
-        // code review U-15: it opens a menu (an unselected FilterChip read as "checkbox, not checked")
-        if (compact) IconButton({ open = true }, Modifier.semantics { role = Role.DropdownList; stateDescription = label(sort) }) {
-            Icon(Icons.AutoMirrored.Rounded.Sort, "정렬")
-        } else AssistChip({ open = true }, { Text(label(sort), style = MaterialTheme.typography.labelLarge, maxLines = 1) },
-            Modifier.padding(start = Spacing.s).heightIn(min = Spacing.touch).semantics { role = Role.DropdownList; stateDescription = "정렬" },
-            trailingIcon = { Icon(Icons.Rounded.ExpandMore, null, Modifier.size(18.dp)) })
+        if (compact) IconButton({ open = true }, a11y) { Icon(Icons.AutoMirrored.Rounded.Sort, null) }
+        else AssistChip({ open = true }, { Text(if (sort == ListSort.EXPIRY) "임박순" else "최근순", style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false) },
+            a11y, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Sort, null, Modifier.size(18.dp)) })
         DropdownMenu(open, { open = false }) {
             ListSort.entries.forEach { s ->
                 DropdownMenuItem({ Text(label(s), style = MaterialTheme.typography.bodyLarge) }, { open = false; onSort(s) })
@@ -343,7 +363,7 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
                 vm.crashBannerShown()
             }, "오류 기록 보내기")
         }
-        HomeBanner.NOTIFICATIONS_OFF -> InfoBanner(Icons.Rounded.NotificationsOff, "알림이 꺼져 있어 만료를 알려 드릴 수 없어요", s.reviewContainer, cs.onSurface) {
+        HomeBanner.NOTIFICATIONS_OFF -> InfoBanner(Icons.Rounded.NotificationsOff, "알림이 꺼져 있어 만료를 알려 드릴 수 없어요", s.reviewContainer, cs.onSurface, inlineActions = true) {
             BannerButton(onClick = {
                 if (Build.VERSION.SDK_INT >= 33 && !vm.notificationAsked) {
                     vm.notificationsAsked()

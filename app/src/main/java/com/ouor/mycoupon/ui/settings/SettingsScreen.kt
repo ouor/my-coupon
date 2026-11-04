@@ -122,7 +122,7 @@ fun SettingsScreen(nav: NavHostController) {
                 storage?.let { "${mb(it.bytes)} · 쿠폰 이미지 ${it.images}장" } ?: "재는 중", chevron = false, onClick = null)
             SectionTitle("도움")
             SettingRow(Icons.Rounded.PhonelinkLock, "개인정보 안내") { nav.navigate(Route.Privacy) }
-            SettingRow(Icons.Rounded.BugReport, "앱 문제 알리기 (오류 기록 보내기)", if (st.crashFiles.isEmpty()) "기록이 없어요" else "기록 ${st.crashFiles.size}건") {
+            SettingRow(Icons.Rounded.BugReport, "오류 기록 보내기", if (st.crashFiles.isEmpty()) "기록이 없어요" else "기록 ${st.crashFiles.size}건") {
                 val f = st.crashFiles.firstOrNull()
                 if (f == null) snackbar.show("보낼 오류 기록이 없어요") else context.startActivity(Sharing.intent(context, f, f.name, "text/plain"))
             }
