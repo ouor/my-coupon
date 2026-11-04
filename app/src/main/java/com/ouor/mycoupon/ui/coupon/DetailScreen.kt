@@ -1,5 +1,8 @@
 package com.ouor.mycoupon.ui.coupon
 
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.MoreVert
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -122,16 +125,16 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController, home: 
                 // C2-06: 56 dp targets, full-contrast icons and position; code review U-06: one step per tap
                 if (pos >= 0 && ring.size > 1 && undoLeft == 0) {
                     IconButton(dropUnlessResumed { go(-1) }, Modifier.size(Spacing.cta), enabled = pos > 0) {
-                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, if (pos > 0) "이전 쿠폰" else "이전 쿠폰 없음")
+                        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, if (pos > 0) "이전 쿠폰" else "이전 쿠폰 없음")
                     }
-                    Text("${pos + 1}/${ring.size}장", Modifier.semantics { contentDescription = "${ring.size}개 중 ${pos + 1}번째" },
-                        style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"), color = MaterialTheme.colorScheme.onSurface)
+                    Text("${pos + 1} / ${ring.size}", Modifier.semantics { contentDescription = "${ring.size}개 중 ${pos + 1}번째" },
+                        style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     IconButton(dropUnlessResumed { go(1) }, Modifier.size(Spacing.cta), enabled = pos < ring.lastIndex) {
-                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, if (pos < ring.lastIndex) "다음 쿠폰" else "다음 쿠폰 없음")
+                        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, if (pos < ring.lastIndex) "다음 쿠폰" else "다음 쿠폰 없음")
                     }
                 }
                 Box {
-                    IconButton({ st.menu = true }, Modifier.size(Spacing.cta)) { Icon(Icons.Rounded.MoreVert, "더 보기") }
+                    IconButton({ st.menu = true }, Modifier.size(Spacing.cta)) { Icon(Icons.Outlined.MoreVert, "더 보기") }
                     DropdownMenu(st.menu, { st.menu = false }) {
                         DropdownMenuItem({ Text("수정") }, { st.menu = false; nav.navigate(Route.EditCoupon(id)) },
                             Modifier.heightIn(min = Spacing.cta), leadingIcon = { Icon(Icons.Rounded.Edit, null) })

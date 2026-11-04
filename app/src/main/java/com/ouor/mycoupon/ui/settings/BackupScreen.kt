@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.settings
 
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.ui.platform.LocalContext
 import com.ouor.mycoupon.ui.component.backupPasswordProblem
 import android.provider.DocumentsContract
@@ -86,13 +87,15 @@ fun BackupScreen(nav: NavHostController) {
 
     Scaffold(topBar = { AppTopBar("백업·복원", onBack = { nav.popBackStack() }) }, snackbarHost = { SnackbarHost(snackbar.host) }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {
-            InfoBanner(Icons.Rounded.Lock, "비밀번호를 잊으면 백업 파일을 아무도 열 수 없어요.",
-                MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.onSurface, Modifier.padding(horizontal = Spacing.l))
+            InfoBanner(Icons.Outlined.Lock, "비밀번호를 잊으면 백업 파일을 아무도 열 수 없어요.", Modifier.padding(horizontal = Spacing.l, vertical = Spacing.xs))
             Spacer(Modifier.height(Spacing.m))
             val last = st.lastBackupAt?.let { " · 마지막 백업 " + com.ouor.mycoupon.ui.component.epochDay(it).let { d -> "${d.monthValue}월 ${d.dayOfMonth}일" } } ?: ""
-            SettingRow(Icons.Rounded.Save, "백업 파일 만들기", if (st.coupons == 0) "백업할 쿠폰이 없어요" else "쿠폰 ${st.coupons}개$last",
-                onClick = if (st.coupons == 0) null else ({ password = ""; passwordFor = "export" }))
-            SettingRow(Icons.Rounded.Download, "백업 파일 가져오기") { openDoc.launch(arrayOf("*/*")) }
+            com.ouor.mycoupon.ui.component.Group(Modifier.padding(horizontal = Spacing.l)) {
+                SettingRow("백업 파일 만들기", if (st.coupons == 0) "백업할 쿠폰이 없어요" else "쿠폰 ${st.coupons}개$last",
+                    onClick = if (st.coupons == 0) null else ({ password = ""; passwordFor = "export" }))
+                com.ouor.mycoupon.ui.component.GroupDivider()
+                SettingRow("백업 파일 가져오기") { openDoc.launch(arrayOf("*/*")) }
+            }
         }
     }
 

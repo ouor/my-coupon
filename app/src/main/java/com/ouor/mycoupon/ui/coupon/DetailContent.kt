@@ -1,5 +1,19 @@
 package com.ouor.mycoupon.ui.coupon
 
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Storefront
+import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.ui.semantics.Role
+import com.ouor.mycoupon.ui.component.Group
+import com.ouor.mycoupon.ui.component.GroupDivider
+import com.ouor.mycoupon.ui.component.InfoBanner
+import com.ouor.mycoupon.ui.component.InkTextButton
 import android.graphics.Bitmap
 import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -40,7 +54,6 @@ import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -81,7 +94,6 @@ import com.ouor.mycoupon.domain.Stats
 import com.ouor.mycoupon.ui.Route
 import com.ouor.mycoupon.ui.Sharing
 import com.ouor.mycoupon.ui.component.BarcodeBlock
-import com.ouor.mycoupon.ui.component.BrightnessChip
 import com.ouor.mycoupon.ui.component.CouponState
 import com.ouor.mycoupon.ui.component.DdayBadge
 import com.ouor.mycoupon.ui.component.LocalSnackbar
@@ -125,10 +137,10 @@ internal fun DetailContent(
         // code review U-14: no requestFocus here (it moved the keyboard focus only, not TalkBack's)
         if (past) PastCouponBand(coupon, today, Modifier.padding(bottom = Spacing.m))
         // C2-03: "〈브랜드〉에서 사용" always (never hidden at 200 %), the product name in at most two lines
-        coupon.brand?.let { Text("${it}에서 사용", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface) }
-        Text(coupon.title(), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        coupon.brand?.let { Text("${it}에서 사용", Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Text(coupon.title(), Modifier.padding(top = 2.dp).semantics { heading() }, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
         // round-2 V7: the band already says the state and the date
-        if (!past) FlowRow(Modifier.padding(top = Spacing.xs, bottom = Spacing.s), itemVerticalAlignment = Alignment.CenterVertically,
+        if (!past) FlowRow(Modifier.padding(top = Spacing.s, bottom = 14.dp), itemVerticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
             DdayBadge(coupon, today)
             val sub = when (coupon.state(today)) {
@@ -141,11 +153,10 @@ internal fun DetailContent(
         // C2-27: the balance sits above the barcode (what the clerk asks first)
         if (coupon.type == CouponType.AMOUNT) BalanceRow(coupon, usage.size, st.history) { st.history = !st.history }
 
-        if (bright) BrightnessChip(Modifier.padding(bottom = Spacing.s))
         if (coupon.code == null || st.showOriginal) OriginalImage(coupon.imagePath, Modifier.padding(bottom = Spacing.m))
         if (coupon.code != null) BarcodeBlock(coupon, onExpand = { nav.navigate(Route.BarcodeFull(id)) },
             onCopied = { auth -> snackbar.show(if (auth) "인증번호를 복사했어요" else "번호를 복사했어요") },
-            dimmed = dimmed, onReveal = { st.revealed = true }, onSpeak = tts?.let { t -> { speakCode(t, coupon) } })
+            dimmed = dimmed, onReveal = { st.revealed = true }, onSpeak = tts?.let { t -> { speakCode(t, coupon) } }, bright = bright)
         else Notice("번호가 없어요")
         // C2Q-02: the opened history goes under the number, so at 200 % it never pushes the number under the bottom CTA
         if (coupon.type == CouponType.AMOUNT && st.history) UsageHistory(usage) { logId ->
@@ -156,23 +167,27 @@ internal fun DetailContent(
             }
         }
 
-        // C2-20: the S7 mode is a visible button, not only a tap on the barcode
-        if (coupon.code != null && !dimmed) OutlinedButton({ nav.navigate(Route.BarcodeFull(id)) },
-            Modifier.fillMaxWidth().padding(top = Spacing.m).heightIn(min = Spacing.cta), shape = MaterialTheme.shapes.large) {
-            Icon(Icons.Rounded.Storefront, null)
-            Spacer(Modifier.width(Spacing.s))
-            Text("점원에게 보여 주기", style = MaterialTheme.typography.labelLarge)
+        // redesign: the actions are one group under the barcode — [점원에게 보여 주기] row (C2-20, S7 is a visible
+        // control, not only a tap on the barcode), then 원본 · 알림 · 보내기 in three cells
+        Group(Modifier.padding(top = Spacing.m, bottom = Spacing.m)) {
+            if (coupon.code != null && !dimmed) {
+                Row(Modifier.fillMaxWidth().clickable(role = Role.Button) { nav.navigate(Route.BarcodeFull(id)) }.heightIn(min = Spacing.cta)
+                    .padding(start = 14.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Storefront, null, Modifier.size(22.dp))
+                    Spacer(Modifier.width(Spacing.m))
+                    Text("점원에게 보여 주기", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, Modifier.size(18.dp), tint = MaterialTheme.statusColors.faint)
+                }
+                GroupDivider()
+            }
+            QuickActions(coupon, st)
         }
-        QuickActions(coupon, st)
         val days = Stats.daysLeft(coupon, today)
         if (coupon.issuer?.contains("카카오") == true && days != null && days in 0..7 && coupon.status == CouponStatus.ACTIVE)
             Notice("카카오톡 선물함에서 기간 연장이 될 수 있어요")
-        if (coupon.needsCheck && coupon.status == CouponStatus.ACTIVE) Row(
-            Modifier.fillMaxWidth().padding(vertical = Spacing.xs).background(MaterialTheme.statusColors.reviewContainer, MaterialTheme.shapes.medium)
-                .padding(start = Spacing.m, end = Spacing.s, top = Spacing.xs, bottom = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.ErrorOutline, null, tint = MaterialTheme.statusColors.review)
-            Text("  확인할 항목이 있어요", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-            OutlinedButton({ nav.navigate(Route.EditCoupon(id)) }, Modifier.heightIn(min = Spacing.touch)) { Text("확인하기") }
+        if (coupon.needsCheck && coupon.status == CouponStatus.ACTIVE) InfoBanner(Icons.Outlined.ErrorOutline, "확인할 항목이 있어요",
+            Modifier.padding(vertical = Spacing.xs), accent = MaterialTheme.statusColors.review, inlineActions = true) {
+            InkTextButton("확인하기", { nav.navigate(Route.EditCoupon(id)) })
         }
         coupon.notes?.let { notes ->
             // code review U-16: says whether it is open
@@ -207,8 +222,8 @@ private fun BalanceRow(coupon: Coupon, records: Int, open: Boolean, onToggle: ()
         }, style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"))
         Spacer(Modifier.weight(1f))
         if (records > 0) Row(Modifier.heightIn(min = Spacing.touch), verticalAlignment = Alignment.CenterVertically) {
-            Text("사용 기록 ${records}건", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            Icon(if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = MaterialTheme.colorScheme.primary)
+            Text("사용 기록 ${records}건", style = MaterialTheme.typography.labelLarge)
+            Icon(if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null)
         }
     }
 }
@@ -220,10 +235,12 @@ private fun QuickActions(coupon: Coupon, st: DetailState) {
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
     val share = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
-    Row(Modifier.fillMaxWidth().padding(vertical = Spacing.m), horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
-        if (coupon.code != null) QuickAction(Icons.Rounded.Image, if (st.showOriginal) "원본 닫기" else "원본 보기", Modifier.weight(1f)) { st.showOriginal = !st.showOriginal }
-        QuickAction(Icons.Rounded.Notifications, "알림", Modifier.weight(1f)) { st.reminderSheet = true }
-        QuickAction(Icons.AutoMirrored.Rounded.Send, "공유", Modifier.weight(1f)) {
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        val sep = @Composable { VerticalDivider(Modifier.padding(vertical = 14.dp), thickness = 1.dp, color = MaterialTheme.statusColors.line) }
+        if (coupon.code != null) { QuickAction(Icons.Outlined.Image, if (st.showOriginal) "원본 닫기" else "원본 보기", Modifier.weight(1f)) { st.showOriginal = !st.showOriginal }; sep() }
+        QuickAction(Icons.Outlined.Notifications, "알림", Modifier.weight(1f)) { st.reminderSheet = true }
+        sep()
+        QuickAction(Icons.AutoMirrored.Outlined.Send, "보내기", Modifier.weight(1f)) {
             // code review A21: copying a multi-MB original and stripping EXIF stays off the main thread
             scope.launch {
                 val i = withContext(Dispatchers.IO) {
@@ -241,24 +258,16 @@ private fun QuickActions(coupon: Coupon, st: DetailState) {
 }
 
 @Composable
-private fun Notice(text: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = Spacing.xs).background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.medium)
-        .padding(Spacing.m), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Rounded.Info, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.width(Spacing.s))
-        Text(text, style = MaterialTheme.typography.bodyMedium)
-    }
-}
+private fun Notice(text: String) = InfoBanner(Icons.Outlined.Info, text, Modifier.padding(vertical = Spacing.xs))
 
 @Composable
 private fun QuickAction(icon: ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {
-    // round-2 V11: the same outlined shape as [점원에게 보여 주기] (button rule: self-review §7)
-    OutlinedButton(onClick, modifier.heightIn(min = Spacing.cta), shape = MaterialTheme.shapes.large,
-        contentPadding = PaddingValues(horizontal = Spacing.xs, vertical = Spacing.s)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, null, Modifier.size(20.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
-        }
+    // redesign: a cell of the actions group (icon over label), not a third button shape
+    Column(modifier.clickable(role = Role.Button, onClick = onClick).heightIn(min = 60.dp).padding(horizontal = Spacing.xs, vertical = Spacing.s),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Icon(icon, null, Modifier.size(22.dp))
+        Spacer(Modifier.height(Spacing.xs))
+        Text(label, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
     }
 }
 

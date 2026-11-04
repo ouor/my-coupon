@@ -3,7 +3,6 @@ package com.ouor.mycoupon.ui.component
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.material3.OutlinedButton
 import android.content.Context
 import android.os.Build
 import android.speech.tts.TextToSpeech
@@ -113,9 +112,9 @@ fun UndoBar(done: String, name: String, secondsLeft: Int, onUndo: () -> Unit) {
     val view = LocalView.current
     @Suppress("DEPRECATION") // the replacement (pane titles / live regions) re-reads on every change, which is the bug
     LaunchedEffect(spoken) { view.announceForAccessibility(spoken) }
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+    Surface(color = MaterialTheme.colorScheme.background) {
         Column(Modifier.navigationBarsPadding()) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = MaterialTheme.statusColors.line)
             // FlowRow-like: the text wraps above the button at large font sizes instead of squeezing it
             Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.m)) {
                 Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
@@ -124,12 +123,8 @@ fun UndoBar(done: String, name: String, secondsLeft: Int, onUndo: () -> Unit) {
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Spacer(Modifier.heightIn(min = Spacing.s))
-                // round-2 V10: a secondary (outlined) button, and the number says it is seconds
-// C2Q-04: M3's default border is outlineVariant, invisible on this bar; outline is the design-system 3:1 border
-                OutlinedButton(onUndo, Modifier.fillMaxWidth().heightIn(min = Spacing.cta), shape = MaterialTheme.shapes.large,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
-                    Text("되돌리기 · ${secondsLeft}초", style = MaterialTheme.typography.labelLarge)
-                }
+                // redesign: undo is the one action left on this bar, so it takes the ink button; the number says it is seconds (V10)
+                PrimaryButton("되돌리기 · ${secondsLeft}초", onUndo)
             }
         }
     }

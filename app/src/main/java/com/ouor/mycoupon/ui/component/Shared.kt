@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -55,7 +56,7 @@ fun offsetsLabel(list: List<Int>) = if (list.isEmpty()) "알림 없음" else lis
 fun OffsetChecks(sel: List<Int>, enabled: Boolean = true, onChange: (List<Int>) -> Unit) {
     AppSettings.OFFSET_CHOICES.forEach { d ->
         Row(Modifier.fillMaxWidth().heightIn(min = Spacing.touch)
-            .toggleable(d in sel, enabled, Role.Checkbox) { onChange(if (d in sel) sel - d else sel + d) },
+            .toggleable(d in sel, enabled, Role.Checkbox) { onChange(if (d in sel) sel - d else sel + d) }.padding(horizontal = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically) {
             Checkbox(d in sel, null, enabled = enabled)
             Spacer(Modifier.width(Spacing.m))
@@ -89,7 +90,7 @@ fun Promise(icon: ImageVector, title: String, sub: String?) {
         headlineContent = { Text(title, style = MaterialTheme.typography.bodyLarge) },
         supportingContent = sub?.let { { Text(it, style = MaterialTheme.typography.bodyMedium) } },
         leadingContent = { Icon(icon, null, tint = MaterialTheme.colorScheme.primary) },
-        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
         modifier = Modifier.semantics(mergeDescendants = true) {},
     )
 }

@@ -1,83 +1,124 @@
 package com.ouor.mycoupon.ui.component
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ouor.mycoupon.data.Coupon
 import com.ouor.mycoupon.data.CouponType
+import com.ouor.mycoupon.domain.Stats
+import com.ouor.mycoupon.ui.theme.DdayStyle
 import com.ouor.mycoupon.ui.theme.Spacing
+import com.ouor.mycoupon.ui.theme.statusColors
 import java.time.LocalDate
 
 /**
- * design-system §6.1 (S1, S13, search). The whole card is one tap target and one TalkBack node:
- * "스타벅스, 아메리카노 T, 3일 남음, 곧 만료, 확인 필요". Past coupons get [onUndo] (사용 완료·넘김 only).
+ * design-system §6.1 `CouponRow` (S1, S13, search): one row of a group — D-day column first (redesign principle 1),
+ * brand / name / one value line, 40dp calm thumbnail last. The whole row is one tap target and one TalkBack node:
+ * "스타벅스, 아메리카노 T, 3일 남음, 11월 1일까지, 번호 끝 2416, 확인 필요". Past rows get [onUndo] (사용 완료·넘김 only).
+ * [first]/[last] place it inside its group (rounded ends, hairline between rows).
  */
 @Composable
-fun CouponCard(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modifier = Modifier, onUndo: (() -> Unit)? = null) {
+fun CouponRow(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modifier = Modifier, onUndo: (() -> Unit)? = null,
+              first: Boolean = true, last: Boolean = true) {
     val state = c.state(today)
     val past = state == CouponState.EXPIRED || state == CouponState.USED || state == CouponState.GIVEN
     val large = isLargeFont()
     val review = c.needsCheck && !past
+    val st = MaterialTheme.statusColors
     val balance = if (c.type == CouponType.AMOUNT && c.balance != null && !past) "잔액 ${won(c.balance)}" else null
     // C2-25: "10월 27일 넘김 · 김○○"
     val usedLine = c.usedAt?.takeIf { past }?.let { epochDay(it).monthDay() + if (state == CouponState.GIVEN) " 넘김" + (c.givenTo?.let { n -> " · $n" } ?: "") else " 사용" }
-    // C2-05 / design-system §9: "사용 완료, 10월 27일, 브랜드, 상품명" for past ones, otherwise "브랜드, 상품명, 4일 남음, 11월 1일까지, 번호 끝 2416" (the tail is spoken only; owner feedback 11-04 took it off the card)
+    // C2-05 / design-system §9: the tail is spoken only (owner feedback 11-04 took it off the screen)
     val pastWhen = if (state == CouponState.EXPIRED) c.expiryDate?.let { it.monthDay() + "까지" } else c.usedAt?.let { epochDay(it).monthDay() }
     val spoken = (if (past) listOfNotNull(ddaySpoken(c, today), pastWhen) else emptyList())
         .plus(listOfNotNull(c.brand, c.name() ?: "이름 없는 쿠폰", ddaySpoken(c, today).takeIf { !past }, c.givenTo?.takeIf { state == CouponState.GIVEN },
             c.code?.let(::codeTail), balance, "확인 필요".takeIf { review }))
         .joinToString(", ")
-    val container = if (past) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surfaceContainer
+    val sub = listOfNotNull(balance, usedLine, "유효기간 확인 필요".takeIf { review && c.expiryDate == null }).joinToString(" · ")
 
-    Card(
-        onClick, modifier.fillMaxWidth().clearAndSetSemantics {
-            contentDescription = spoken
-            role = Role.Button
-            onClick("바코드 열기") { onClick(); true }
-            if (onUndo != null) customActions = listOf(CustomAccessibilityAction("되돌리기") { onUndo(); true })
-        },
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = container),
+    Row(
+        modifier.fillMaxWidth()
+            .groupItem(first, last, MaterialTheme.colorScheme.surface, st.border, st.line)
+            .clearAndSetSemantics {
+                contentDescription = spoken
+                role = Role.Button
+                onClick("바코드 열기") { onClick(); true }
+                if (onUndo != null) customActions = listOf(CustomAccessibilityAction("되돌리기") { onUndo(); true })
+            }
+            .clickable(onClick = onClick)
+            .heightIn(min = 66.dp).padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.padding(Spacing.l).heightIn(min = 48.dp), verticalAlignment = Alignment.Top) {
-            if (!large) {
-                CouponThumb(c.thumbPath, alpha = if (past) 0.6f else 1f)
-                androidx.compose.foundation.layout.Spacer(Modifier.width(Spacing.m))
+        Column(Modifier.weight(1f)) {
+            // §2.3-3: at 150 %+ the D-day sits on its own line above the name instead of a squeezed column
+            if (large) DdayCell(c, today, review, Modifier.padding(bottom = Spacing.xs))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!large) DdayCell(c, today, review, Modifier.widthIn(min = 58.dp).padding(end = Spacing.m))
+                Column(Modifier.weight(1f)) {
+                    c.brand?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    Text(c.name() ?: "이름 없는 쿠폰", style = MaterialTheme.typography.titleMedium,
+                        color = if (past) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                        maxLines = if (large) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
+                    if (sub.isNotEmpty()) Text(sub, Modifier.padding(top = 2.dp), style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                c.brand?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                Text(c.name() ?: "이름 없는 쿠폰", style = MaterialTheme.typography.titleMedium)
-                if (large) DdayBadge(c, today, Modifier.padding(top = Spacing.xs))
-                val sub = listOfNotNull(balance, usedLine).joinToString(" · ")
-                if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (review) ReviewMark(Modifier.padding(top = 2.dp))
-            }
-            if (!large) Column(horizontalAlignment = Alignment.End) {
-                DdayBadge(c, today, Modifier.padding(start = Spacing.s))
-                // C2-27: a bordered button, so it never looks like the (non-interactive) status chip above it
-                if (onUndo != null) OutlinedButton(onUndo, Modifier.padding(top = Spacing.xs).heightIn(min = Spacing.touch)) { Text("되돌리기") }
-            }
+            if (large && onUndo != null) InkTextButton("되돌리기", onUndo, Modifier.padding(top = Spacing.xs))
         }
-        if (large && onUndo != null) OutlinedButton(onUndo, Modifier.padding(start = Spacing.l, bottom = Spacing.m).heightIn(min = Spacing.touch)) { Text("되돌리기") }
+        if (!large) {
+            // C2-27: [되돌리기] is a text button, never the status chip's look
+            if (onUndo != null) InkTextButton("되돌리기", onUndo, Modifier.padding(start = Spacing.s))
+            else { androidx.compose.foundation.layout.Spacer(Modifier.width(Spacing.m)); CouponThumb(c.thumbPath, past = past, alpha = if (past) 0.7f else 1f) }
+        }
+    }
+}
+
+/** Left column of a row: "D-12 / 11.16", red with a clock inside 7 days, "! 확인" chip for review, grey chip for past ones. */
+@Composable
+private fun DdayCell(c: Coupon, today: LocalDate, review: Boolean, modifier: Modifier = Modifier) {
+    val st = MaterialTheme.statusColors
+    val date = c.expiryDate?.let { "%02d.%02d".format(it.monthValue, it.dayOfMonth) }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        val state = c.state(today)
+        when {
+            state == CouponState.EXPIRED -> StatusChip(Chip.EXPIRED)
+            state == CouponState.USED -> StatusChip(Chip.USED)
+            state == CouponState.GIVEN -> StatusChip(Chip.GIVEN)
+            review -> StatusChip("확인", Icons.Outlined.ErrorOutline, st.review, st.reviewContainer)
+            state == CouponState.TODAY -> Text("오늘", style = DdayStyle, color = st.soon)
+            state == CouponState.SOON -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                Icon(Icons.Outlined.Schedule, null, Modifier.size(15.dp), tint = st.soon)
+                Text("D-${Stats.daysLeft(c, today)}", style = DdayStyle, color = st.soon)
+            }
+            state == CouponState.NO_EXPIRY -> Text("기간 없음", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else -> Text("D-${Stats.daysLeft(c, today)}", style = DdayStyle)
+        }
+        if (date != null && state != CouponState.USED && state != CouponState.GIVEN)
+            Text(date, style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"), color = st.faint)
     }
 }

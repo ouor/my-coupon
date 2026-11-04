@@ -52,7 +52,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
@@ -283,7 +282,7 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = if (d.checked || readingNow) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLow,
             disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        border = if (review) BorderStroke(2.dp, s.reviewBorder) else null,
+        border = if (review) BorderStroke(2.dp, s.reviewBorder) else BorderStroke(1.dp, s.border),
     ) {
         Row(Modifier.padding(end = Spacing.l, top = Spacing.xs, bottom = Spacing.l), verticalAlignment = Alignment.Top) {
             // C2-05: one card node reads "등록함, …" first; the box toggles by double tap, the card's tap is the 수정하기 action
@@ -304,7 +303,7 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
                             }
                             d.stage == DraftStage.FAILED -> {
                                 Text("읽지 못했어요", style = MaterialTheme.typography.titleMedium)
-                                OutlinedButton(onOpen) { Text("직접 입력") }
+                                TextButton(onOpen) { Text("직접 입력") }
                             }
                             else -> {
                                 when (d.duplicate) {
@@ -340,7 +339,7 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
                     Text(line, Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (other && review && !c.needsReview.containsKey("expiryDate")) ReviewMark()
                     // review U2: doubtful cards (확인 필요, or a not-a-coupon the user ticked) can be dropped from the card itself
-                    if (onExclude != null && (review || (!d.isCoupon && d.checked))) OutlinedButton(onExclude,
+                    if (onExclude != null && (review || (!d.isCoupon && d.checked))) TextButton(onExclude,
                         Modifier.padding(top = Spacing.s).heightIn(min = Spacing.touch)) {
                         Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge)
                     }
@@ -368,7 +367,7 @@ private fun GroupConfirmRow(g: ReviewGroup, modifier: Modifier, onConfirm: () ->
                 Text(summary, style = MaterialTheme.typography.titleSmall)
                 ReviewMark(text = "확인 필요 · $field")
             }
-            OutlinedButton(onConfirm, Modifier.heightIn(min = Spacing.touch).semantics { contentDescription = "${g.keys.size}장 모두 ${field.subject()} 맞아요" }) {
+            TextButton(onConfirm, Modifier.heightIn(min = Spacing.touch).semantics { contentDescription = "${g.keys.size}장 모두 ${field.subject()} 맞아요" }) {
                 Text("모두 맞아요", style = MaterialTheme.typography.labelLarge)
             }
         }

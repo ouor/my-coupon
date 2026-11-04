@@ -1,9 +1,37 @@
 package com.ouor.mycoupon.ui.home
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.BugReport
+import androidx.compose.material.icons.outlined.NotificationsOff
+import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.ImageSearch
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Redeem
+import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.text.font.FontWeight
+import com.ouor.mycoupon.ui.component.CouponRow
+import com.ouor.mycoupon.ui.component.CouponState
+import com.ouor.mycoupon.ui.component.Group
+import com.ouor.mycoupon.ui.component.GroupDivider
+import com.ouor.mycoupon.ui.component.GroupLabel
+import com.ouor.mycoupon.ui.component.InkTextButton
+import com.ouor.mycoupon.ui.component.SegmentedFilter
+import com.ouor.mycoupon.ui.component.state
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.Placeable
-import androidx.compose.material.icons.automirrored.rounded.Sort
-import androidx.compose.material3.AssistChip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.stateDescription
@@ -25,7 +53,6 @@ import androidx.compose.material.icons.rounded.Redeem
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.TouchApp
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
@@ -72,7 +99,6 @@ import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Settings as SettingsIcon
 import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -121,7 +147,6 @@ import com.ouor.mycoupon.domain.ImportOrigin
 import com.ouor.mycoupon.ui.Route
 import com.ouor.mycoupon.ui.Sharing
 import com.ouor.mycoupon.ui.component.AppSheet
-import com.ouor.mycoupon.ui.component.CouponCard
 import com.ouor.mycoupon.ui.component.EmptyState
 import com.ouor.mycoupon.ui.component.InfoBanner
 import com.ouor.mycoupon.ui.component.LocalSnackbar
@@ -184,20 +209,24 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
             if (searching) SearchTopBar(st.query, { vm.query.value = it }) { searching = false; vm.query.value = "" }
             else TopAppBar(
                 title = { Text("내 쿠폰", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() }) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background),
                 actions = {
-                    if (st.hasCoupons) IconButton({ searching = true }) { Icon(Icons.Rounded.Search, "쿠폰 검색") }
-                    IconButton({ nav.navigate(Route.Settings) }) { Icon(Icons.Rounded.SettingsIcon, "설정") }
+                    if (st.hasCoupons) IconButton({ searching = true }) { Icon(Icons.Outlined.Search, "쿠폰 검색") }
+                    IconButton({ nav.navigate(Route.Settings) }) { Icon(Icons.Outlined.Settings, "설정") }
                 },
             )
         },
         floatingActionButton = {
-            // review U6: filled primary keeps contrast in dark mode
+            // redesign: a quiet surface + edge, so [추가] never outshines the list (the first ink FAB was the loudest thing on screen)
             if (st.hasCoupons && !past && !searching) ExtendedFloatingActionButton(
-                containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary,
+                containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary,
+                shape = MaterialTheme.shapes.large,
+                elevation = FloatingActionButtonDefaults.elevation(3.dp, 4.dp, 3.dp, 4.dp),
                 onClick = { addSheet = true }, expanded = atTop,
                 icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("추가", style = MaterialTheme.typography.labelLarge) },
                 // code review U-15 checked on POCO: M3 clears the text's semantics, so this is the only label (read once)
-                modifier = Modifier.semantics { contentDescription = "쿠폰 추가" },
+                modifier = Modifier.border(1.dp, MaterialTheme.statusColors.track, MaterialTheme.shapes.large).semantics { contentDescription = "쿠폰 추가" },
             )
         },
         snackbarHost = { SnackbarHost(snackbar.host) },
@@ -218,16 +247,14 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
             return@Scaffold
         }
         LazyColumn(Modifier.padding(pad).fillMaxSize(), listState,
-            contentPadding = PaddingValues(start = Spacing.l, end = Spacing.l, bottom = 112.dp), // review U6: last card clears the FAB
-            verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
-            if (!searching) st.banner?.let { b -> item(key = "banner") { HomeBannerView(b, st, vm, nav, notifPermission::launch) } }
+            contentPadding = PaddingValues(start = Spacing.l, end = Spacing.l, bottom = 112.dp)) { // review U6: last row clears the FAB
+            if (!searching) st.banner?.let { b -> item(key = "banner") { HomeBannerView(b, st, vm, nav, notifPermission::launch, Modifier.padding(top = Spacing.xs)) } }
             item(key = "filters") {
                 // owner feedback 11-04: all three on one line, never scrolled or cut, at any width or font
-                FilterRow(
+                FilterRow(Modifier.padding(top = 6.dp),
                     chips = { small ->
-                        val style = if (small) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge
-                        FilterChip(!past, { vm.filter.value = ListFilter.AVAILABLE }, { Text("사용 가능 ${st.availableCount}", style = style, maxLines = 1, softWrap = false) })
-                        FilterChip(past, { vm.filter.value = ListFilter.PAST }, { Text("지난 쿠폰", style = style, maxLines = 1, softWrap = false) })
+                        SegmentedFilter(listOf("사용 가능" to st.availableCount, "지난 쿠폰" to null), if (past) 1 else 0,
+                            { vm.filter.value = if (it == 1) ListFilter.PAST else ListFilter.AVAILABLE }, small = small)
                     },
                     sort = { iconOnly -> if (!past) SortMenu(st.sort, iconOnly) { vm.sort.value = it } },
                 )
@@ -235,8 +262,8 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
             // review U9: find a coupon at the counter in one tap
             // C2-10: the banner tap shows only today's and tomorrow's; this chip undoes it
             if (st.endingOnly && !past && !searching) item(key = "ending") {
-                FilterChip(true, { vm.endingOnly.value = false }, { Text("오늘·내일 끝나는 쿠폰 · 해제", style = MaterialTheme.typography.labelLarge) },
-                    Modifier.heightIn(min = Spacing.touch), trailingIcon = { Icon(Icons.Rounded.Close, null, Modifier.size(18.dp)) })
+                FilterChip(true, shape = MaterialTheme.shapes.medium, onClick = { vm.endingOnly.value = false }, label = { Text("오늘·내일 끝나는 쿠폰 · 해제", style = MaterialTheme.typography.labelLarge) },
+                    modifier = Modifier.heightIn(min = Spacing.touch), trailingIcon = { Icon(Icons.Rounded.Close, null, Modifier.size(18.dp)) })
             }
             else if (!past && !searching && st.brands.size >= 2) item(key = "brands") {
                 BrandChipRow(st.brands, st.query) { b -> vm.query.value = if (st.query == b) "" else b }
@@ -249,12 +276,20 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
                     else -> EmptyState(Icons.Rounded.ConfirmationNumber, "쓸 수 있는 쿠폰이 없어요", primary = "사진에서 추가" to pickPhotos)
                 }
             }
-            items(st.coupons, key = { it.id }) { c ->
-                // code review U-06: a double tap opens one S6, not two
-                CouponCard(c, st.today, onClick = dropUnlessResumed { if (android.os.SystemClock.elapsedRealtime() >= vm.cardTapsFrom) nav.navigate(Route.Detail(c.id)) }, modifier = Modifier.animateItem(),
-                    onUndo = if (c.status == CouponStatus.USED) ({
-                        vm.undoUse(c.id); snackbar.show("${c.title()} ${Copy.UNDONE}")
-                    }) else null)
+            // redesign: by expiry the list splits into "7일 안에" and "나중에" groups; recent-first is one group
+            val sections = if (!past && st.sort == ListSort.EXPIRY) st.coupons.partition { it.state(st.today).let { s -> s == CouponState.SOON || s == CouponState.TODAY } }
+                .toList().zip(listOf("7일 안에", "나중에")).filter { it.first.isNotEmpty() } else listOf(st.coupons to "")
+            sections.forEach { (list, title) ->
+                if (sections.size > 1) item(key = "label-$title") { GroupLabel(title, Modifier.animateItem(), count = list.size) }
+                else item(key = "gap") { Spacer(Modifier.height(Spacing.s)) }
+                itemsIndexed(list, key = { _, c -> c.id }) { i, c ->
+                    // code review U-06: a double tap opens one S6, not two
+                    CouponRow(c, st.today, onClick = dropUnlessResumed { if (android.os.SystemClock.elapsedRealtime() >= vm.cardTapsFrom) nav.navigate(Route.Detail(c.id)) },
+                        modifier = Modifier.animateItem(), first = i == 0, last = i == list.lastIndex,
+                        onUndo = if (c.status == CouponStatus.USED) ({
+                            vm.undoUse(c.id); snackbar.show("${c.title()} ${Copy.UNDONE}")
+                        }) else null)
+                }
             }
         }
     }
@@ -309,8 +344,8 @@ private fun SearchTopBar(query: String, onQuery: (String) -> Unit, onClose: () -
  * sort chip -> sort icon -> smaller chip text. Chips keep their 48dp touch target (M3 minimumInteractiveComponentSize).
  */
 @Composable
-private fun FilterRow(chips: @Composable (small: Boolean) -> Unit, sort: @Composable (iconOnly: Boolean) -> Unit) {
-    SubcomposeLayout(Modifier.fillMaxWidth()) { c ->
+private fun FilterRow(modifier: Modifier = Modifier, chips: @Composable (small: Boolean) -> Unit, sort: @Composable (iconOnly: Boolean) -> Unit) {
+    SubcomposeLayout(modifier.fillMaxWidth()) { c ->
         val loose = c.copy(minWidth = 0)
         val gap = Spacing.s.roundToPx()
         fun row(key: String, content: @Composable () -> Unit) = subcompose(key, content).map { it.measure(loose) }
@@ -336,9 +371,15 @@ private fun SortMenu(sort: ListSort, compact: Boolean, onSort: (ListSort) -> Uni
     // code review U-15: it opens a menu (an unselected FilterChip read as "checkbox, not checked"); TalkBack hears the full name
     val a11y = Modifier.semantics { role = Role.DropdownList; contentDescription = "정렬"; stateDescription = label(sort) }
     Box {
-        if (compact) IconButton({ open = true }, a11y) { Icon(Icons.AutoMirrored.Rounded.Sort, null) }
-        else AssistChip({ open = true }, { Text(if (sort == ListSort.EXPIRY) "임박순" else "최근순", style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false) },
-            a11y, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Sort, null, Modifier.size(18.dp)) })
+        // redesign: a grey text button, not a third control shape
+        val muted = MaterialTheme.colorScheme.onSurfaceVariant
+        if (compact) IconButton({ open = true }, a11y) { Icon(Icons.AutoMirrored.Outlined.Sort, null, tint = muted) }
+        else TextButton({ open = true }, a11y.heightIn(min = Spacing.touch), shape = MaterialTheme.shapes.medium,
+            colors = ButtonDefaults.textButtonColors(contentColor = muted), contentPadding = PaddingValues(horizontal = 10.dp)) {
+            Icon(Icons.AutoMirrored.Outlined.Sort, null, Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(if (sort == ListSort.EXPIRY) "임박순" else "최근순", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), maxLines = 1, softWrap = false)
+        }
         DropdownMenu(open, { open = false }) {
             ListSort.entries.forEach { s ->
                 DropdownMenuItem({ Text(label(s), style = MaterialTheme.typography.bodyLarge) }, { open = false; onSort(s) })
@@ -348,22 +389,21 @@ private fun SortMenu(sort: ListSort, compact: Boolean, onSort: (ListSort) -> Uni
 }
 
 @Composable
-private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav: NavHostController, request: (String) -> Unit) {
+private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav: NavHostController, request: (String) -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val snackbar = LocalSnackbar.current
     val review = st.reviewCount
     val newImages = st.newImages
     val s = MaterialTheme.statusColors
-    val cs = MaterialTheme.colorScheme
     when (b) {
-        HomeBanner.CRASH -> InfoBanner(Icons.Rounded.BugReport, "지난번에 앱이 멈췄어요.", cs.surfaceContainerHighest, cs.onSurface) {
+        HomeBanner.CRASH -> InfoBanner(Icons.Outlined.BugReport, "지난번에 앱이 멈췄어요.", modifier) {
             BannerButton("닫기") { vm.crashBannerShown() }
             BannerButton(onClick = {
                 vm.crashFile()?.let { context.startActivity(Sharing.intent(context, it, it.name, "text/plain")) }
                 vm.crashBannerShown()
             }, "오류 기록 보내기")
         }
-        HomeBanner.NOTIFICATIONS_OFF -> InfoBanner(Icons.Rounded.NotificationsOff, "알림이 꺼져 있어 만료를 알려 드릴 수 없어요", s.reviewContainer, cs.onSurface, inlineActions = true) {
+        HomeBanner.NOTIFICATIONS_OFF -> InfoBanner(Icons.Outlined.NotificationsOff, "만료 알림이 꺼져 있어요", modifier, inlineActions = true) {
             BannerButton(onClick = {
                 if (Build.VERSION.SDK_INT >= 33 && !vm.notificationAsked) {
                     vm.notificationsAsked()
@@ -373,7 +413,7 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
         }
         HomeBanner.USE_ASK -> st.useAsk?.let { c ->
             val nm = c.title()
-            InfoBanner(Icons.Rounded.TaskAlt, "아까 $nm 썼어요?", cs.surfaceContainerHighest, cs.onSurface,
+            InfoBanner(Icons.Outlined.TaskAlt, "아까 $nm 썼어요?", modifier,
                 sub = listOfNotNull(c.brand, c.balance?.takeIf { c.type == CouponType.AMOUNT }?.let { "잔액 ${won(it)}" })
                     .joinToString(" · ").ifEmpty { null }) {
                 BannerButton("아니요") { vm.answerUseAsk(c.id, used = false) }
@@ -384,13 +424,13 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
                 }
             }
         }
-        HomeBanner.ENDING_SOON -> InfoBanner(Icons.Rounded.Schedule, "오늘·내일 끝나는 쿠폰 ${st.endingSoon.size}개", s.soonContainer, cs.onSurface,
+        HomeBanner.ENDING_SOON -> InfoBanner(Icons.Outlined.Schedule, "오늘·내일 끝나는 쿠폰 ${st.endingSoon.size}개", modifier, accent = s.soon, inlineActions = true,
             onClick = { vm.filter.value = ListFilter.AVAILABLE; vm.query.value = ""; vm.endingOnly.value = true }) {
             BannerButton("닫기") { vm.hideEndingBanner() }
         }
-        HomeBanner.NEEDS_REVIEW -> InfoBanner(Icons.Rounded.ErrorOutline, "확인할 쿠폰이 ${review}개 있어요", s.reviewContainer, cs.onSurface,
+        HomeBanner.NEEDS_REVIEW -> InfoBanner(Icons.Outlined.ErrorOutline, "확인할 쿠폰이 ${review}개 있어요", modifier, accent = s.review,
             onClick = { vm.state.value.firstReviewId?.let { nav.navigate(Route.EditCoupon(it)) } })
-        HomeBanner.NEW_IMAGES -> InfoBanner(Icons.Rounded.ImageSearch, "새 쿠폰 이미지 ${newImages}장이 있어요", cs.primaryContainer, cs.onPrimaryContainer) {
+        HomeBanner.NEW_IMAGES -> InfoBanner(Icons.Outlined.ImageSearch, "새 쿠폰 이미지 ${newImages}장이 있어요", modifier, inlineActions = true) {
             BannerButton("확인하기") { vm.reviewNewImages(); nav.navigate(Route.Import) }
         }
     }
@@ -399,12 +439,20 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
 /** S2 (C2-13: [공유] first, C2-24: camera when a camera app exists). */
 @Composable
 private fun AddSheet(onDismiss: () -> Unit, onShare: () -> Unit, onPick: () -> Unit, onCamera: (() -> Unit)?, onGallery: () -> Unit, onKakao: () -> Unit) {
+    // redesign: rows in one group (it was five grey cards on a grey sheet)
     AppSheet(onDismiss, "쿠폰 추가") {
-        AddOption(Icons.Rounded.Share, "카톡·문자에서 [공유]로 넣는 법", null, onShare)
-        AddOption(Icons.Rounded.PhotoLibrary, "사진 고르기", "한 번에 30장까지 골라요", onPick)
-        if (onCamera != null) AddOption(Icons.Rounded.PhotoCamera, "카메라로 찍기", null, onCamera)
-        AddOption(Icons.Rounded.ImageSearch, "갤러리에서 쿠폰 찾기", null, onGallery)
-        AddOption(Icons.Rounded.Redeem, "카카오톡 선물함 쿠폰 넣는 법", null, onKakao)
+        Group(Modifier.border(1.dp, MaterialTheme.statusColors.line, MaterialTheme.shapes.large)) {
+            AddOption(Icons.Outlined.PhotoLibrary, "사진 고르기", "한 번에 30장까지 골라요", onPick)
+            GroupDivider(52.dp)
+            if (onCamera != null) { AddOption(Icons.Outlined.PhotoCamera, "카메라로 찍기", null, onCamera); GroupDivider(52.dp) }
+            AddOption(Icons.Outlined.ImageSearch, "갤러리에서 쿠폰 찾기", null, onGallery)
+        }
+        GroupLabel("넣는 법")
+        Group(Modifier.border(1.dp, MaterialTheme.statusColors.line, MaterialTheme.shapes.large)) {
+            AddOption(Icons.Outlined.Share, "카톡·문자에서 [공유]로 넣기", null, onShare)
+            GroupDivider(52.dp)
+            AddOption(Icons.Outlined.Redeem, "카카오톡 선물함 쿠폰 넣기", null, onKakao)
+        }
     }
 }
 
@@ -433,14 +481,12 @@ private fun ShareGuideSheet(onDismiss: () -> Unit) {
     }
 }
 
-/** design-system §6.6 (C2-07): banner buttons have a border so they read as buttons. */
+/** design-system §6.6: banner buttons are ink text buttons (redesign; C2-07's border is gone with the coloured blocks). */
 @Composable
 private fun BannerButton(text: String, onClick: () -> Unit) = BannerButton(onClick, text)
 
 @Composable
-private fun BannerButton(onClick: () -> Unit, text: String) {
-    OutlinedButton(onClick, Modifier.padding(start = Spacing.s).heightIn(min = Spacing.touch)) { Text(text, style = MaterialTheme.typography.labelLarge) }
-}
+private fun BannerButton(onClick: () -> Unit, text: String) = InkTextButton(text, onClick)
 
 /** C2-08 / design-system §6.19: asks the time together with the permission (first registration). */
 @Composable
@@ -451,7 +497,7 @@ private fun ReminderTimeSheet(initialMinute: Int, onDismiss: () -> Unit, onOk: (
         Text("몇 시에 알려 드릴까요?", style = MaterialTheme.typography.titleMedium)
         Row(Modifier.fillMaxWidth().padding(vertical = Spacing.s), verticalAlignment = Alignment.CenterVertically) {
             Text(timeLabel(minute), Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall)
-            OutlinedButton({ picker = true }, Modifier.heightIn(min = Spacing.touch)) { Text("바꾸기") }
+            InkTextButton("바꾸기", { picker = true })
         }
         Spacer(Modifier.height(Spacing.m))
         PrimaryButton("좋아요", { onOk(minute) })
@@ -468,13 +514,16 @@ private fun ReminderTimeSheet(initialMinute: Int, onDismiss: () -> Unit, onOk: (
 private fun BrandChipRow(brands: List<String>, selected: String, onPick: (String) -> Unit) {
     val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    val surface = MaterialTheme.colorScheme.surface
+    val surface = MaterialTheme.colorScheme.background
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val step = with(LocalDensity.current) { maxWidth.toPx() * 0.8f }
         // round-2 V13: the last chip can scroll clear of the arrow
         LazyRow(state = state, contentPadding = PaddingValues(end = 56.dp), horizontalArrangement = Arrangement.spacedBy(Spacing.s), modifier = Modifier.semantics { contentDescription = "브랜드로 거르기" }) {
             items(brands, key = { it }) { b ->
-                FilterChip(selected == b, { onPick(b) }, { Text(b, style = MaterialTheme.typography.labelLarge) }, Modifier.heightIn(min = Spacing.touch))
+                FilterChip(selected == b, { onPick(b) }, { Text(b, style = MaterialTheme.typography.labelMedium) }, Modifier.heightIn(min = Spacing.touch),
+                    shape = MaterialTheme.shapes.medium, colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface,
+                        selectedContainerColor = MaterialTheme.colorScheme.primary, selectedLabelColor = MaterialTheme.colorScheme.onPrimary),
+                    border = FilterChipDefaults.filterChipBorder(true, selected == b, borderColor = MaterialTheme.statusColors.line))
             }
         }
         if (state.canScrollForward) Box(Modifier.align(Alignment.CenterEnd).width(64.dp).height(Spacing.touch)
@@ -494,13 +543,14 @@ private fun BrandChipRow(brands: List<String>, selected: String, onPick: (String
 
 @Composable
 private fun AddOption(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, sub: String?, onClick: () -> Unit) {
-    androidx.compose.material3.Surface(onClick, Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(vertical = Spacing.xs),
-        shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
-        ListItem(
-            headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },
-            supportingContent = sub?.let { { Text(it, style = MaterialTheme.typography.bodyMedium) } },
-            leadingContent = { Icon(icon, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary) },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        )
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            sub?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, Modifier.size(18.dp), tint = MaterialTheme.statusColors.faint)
     }
 }

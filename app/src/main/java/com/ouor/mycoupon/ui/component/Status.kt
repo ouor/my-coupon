@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -36,11 +38,12 @@ import java.time.LocalDate
 /** design-system §6.3: non-interactive status label, always icon + text (P4). */
 @Composable
 fun StatusChip(text: String, icon: ImageVector, fg: Color, container: Color, modifier: Modifier = Modifier) {
-    Surface(modifier.heightIn(min = 28.dp), shape = MaterialTheme.shapes.small, color = container, contentColor = fg) {
-        Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(icon, null, Modifier.size(16.dp))
-            Text(text, style = MaterialTheme.typography.labelMedium)
+    // redesign: tinted face + strong text, 6 radius, 22dp — the only place colour fills a shape
+    Surface(modifier.heightIn(min = 22.dp), shape = MaterialTheme.shapes.small, color = container, contentColor = fg) {
+        Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            Icon(icon, null, Modifier.size(14.dp))
+            Text(text, style = MaterialTheme.typography.labelSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
         }
     }
 }
@@ -92,11 +95,13 @@ fun DdayBadge(c: Coupon, today: LocalDate, modifier: Modifier = Modifier, large:
     val big: TextStyle = (if (large) MaterialTheme.typography.displaySmall else MaterialTheme.typography.titleLarge)
         .copy(fontFeatureSettings = "tnum")
     when (c.state(today)) {
-        CouponState.AVAILABLE -> Text("D-${Stats.daysLeft(c, today)}", m, style = big)
-        CouponState.SOON -> Row(m, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(Icons.Rounded.Schedule, null, Modifier.size(if (large) 28.dp else 16.dp), tint = s.soon)
+        // redesign: on S6 the D-day is a status chip beside the date (red with a clock inside 7 days, grey otherwise)
+        CouponState.AVAILABLE -> if (large) Text("D-${Stats.daysLeft(c, today)}", m, style = big)
+            else StatusChip("D-${Stats.daysLeft(c, today)}", Icons.Outlined.Event, MaterialTheme.colorScheme.onSurface, s.track, m)
+        CouponState.SOON -> if (large) Row(m, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(Icons.Rounded.Schedule, null, Modifier.size(28.dp), tint = s.soon)
             Text("D-${Stats.daysLeft(c, today)}", style = big, color = s.soon)
-        }
+        } else StatusChip("D-${Stats.daysLeft(c, today)}", Icons.Outlined.Schedule, s.soon, s.soonContainer, m)
         CouponState.TODAY -> Surface(m, shape = MaterialTheme.shapes.small, color = s.soon, contentColor = MaterialTheme.colorScheme.surface) {
             Text("오늘까지", Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                 style = if (large) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.labelLarge)

@@ -1,5 +1,10 @@
 package com.ouor.mycoupon.ui.settings
 
+import androidx.compose.material.icons.outlined.NotificationsOff
+import androidx.compose.material.icons.outlined.Notifications
+import com.ouor.mycoupon.ui.component.Group
+import com.ouor.mycoupon.ui.component.GroupDivider
+import com.ouor.mycoupon.ui.component.InkTextButton
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.ouor.mycoupon.ui.component.OffsetChecks
@@ -62,10 +67,10 @@ fun RemindersScreen(nav: NavHostController) {
     Scaffold(topBar = { AppTopBar("만료 알림", onBack = { nav.popBackStack() }) }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {
             if (off)
-                InfoBanner(Icons.Rounded.NotificationsOff, "알림이 꺼져 있어요", MaterialTheme.statusColors.reviewContainer, MaterialTheme.colorScheme.onSurface,
-                    Modifier.padding(horizontal = Spacing.l), inlineActions = true) { TextButton({ openNotificationSettings(activity) }) { Text("켜기") } }
+                InfoBanner(Icons.Outlined.NotificationsOff, "알림이 꺼져 있어요", Modifier.padding(horizontal = Spacing.l, vertical = Spacing.xs),
+                    inlineActions = true) { InkTextButton("켜기", { openNotificationSettings(activity) }) }
             SectionTitle("알림 시점")
-            Column(Modifier.padding(horizontal = Spacing.l)) {
+            Group(Modifier.padding(horizontal = Spacing.l)) {
                 OffsetChecks(st.app.reminderOffsets) { list ->
                     if (list.isEmpty()) emptyWarn = true else { emptyWarn = false; vm.setReminders(list, st.app.reminderMinute) }
                 }
@@ -73,16 +78,18 @@ fun RemindersScreen(nav: NavHostController) {
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
             }
             SectionTitle("알림 시각")
-            SettingRow(Icons.Rounded.Schedule, timeLabel(st.app.reminderMinute)) { timeDialog = true }
-            // C2-08 AC3: the system settings of this app's "만료 알림" channel
-            SettingRow(Icons.Rounded.MusicNote, "알림 소리 바꾸기") { activity.startActivity(vm.channelSettingsIntent()) }
+            Group(Modifier.padding(horizontal = Spacing.l)) {
+                SettingRow("매일", value = timeLabel(st.app.reminderMinute)) { timeDialog = true }
+                GroupDivider()
+                // C2-08 AC3: the system settings of this app's "만료 알림" channel
+                SettingRow("알림 소리") { activity.startActivity(vm.channelSettingsIntent()) }
+            }
             if (!ignoresBattery(activity)) {
                 Spacer(Modifier.height(Spacing.l))
-                InfoBanner(Icons.Rounded.Notifications, "알림이 늦게 오면 배터리 설정에서 ‘제한 없음’으로 바꿔 주세요",
-                    MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.onSurface, Modifier.padding(horizontal = Spacing.l)) {
-                    TextButton({
+                InfoBanner(Icons.Outlined.Notifications, "알림이 늦게 오면 배터리 설정에서 ‘제한 없음’으로 바꿔 주세요", Modifier.padding(horizontal = Spacing.l)) {
+                    InkTextButton("설정 열기", {
                         activity.startActivity(Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", activity.packageName, null)))
-                    }) { Text("설정 열기") }
+                    })
                 }
             }
         }

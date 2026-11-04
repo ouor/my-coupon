@@ -1,5 +1,15 @@
 package com.ouor.mycoupon.ui.settings
 
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.ouor.mycoupon.ui.component.Group
+import com.ouor.mycoupon.ui.component.GroupDivider
+import com.ouor.mycoupon.ui.theme.statusColors
 import com.ouor.mycoupon.ui.component.offsetsLabel
 import com.ouor.mycoupon.ui.component.timeLabel
 import android.app.StatusBarManager
@@ -71,17 +81,25 @@ import com.ouor.mycoupon.ui.component.SectionTitle
 import com.ouor.mycoupon.ui.theme.Spacing
 import com.ouor.mycoupon.ui.toHome
 
+/**
+ * design-system §6.10 `SettingsGroup` row (redesign): no icon, 52dp, title + optional one-line [sub], an optional grey
+ * [value] on the right, chevron when it opens something. Rows sit in a [Group] separated by [GroupDivider].
+ */
 @Composable
-internal fun SettingRow(icon: ImageVector?, title: String, sub: String? = null, danger: Boolean = false, chevron: Boolean = true, onClick: (() -> Unit)?) {
-    val color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-    ListItem(
-        headlineContent = { Text(title, style = MaterialTheme.typography.bodyLarge, color = color) },
-        supportingContent = sub?.let { { Text(it, style = MaterialTheme.typography.bodyMedium) } },
-        leadingContent = icon?.let { { Icon(it, null, tint = if (danger) color else MaterialTheme.colorScheme.onSurfaceVariant) } },
-        trailingContent = if (chevron && onClick != null) ({ Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null) }) else null,
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier,
-    )
+internal fun SettingRow(title: String, sub: String? = null, value: String? = null, danger: Boolean = false, chevron: Boolean = true, onClick: (() -> Unit)?) {
+    val color = if (danger) MaterialTheme.statusColors.soon else MaterialTheme.colorScheme.onSurface
+    Row((if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier.semantics(mergeDescendants = true) {})
+        .fillMaxWidth().heightIn(min = 52.dp).padding(start = 14.dp, end = 10.dp, top = Spacing.s, bottom = Spacing.s),
+        verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = color)
+            sub?.let { Text(it, Modifier.padding(top = 2.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        value?.let { Text(it, Modifier.padding(start = Spacing.s), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+            color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (chevron && onClick != null) Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, Modifier.padding(start = Spacing.xs).size(18.dp),
+            tint = MaterialTheme.statusColors.faint)
+    }
 }
 
 /** S10 (F13, F14, F18, F19). */
@@ -99,40 +117,50 @@ fun SettingsScreen(nav: NavHostController) {
 
     Scaffold(topBar = { AppTopBar("설정", onBack = { nav.popBackStack() }) }, snackbarHost = { SnackbarHost(snackbar.host) }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {
+            val g = Modifier.padding(horizontal = Spacing.l)
             // F18: counts only, never money. Owner feedback 11-04: no card at all until something was used
-            if (st.stats.usedBeforeExpiry > 0 || st.stats.usedViaReminder > 0) Card(Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s), shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)) {
-                Column(Modifier.padding(Spacing.l).semantics(mergeDescendants = true) {}) {
+            if (st.stats.usedBeforeExpiry > 0 || st.stats.usedViaReminder > 0) Group(g.padding(top = Spacing.xs)) {
+                Column(Modifier.padding(horizontal = 14.dp, vertical = Spacing.m).semantics(mergeDescendants = true) {}) {
                     Text("만료 전에 쓴 쿠폰 ${st.stats.usedBeforeExpiry}개", style = MaterialTheme.typography.titleMedium)
-                    Text("알림 받고 쓴 쿠폰 ${st.stats.usedViaReminder}개", style = MaterialTheme.typography.bodyMedium)
+                    Text("알림 받고 쓴 쿠폰 ${st.stats.usedViaReminder}개", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             SectionTitle("알림")
-            // owner feedback 11-04: a row like the others (whole row opens S10), the value in one line
-            SettingRow(Icons.Rounded.Notifications, "만료 알림", "매일 ${timeLabel(st.app.reminderMinute)} · ${offsetsLabel(st.app.reminderOffsets)}") { nav.navigate(Route.Reminders) }
-            SettingRow(Icons.Rounded.MusicNote, "알림 소리 바꾸기") { context.startActivity(vm.channelSettingsIntent()) }
-            // C2-14
-            SettingRow(Icons.Rounded.Dashboard, "알림창 버튼에 '내 쿠폰' 넣기") {
-                if (Build.VERSION.SDK_INT >= 33) requestAddTile(context) { msg -> snackbar.show(msg) } else tileGuide = true
+            Group(g) {
+                // owner feedback 11-04: a row like the others (whole row opens S10), the value in one line
+                SettingRow("만료 알림", "매일 ${timeLabel(st.app.reminderMinute)} · ${offsetsLabel(st.app.reminderOffsets)}") { nav.navigate(Route.Reminders) }
+                GroupDivider()
+                SettingRow("알림 소리") { context.startActivity(vm.channelSettingsIntent()) }
+                GroupDivider()
+                // C2-14
+                SettingRow("알림창 버튼에 '내 쿠폰' 넣기") {
+                    if (Build.VERSION.SDK_INT >= 33) requestAddTile(context) { msg -> snackbar.show(msg) } else tileGuide = true
+                }
             }
             SectionTitle("데이터")
-            SettingRow(Icons.Rounded.Save, "백업·복원") { nav.navigate(Route.Backup) }
-            // C2-16: read only
-            SettingRow(Icons.Rounded.Storage, "앱이 차지하는 공간",
-                storage?.let { "${mb(it.bytes)} · 쿠폰 이미지 ${it.images}장" } ?: "재는 중", chevron = false, onClick = null)
-            SectionTitle("도움")
-            SettingRow(Icons.Rounded.PhonelinkLock, "개인정보 안내") { nav.navigate(Route.Privacy) }
-            SettingRow(Icons.Rounded.BugReport, "오류 기록 보내기", if (st.crashFiles.isEmpty()) "기록이 없어요" else "기록 ${st.crashFiles.size}건") {
-                val f = st.crashFiles.firstOrNull()
-                if (f == null) snackbar.show("보낼 오류 기록이 없어요") else context.startActivity(Sharing.intent(context, f, f.name, "text/plain"))
+            Group(g) {
+                SettingRow("백업·복원") { nav.navigate(Route.Backup) }
+                GroupDivider()
+                // C2-16: read only
+                SettingRow("앱이 차지하는 공간", value = storage?.let { "${mb(it.bytes)} · ${it.images}장" } ?: "재는 중", chevron = false, onClick = null)
             }
-            SettingRow(Icons.Rounded.Code, "오픈소스 라이선스") { nav.navigate(Route.Licenses) }
-            SettingRow(null, "버전", BuildConfig.VERSION_NAME, chevron = false, onClick = null)
-            if (BuildConfig.DEBUG) SettingRow(null, "(디버그) 강제 종료", chevron = false) { throw RuntimeException("QA forced crash 1234567890 스타벅스") }
-            // C2-27: the destructive row last, apart from the rest
-            HorizontalDivider(Modifier.padding(vertical = Spacing.s), color = MaterialTheme.colorScheme.outlineVariant)
-            SettingRow(Icons.Rounded.DeleteForever, "모든 데이터 삭제", danger = true, chevron = false) { wipeStep = 1 }
+            SectionTitle("도움")
+            Group(g) {
+                SettingRow("개인정보 안내") { nav.navigate(Route.Privacy) }
+                GroupDivider()
+                SettingRow("오류 기록 보내기", value = if (st.crashFiles.isEmpty()) "없음" else "${st.crashFiles.size}건") {
+                    val f = st.crashFiles.firstOrNull()
+                    if (f == null) snackbar.show("보낼 오류 기록이 없어요") else context.startActivity(Sharing.intent(context, f, f.name, "text/plain"))
+                }
+                GroupDivider()
+                SettingRow("오픈소스 라이선스") { nav.navigate(Route.Licenses) }
+                if (BuildConfig.DEBUG) { GroupDivider(); SettingRow("(디버그) 강제 종료", chevron = false) { throw RuntimeException("QA forced crash 1234567890 스타벅스") } }
+            }
+            // C2-27: the destructive row last, in a group of its own
             Spacer(Modifier.height(Spacing.xl))
+            Group(g) { SettingRow("모든 데이터 삭제", danger = true, chevron = false) { wipeStep = 1 } }
+            Text("내 쿠폰 ${BuildConfig.VERSION_NAME}", Modifier.fillMaxWidth().padding(vertical = 18.dp), style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.statusColors.faint, textAlign = TextAlign.Center)
         }
     }
 
@@ -182,7 +210,7 @@ private fun TextPage(title: String, sections: List<Pair<String, String>>, nav: N
             sections.forEach { (h, body) ->
                 Column(Modifier.semantics(mergeDescendants = true) {}) {
                     Text(h, style = MaterialTheme.typography.titleMedium)
-                    Text(body, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(body, Modifier.padding(top = 2.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Spacer(Modifier.height(Spacing.xl))

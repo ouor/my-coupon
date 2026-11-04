@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -200,7 +199,7 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
         topBar = { AppTopBar("쿠폰 확인", onBack = leave) {
             // review U2: a receipt read as a coupon must be removable right here; review U7: [저장] only at the bottom
             // code review U-11: at 150 %+ it does not fit the top bar, so it moves to the first body row
-            if (!large) OutlinedButton(onNotCoupon, Modifier.padding(end = Spacing.m).heightIn(min = 40.dp)) { Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge) }
+            if (!large) TextButton(onNotCoupon, Modifier.padding(end = Spacing.m).heightIn(min = 40.dp)) { Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge) }
         } },
         bottomBar = { BottomCta("저장", ::save) },
     ) { pad ->
@@ -213,10 +212,10 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                         Icon(Icons.Rounded.ErrorOutline, null, tint = MaterialTheme.statusColors.review)
                         Text("  확인할 항목 ${c.needsReview.size}개", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.statusColors.review)
                     }
-                    OutlinedButton({ viewer = "" }, Modifier.heightIn(min = Spacing.touch)) {
+                    TextButton({ viewer = "" }, Modifier.heightIn(min = Spacing.touch)) {
                         Icon(Icons.Rounded.Image, null, Modifier.padding(end = Spacing.xs)); Text("원본 전체 보기")
                     }
-                    if (large) OutlinedButton(onNotCoupon, Modifier.heightIn(min = Spacing.touch)) { Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge) }
+                    if (large) TextButton(onNotCoupon, Modifier.heightIn(min = Spacing.touch)) { Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge) }
                 }
                 if ("brand" in c.needsReview) SourceCrop(c, "brand") { viewer = it }
                 BrandField(c.brand ?: "", brands, review = c.needsReview["brand"]) { c = c.copy(brand = it.ifBlank { null }); confirm("brand") }
@@ -409,7 +408,7 @@ private fun ReviewLine(field: String, reasons: List<String>?, onConfirm: () -> U
             }
             Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (reason != "NOT_FOUND") OutlinedButton({ onConfirm(); justConfirmed = true }, Modifier.heightIn(min = Spacing.touch)
+        if (reason != "NOT_FOUND") TextButton({ onConfirm(); justConfirmed = true }, Modifier.heightIn(min = Spacing.touch)
             .semantics { contentDescription = "${(fieldLabel[field] ?: "").subject()} 맞아요" }) { Text("맞아요", style = MaterialTheme.typography.labelLarge) }
     }
 }

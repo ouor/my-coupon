@@ -1,5 +1,11 @@
 package com.ouor.mycoupon.ui.component
 
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.layout.layout
+import com.ouor.mycoupon.ui.theme.statusColors
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.semantics.onClick
@@ -36,7 +42,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -174,15 +179,17 @@ fun CodeNumber(code: String, style: TextStyle, modifier: Modifier = Modifier) {
 @Composable
 fun BarcodeBlock(
     c: Coupon, onExpand: () -> Unit, onCopied: (auth: Boolean) -> Unit, modifier: Modifier = Modifier,
-    dimmed: Boolean = false, onReveal: () -> Unit = {}, onSpeak: (() -> Unit)? = null,
+    dimmed: Boolean = false, onReveal: () -> Unit = {}, onSpeak: (() -> Unit)? = null, bright: Boolean = false,
 ) = com.ouor.mycoupon.ui.theme.MyCouponTheme(forceLight = true) {
     val code = c.code ?: return@MyCouponTheme
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
     val context = LocalContext.current
     val view = c.codeView()
+    // redesign: the brightest, highest-contrast thing on S6, full width; in dark mode its edge is white, not grey
     Surface(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, color = BarcodeColors.background,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (dark) BarcodeColors.background else MaterialTheme.statusColors.line)) {
         Box(contentAlignment = Alignment.Center) {
-            Column(Modifier.padding(vertical = Spacing.l, horizontal = Spacing.l).alpha(if (dimmed) 0.25f else 1f)
+            Column(Modifier.padding(top = 22.dp, start = 18.dp, end = 18.dp).alpha(if (dimmed) 0.25f else 1f)
                 .then(if (dimmed) Modifier.clearAndSetSemantics {} else Modifier), horizontalAlignment = Alignment.CenterHorizontally) {
                 if (view != CodeView.PIN) {
                     Column(Modifier.fillMaxWidth().clickable(enabled = !dimmed, onClickLabel = "점원에게 보여 주기", onClick = onExpand)
@@ -205,23 +212,26 @@ fun BarcodeBlock(
                 c.authCode?.let { auth -> AuthCodeRow(auth, if (dimmed) null else ({ copyCode(context, auth); onCopied(true) })) }
                 Spacer(Modifier.height(Spacing.s))
                 // round-2 V7: a dimmed card has [그래도 보기] in this row's place instead of on top of the number
-                if (dimmed) Spacer(Modifier.height(Spacing.cta))
-                else FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.s, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
-                    OutlinedButton({ copyCode(context, code); onCopied(false) }, Modifier.heightIn(min = Spacing.touch), enabled = !dimmed) {
-                        Icon(Icons.Rounded.ContentCopy, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(Spacing.s))
-                        Text("번호 복사", style = MaterialTheme.typography.labelLarge)
-                    }
-                    if (onSpeak != null) OutlinedButton(onSpeak, Modifier.heightIn(min = Spacing.touch), enabled = !dimmed) {
-                        Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(Spacing.s))
-                        Text("번호 읽기", style = MaterialTheme.typography.labelLarge)
+                if (dimmed) Spacer(Modifier.height(Spacing.cta + Spacing.l))
+                else {
+                    // redesign: the panel's foot — the brightness state as plain text (it is not a button, design D10), then text buttons
+                    HorizontalDivider(Modifier.layout { m, k -> // edge to edge across the panel's 18dp side padding
+                        val extra = 36.dp.roundToPx(); val p = m.measure(k.copy(minWidth = k.maxWidth + extra, maxWidth = k.maxWidth + extra))
+                        layout(k.maxWidth, p.height) { p.place(-extra / 2, 0) }
+                    }, thickness = 1.dp, color = MaterialTheme.statusColors.line)
+                    FlowRow(Modifier.fillMaxWidth().heightIn(min = 46.dp), horizontalArrangement = Arrangement.End, itemVerticalAlignment = Alignment.CenterVertically) {
+                        if (bright) Row(Modifier.weight(1f).padding(vertical = Spacing.s).clearAndSetSemantics { contentDescription = "밝기 최대, 화면 켜 둠" },
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.LightMode, null, Modifier.size(15.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(5.dp))
+                            Text("밝기 최대 · 화면 켜 둠", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else Spacer(Modifier.weight(1f))
+                        if (onSpeak != null) InkTextButton("번호 읽기", onSpeak, icon = Icons.AutoMirrored.Outlined.VolumeUp)
+                        InkTextButton("번호 복사", { copyCode(context, code); onCopied(false) }, icon = Icons.Outlined.ContentCopy)
                     }
                 }
             }
-            if (dimmed) OutlinedButton(onReveal, Modifier.align(Alignment.BottomCenter).padding(bottom = Spacing.l).heightIn(min = Spacing.cta), colors = ButtonDefaults.outlinedButtonColors(containerColor = BarcodeColors.background)) {
-                Text("그래도 보기", style = MaterialTheme.typography.labelLarge)
-            }
+            if (dimmed) InkTextButton("그래도 보기", onReveal, Modifier.align(Alignment.BottomCenter).padding(bottom = Spacing.l).heightIn(min = Spacing.cta))
         }
     }
 }

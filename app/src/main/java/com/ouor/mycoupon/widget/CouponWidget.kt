@@ -31,6 +31,7 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -116,19 +117,19 @@ class CouponWidget : GlanceAppWidget() {
                     // C2-05: one sentence like the list card, not "D 마이너스 3"
                     val spoken = listOf(name, line2, ddaySpoken(c, today), "누르면 바코드").filter { it.isNotEmpty() }.joinToString(", ")
                     val near = d != null && d <= 7
+                    // redesign principle 1: the D-day is the row's first column, as in the app list
                     Row(GlanceModifier.fillMaxWidth().padding(vertical = 6.dp).clickable(actionStartActivity(row)).semantics { contentDescription = spoken },
-                        verticalAlignment = Alignment.Top) { // round-2 V15: D-day on the name line, not between the two lines
+                        verticalAlignment = Alignment.Top) {
+                        Text(WidgetData.dday(c, today), GlanceModifier.width(56.dp), style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                            color = if (near) soon else fg), maxLines = 1)
                         Column(GlanceModifier.defaultWeight()) {
-                            Text(name, style = TextStyle(fontSize = 16.sp, color = fg, fontWeight = FontWeight.Medium), maxLines = 1)
-                            // code review U-25 (P4): soon is said in words too, not by red alone; QA C2Q-06: on the second line,
-                            // so it never takes the name's room
+                            Text(name, style = TextStyle(fontSize = 15.sp, color = fg, fontWeight = FontWeight.Medium), maxLines = 1)
+                            // code review U-25 (P4): soon is said in words too, not by red alone; QA C2Q-06: on the second line
                             if (near || line2.isNotEmpty()) Row {
                                 if (near) Text(if (line2.isEmpty()) "곧" else "곧 · ", style = TextStyle(fontSize = 13.sp, color = soon, fontWeight = FontWeight.Medium))
                                 if (line2.isNotEmpty()) Text(line2, style = TextStyle(fontSize = 13.sp, color = sub), maxLines = 1)
                             }
                         }
-                        Text(WidgetData.dday(c, today), style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                            color = if (near) soon else fg))
                     }
                 } }
             }

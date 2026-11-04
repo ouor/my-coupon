@@ -1,5 +1,23 @@
 package com.ouor.mycoupon.ui.component
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.SheetValue
 import androidx.lifecycle.compose.dropUnlessResumed
@@ -21,18 +39,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -101,15 +114,74 @@ class AppSnackbar(val host: SnackbarHostState, private val scope: CoroutineScope
 
 val LocalSnackbar = staticCompositionLocalOf<AppSnackbar> { error("no snackbar") }
 
-/** App-internal thumbnail / image file (Coil: async decode + memory cache, no network module). */
+/**
+ * App-internal thumbnail. Real coupon images are loud (brand colours, white tickets, a barcode at the bottom), so in lists
+ * they stay small and calm: the top of the image (the product photo, never the barcode), a little desaturated,
+ * a 1px edge so a white ticket does not melt into white paper. [past] goes grey.
+ */
 @Composable
-fun CouponThumb(path: String?, modifier: Modifier = Modifier, size: Dp = 56.dp, alpha: Float = 1f) {
-    Surface(modifier.size(size), shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
-        if (path != null) AsyncImage(File(path), null, Modifier.clip(MaterialTheme.shapes.medium), contentScale = ContentScale.Crop, alpha = alpha)
+fun CouponThumb(path: String?, modifier: Modifier = Modifier, size: Dp = 40.dp, alpha: Float = 1f, past: Boolean = false) {
+    val shape = if (size <= 48.dp) RoundedCornerShape(8.dp) else MaterialTheme.shapes.medium
+    val small = size <= 48.dp
+    // only list thumbnails are toned down; S4/S9 previews are for checking the photo, so they keep full colour
+    val filter = remember(past, small) { if (past || small) ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(if (past) 0f else 0.75f) }) else null }
+    Box(modifier.size(size).clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        .border(1.dp, MaterialTheme.statusColors.line, shape)) {
+        if (path != null) AsyncImage(File(path), null, Modifier.size(size), contentScale = ContentScale.Crop,
+            alignment = Alignment.TopCenter, alpha = alpha, colorFilter = filter)
     }
 }
 
-/** TopAppBar with an optional back/close icon (labelled for TalkBack). */
+/**
+ * One group = one surface + hairlines (redesign principle 5). Lazy lists draw a group item by item: [first]/[last]
+ * round the matching corners, the dark-theme 1px edge is drawn only on the outer sides, and every item after the
+ * first gets the inset divider on top.
+ */
+fun Modifier.groupItem(first: Boolean, last: Boolean, surface: Color, border: Color, line: Color, radius: Dp = 14.dp, inset: Dp = 14.dp): Modifier =
+    this.clip(RoundedCornerShape(if (first) radius else 0.dp, if (first) radius else 0.dp, if (last) radius else 0.dp, if (last) radius else 0.dp))
+        .drawBehind {
+            drawRect(surface)
+            val r = radius.toPx()
+            val top = if (first) 0f else -2 * r
+            val bottom = if (last) size.height else size.height + 2 * r
+            if (border.alpha > 0f) drawRoundRect(border, Offset(0.5f, top + 0.5f), Size(size.width - 1f, bottom - top - 1f),
+                CornerRadius(r, r), style = Stroke(1.dp.toPx()))
+            if (!first) drawRect(line, Offset(inset.toPx(), 0f), Size(size.width - inset.toPx(), 1.dp.toPx()))
+        }
+
+/** Non-lazy group: surface, 14 radius, dark 1px edge; rows inside are separated with [GroupDivider]. */
+@Composable
+fun Group(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val s = MaterialTheme.statusColors
+    val shape = MaterialTheme.shapes.large
+    Column(modifier.fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.surface).border(1.dp, s.border, shape), content = content)
+}
+
+@Composable
+fun GroupDivider(inset: Dp = 14.dp) = HorizontalDivider(Modifier.padding(start = inset), thickness = 1.dp, color = MaterialTheme.statusColors.line)
+
+/** Small grey label above a group ("7일 안에 2", "알림"). [count] in the fainter grey. */
+@Composable
+fun GroupLabel(text: String, modifier: Modifier = Modifier, count: Int? = null) {
+    Row(modifier.padding(start = Spacing.xs, top = 14.dp, bottom = 6.dp).semantics(mergeDescendants = true) { heading() },
+        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        count?.let { Text("$it", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.statusColors.faint) }
+    }
+}
+
+/** The only secondary control shape: ink text, no border or fill (redesign principle 4). */
+@Composable
+fun InkTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, enabled: Boolean = true,
+                  color: Color = MaterialTheme.colorScheme.primary) {
+    TextButton(onClick, modifier.heightIn(min = Spacing.touch), enabled = enabled, shape = MaterialTheme.shapes.medium,
+        colors = ButtonDefaults.textButtonColors(contentColor = color), contentPadding = PaddingValues(horizontal = 10.dp)) {
+        icon?.let { Icon(it, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)) }
+        Text(text, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
+    }
+}
+
+/** Top bar on the paper background: 22 Bold title, outlined 22dp icons (back/close labelled for TalkBack). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppTopBar(title: String, onBack: (() -> Unit)? = null, close: Boolean = false, actions: @Composable () -> Unit = {}) {
@@ -118,40 +190,46 @@ fun AppTopBar(title: String, onBack: (() -> Unit)? = null, close: Boolean = fals
         navigationIcon = {
             // code review U-06: a second tap while the screen is already leaving would pop the screen below as well
             if (onBack != null) IconButton(onClick = dropUnlessResumed(block = onBack)) {
-                Icon(if (close) Icons.Rounded.Close else Icons.AutoMirrored.Rounded.ArrowBack, if (close) "닫기" else "뒤로")
+                Icon(if (close) Icons.Outlined.Close else Icons.AutoMirrored.Outlined.ArrowBack, if (close) "닫기" else "뒤로")
             }
         },
         actions = { actions() },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background,
+            scrolledContainerColor = MaterialTheme.colorScheme.background),
     )
 }
 
-/** design-system §6.6: one banner at a time on S1. */
+/**
+ * design-system §6.6 / redesign principle 8: a notice is one neutral line on a surface — small round icon, text,
+ * text buttons. Colour lives only in the icon dot ([accent]: soon/review), never in the whole block.
+ */
 @Composable
 fun InfoBanner(
-    icon: ImageVector, text: String, container: Color, content: Color,
+    icon: ImageVector, text: String,
     modifier: Modifier = Modifier, onClick: (() -> Unit)? = null,
     sub: String? = null,
+    accent: Color? = null,
     inlineActions: Boolean = false, // owner feedback 11-04: a single short button sits right of the text, not on its own line
     actions: @Composable () -> Unit = {},
 ) {
-    val colors = CardDefaults.cardColors(containerColor = container, contentColor = content)
-    val body: @Composable ColumnScope.() -> Unit = {
-        // round-2 review V4: one compact block; [sub] says which coupon (same product names repeat)
-        Row(Modifier.padding(start = Spacing.l, end = Spacing.s, top = Spacing.s, bottom = Spacing.xs).heightIn(min = 24.dp),
+    val st = MaterialTheme.statusColors
+    val shape = MaterialTheme.shapes.large
+    val base = modifier.fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.surface).border(1.dp, st.border, shape)
+    Column(if (onClick != null) base.clickable(onClick = onClick) else base) {
+        Row(Modifier.padding(start = 12.dp, end = Spacing.xs, top = Spacing.s, bottom = Spacing.s).heightIn(min = 40.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null)
-            Spacer(Modifier.size(Spacing.m))
-            Column(Modifier.weight(1f)) {
+            Box(Modifier.size(30.dp).clip(CircleShape).background(accent?.copy(alpha = 0.14f) ?: st.track), contentAlignment = Alignment.Center) {
+                Icon(icon, null, Modifier.size(16.dp), tint = accent ?: MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f).padding(end = Spacing.xs)) {
                 Text(text, style = MaterialTheme.typography.bodyMedium)
-                sub?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                sub?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             if (inlineActions) actions()
         }
-        if (!inlineActions) Row(Modifier.fillMaxWidth().padding(end = Spacing.s, bottom = Spacing.xs), horizontalArrangement = Arrangement.End) { actions() }
+        if (!inlineActions) Row(Modifier.fillMaxWidth().padding(end = Spacing.xs, bottom = Spacing.xs), horizontalArrangement = Arrangement.End) { actions() }
     }
-    if (onClick != null) Card(onClick, modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, colors = colors, content = body)
-    else Card(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, colors = colors, content = body)
 }
 
 /** design-system §6.7 */
@@ -161,18 +239,18 @@ fun EmptyState(
     primary: Pair<String, () -> Unit>? = null, secondary: Pair<String, () -> Unit>? = null,
 ) {
     Column(modifier.fillMaxWidth().padding(horizontal = Spacing.xl, vertical = Spacing.xxl), horizontalAlignment = Alignment.CenterHorizontally) {
-        if (icon != null) Icon(icon, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (icon != null) Icon(icon, null, Modifier.size(48.dp), tint = MaterialTheme.statusColors.faint)
         Spacer(Modifier.height(Spacing.l))
-        Text(title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
+        Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
         body?.let {
             Spacer(Modifier.height(Spacing.s))
-            Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         }
         Spacer(Modifier.height(Spacing.xl))
         primary?.let { (t, a) -> PrimaryButton(t, a) }
         secondary?.let { (t, a) ->
-            Spacer(Modifier.height(Spacing.s))
-            OutlinedButton(a, Modifier.fillMaxWidth().heightIn(min = Spacing.cta), shape = MaterialTheme.shapes.large) { Text(t, style = MaterialTheme.typography.labelLarge) }
+            Spacer(Modifier.height(Spacing.xs))
+            SecondaryButton(t, a)
         }
     }
 }
@@ -189,7 +267,8 @@ fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
 
 @Composable
 fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    TextButton(onClick, modifier.fillMaxWidth().heightIn(min = Spacing.touch), shape = MaterialTheme.shapes.large) {
+    TextButton(onClick, modifier.fillMaxWidth().heightIn(min = Spacing.touch), shape = MaterialTheme.shapes.large,
+        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)) {
         Text(text, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
     }
 }
@@ -198,9 +277,9 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
 @Composable
 fun BottomCta(text: String, onClick: () -> Unit, enabled: Boolean = true, hint: String? = null, outlined: Boolean = false, raised: Boolean = false) {
     // round-2 V1: [raised] while the page scrolls on under the bar, so a half-hidden row reads as "more below"
-    Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = if (raised) 8.dp else 0.dp) {
+    Surface(color = MaterialTheme.colorScheme.background, shadowElevation = if (raised) 8.dp else 0.dp) {
         Column(Modifier.navigationBarsPadding()) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            if (raised) HorizontalDivider(color = MaterialTheme.statusColors.line)
             Column(Modifier.padding(horizontal = Spacing.l, vertical = Spacing.m)) {
                 hint?.let {
                     Text(it, Modifier.fillMaxWidth().padding(bottom = Spacing.s), style = MaterialTheme.typography.bodySmall,
@@ -208,9 +287,8 @@ fun BottomCta(text: String, onClick: () -> Unit, enabled: Boolean = true, hint: 
                 }
                 // code review U-06: ignored once the screen started leaving (S5 [저장] twice popped two screens)
                 val click = dropUnlessResumed(block = onClick)
-                if (outlined) OutlinedButton(click, Modifier.fillMaxWidth().heightIn(min = Spacing.cta), enabled = enabled, shape = MaterialTheme.shapes.large) {
-                    Text(text, style = MaterialTheme.typography.labelLarge)
-                } else PrimaryButton(text, click, enabled = enabled)
+                if (outlined) SecondaryButton(text, click, Modifier.heightIn(min = Spacing.cta))
+                else PrimaryButton(text, click, enabled = enabled)
             }
         }
     }
@@ -226,14 +304,14 @@ fun AppSheet(
 ) {
     // code review U-10: a progress sheet ([dismissible] false) cannot be swiped or backed away while its work goes on
     ModalBottomSheet(onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { dismissible || it != SheetValue.Hidden }),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentWindowInsets = { WindowInsets(0) },
+        containerColor = MaterialTheme.colorScheme.surface, contentWindowInsets = { WindowInsets(0) },
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = dismissible)) {
         // code review A18: the sheet's text fields (S8 amount, backup password) stay above the keyboard
         Column(Modifier.navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.l).padding(bottom = Spacing.l)) {
             Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
             description?.let {
                 Spacer(Modifier.height(Spacing.s))
-                Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Spacer(Modifier.height(Spacing.l))
             content()
@@ -241,9 +319,8 @@ fun AppSheet(
     }
 }
 
-/** Settings group title (S10/S11). */
+/** Settings group title (S10/S11): small grey, outside the group it names. */
 @Composable
 fun SectionTitle(text: String, modifier: Modifier = Modifier) {
-    Text(text, modifier.padding(start = Spacing.l, end = Spacing.l, top = Spacing.xl, bottom = Spacing.s).semantics { heading() },
-        style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+    GroupLabel(text, modifier.padding(horizontal = Spacing.l))
 }
