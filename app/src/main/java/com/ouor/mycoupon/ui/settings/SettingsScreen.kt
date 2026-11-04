@@ -8,12 +8,10 @@ import android.content.Context
 import android.graphics.drawable.Icon
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.core.content.ContextCompat
 import com.ouor.mycoupon.R
@@ -101,43 +99,29 @@ fun SettingsScreen(nav: NavHostController) {
 
     Scaffold(topBar = { AppTopBar("설정", onBack = { nav.popBackStack() }) }, snackbarHost = { SnackbarHost(snackbar.host) }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {
-            // F18: counts only, never money
-            Card(Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s), shape = MaterialTheme.shapes.large,
+            // F18: counts only, never money. Owner feedback 11-04: no card at all until something was used
+            if (st.stats.usedBeforeExpiry > 0 || st.stats.usedViaReminder > 0) Card(Modifier.fillMaxWidth().padding(horizontal = Spacing.l, vertical = Spacing.s), shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)) {
                 Column(Modifier.padding(Spacing.l).semantics(mergeDescendants = true) {}) {
-                    if (st.stats.usedBeforeExpiry == 0 && st.stats.usedViaReminder == 0) {
-                        Text("쿠폰을 쓰면 여기에 기록이 쌓여요", style = MaterialTheme.typography.bodyLarge)
-                    } else {
-                        Text("만료 전에 쓴 쿠폰 ${st.stats.usedBeforeExpiry}개", style = MaterialTheme.typography.titleMedium)
-                        Text("알림 받고 쓴 쿠폰 ${st.stats.usedViaReminder}개", style = MaterialTheme.typography.bodyMedium)
-                    }
+                    Text("만료 전에 쓴 쿠폰 ${st.stats.usedBeforeExpiry}개", style = MaterialTheme.typography.titleMedium)
+                    Text("알림 받고 쓴 쿠폰 ${st.stats.usedViaReminder}개", style = MaterialTheme.typography.bodyMedium)
                 }
             }
             SectionTitle("알림")
-            // C2-08: says when and how often, with a real button to change it
-            ListItem(
-                headlineContent = { Text("만료 알림", style = MaterialTheme.typography.bodyLarge) },
-                supportingContent = {
-                    Text("매일 ${timeLabel(st.app.reminderMinute)} · 하루 한 번\n여러 장이면 한 알림으로\n${offsetsLabel(st.app.reminderOffsets)}",
-                        style = MaterialTheme.typography.bodyMedium)
-                },
-                leadingContent = { Icon(Icons.Rounded.Notifications, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                trailingContent = { OutlinedButton({ nav.navigate(Route.Reminders) }, Modifier.heightIn(min = Spacing.touch)) { Text("바꾸기") } },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                modifier = Modifier.clickable(role = Role.Button) { nav.navigate(Route.Reminders) },
-            )
+            // owner feedback 11-04: a row like the others (whole row opens S10), the value in one line
+            SettingRow(Icons.Rounded.Notifications, "만료 알림", "매일 ${timeLabel(st.app.reminderMinute)} · ${offsetsLabel(st.app.reminderOffsets)}") { nav.navigate(Route.Reminders) }
             SettingRow(Icons.Rounded.MusicNote, "알림 소리 바꾸기") { context.startActivity(vm.channelSettingsIntent()) }
             // C2-14
-            SettingRow(Icons.Rounded.Dashboard, "알림창 버튼에 '내 쿠폰' 넣기", "화면 위에서 내려 바로 바코드를 열어요") {
+            SettingRow(Icons.Rounded.Dashboard, "알림창 버튼에 '내 쿠폰' 넣기") {
                 if (Build.VERSION.SDK_INT >= 33) requestAddTile(context) { msg -> snackbar.show(msg) } else tileGuide = true
             }
             SectionTitle("데이터")
-            SettingRow(Icons.Rounded.Save, "백업·복원", "파일로 저장하고 새 폰에서 가져와요") { nav.navigate(Route.Backup) }
+            SettingRow(Icons.Rounded.Save, "백업·복원") { nav.navigate(Route.Backup) }
             // C2-16: read only
             SettingRow(Icons.Rounded.Storage, "앱이 차지하는 공간",
                 storage?.let { "${mb(it.bytes)} · 쿠폰 이미지 ${it.images}장" } ?: "재는 중", chevron = false, onClick = null)
             SectionTitle("도움")
-            SettingRow(Icons.Rounded.PhonelinkLock, "개인정보 안내", "이 앱은 인터넷을 쓰지 않아요") { nav.navigate(Route.Privacy) }
+            SettingRow(Icons.Rounded.PhonelinkLock, "개인정보 안내") { nav.navigate(Route.Privacy) }
             SettingRow(Icons.Rounded.BugReport, "앱 문제 알리기 (오류 기록 보내기)", if (st.crashFiles.isEmpty()) "기록이 없어요" else "기록 ${st.crashFiles.size}건") {
                 val f = st.crashFiles.firstOrNull()
                 if (f == null) snackbar.show("보낼 오류 기록이 없어요") else context.startActivity(Sharing.intent(context, f, f.name, "text/plain"))
