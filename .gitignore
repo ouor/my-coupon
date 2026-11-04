@@ -22,6 +22,9 @@ build/
 
 .kotlin/
 
-# release signing secrets (see signing/SIGNING.md)
+# release signing secrets (never committed)
 signing/release.p12
 signing/keystore.properties
+
+# local development notes
+/docs/dev/

@@ -12,7 +12,7 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-// signing/SIGNING.md: the key and its password stay out of git
+// the release key and its password stay out of git (signing/keystore.properties)
 val ksProps = Properties().apply {
     rootProject.file("signing/keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }

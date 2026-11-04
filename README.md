@@ -107,11 +107,14 @@ PC에서 `apksigner verify --print-certs mycoupon-*.apk`로 확인할 수 있어
 여기부터는 앱을 직접 빌드하거나 고치려는 분을 위한 내용이에요.
 
 - 빌드 방법과 구조: [docs/BUILDING.md](docs/BUILDING.md)
-- 인식 규칙과 정확도: [docs/ocr/](docs/ocr/) (Python 기준 구현은 [ocr-lab/](ocr-lab/))
-- 기획·디자인·리뷰 기록: [docs/](docs/)
+- 인식 규칙의 Python 기준 구현: [ocr-lab/](ocr-lab/)
 - 쓰인 기술
   - 앱: Kotlin, Jetpack Compose (Material 3), Hilt, Navigation Compose
   - 인식: PP-OCRv5 (mobile det + korean mobile rec), ONNX Runtime, ZXing
   - 저장: Room, WorkManager, Glance(위젯)
   - 백업 암호화: Bouncy Castle (Argon2id)
 - 이 앱은 쿠폰 발급사나 카카오와 관련이 없어요. 상품명과 브랜드의 권리는 각 회사에 있어요.
+
+## 📄 라이선스
+
+[MIT](LICENSE)
