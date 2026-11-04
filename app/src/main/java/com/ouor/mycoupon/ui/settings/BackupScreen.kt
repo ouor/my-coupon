@@ -1,6 +1,6 @@
 package com.ouor.mycoupon.ui.settings
 
-import androidx.compose.material.icons.outlined.Lock
+import com.ouor.mycoupon.ui.component.Ink
 import androidx.compose.ui.platform.LocalContext
 import com.ouor.mycoupon.ui.component.backupPasswordProblem
 import android.provider.DocumentsContract
@@ -17,12 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.Save
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -87,7 +81,7 @@ fun BackupScreen(nav: NavHostController) {
 
     Scaffold(topBar = { AppTopBar("백업·복원", onBack = { nav.popBackStack() }) }, snackbarHost = { SnackbarHost(snackbar.host) }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {
-            InfoBanner(Icons.Outlined.Lock, "비밀번호를 잊으면 백업 파일을 아무도 열 수 없어요.", Modifier.padding(horizontal = Spacing.l, vertical = Spacing.xs))
+            InfoBanner(Ink.Lock, "비밀번호를 잊으면 백업 파일을 아무도 열 수 없어요.", Modifier.padding(horizontal = Spacing.l, vertical = Spacing.xs))
             Spacer(Modifier.height(Spacing.m))
             val last = st.lastBackupAt?.let { " · 마지막 백업 " + com.ouor.mycoupon.ui.component.epochDay(it).let { d -> "${d.monthValue}월 ${d.dayOfMonth}일" } } ?: ""
             com.ouor.mycoupon.ui.component.Group(Modifier.padding(horizontal = Spacing.l)) {
@@ -176,7 +170,7 @@ private fun PasswordSheet(
     AppSheet(onDismiss, title, if (confirm) "8자 이상, 숫자만은 안 돼요" else null) {
         val vt = if (show) VisualTransformation.None else PasswordVisualTransformation()
         val eye: @Composable () -> Unit = {
-            IconButton({ show = !show }) { Icon(if (show) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (show) "비밀번호 숨기기" else "비밀번호 보기") }
+            IconButton({ show = !show }) { Icon(if (show) Ink.EyeOff else Ink.Eye, if (show) "비밀번호 숨기기" else "비밀번호 보기") }
         }
         val err = when { wrong -> "비밀번호가 맞지 않아요"; else -> problem }
         OutlinedTextField(pw, { pw = it }, Modifier.fillMaxWidth(), label = { Text("비밀번호") }, singleLine = true, visualTransformation = vt,

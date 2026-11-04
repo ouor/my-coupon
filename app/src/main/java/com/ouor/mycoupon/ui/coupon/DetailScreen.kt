@@ -1,8 +1,6 @@
 package com.ouor.mycoupon.ui.coupon
 
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.MoreVert
+import com.ouor.mycoupon.ui.component.Ink
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -16,13 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -121,25 +112,27 @@ fun DetailScreen(id: Long, fromReminder: Boolean, nav: NavHostController, home: 
 
     Scaffold(
         topBar = {
-            AppTopBar("", onBack = back) {
-                // C2-06: 56 dp targets, full-contrast icons and position; code review U-06: one step per tap
-                if (pos >= 0 && ring.size > 1 && undoLeft == 0) {
+            // C2-06: 56 dp targets, full-contrast icons and position; code review U-06: one step per tap
+            val pager: (@Composable () -> Unit)? = if (pos >= 0 && ring.size > 1 && undoLeft == 0) ({
+                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(dropUnlessResumed { go(-1) }, Modifier.size(Spacing.cta), enabled = pos > 0) {
-                        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, if (pos > 0) "이전 쿠폰" else "이전 쿠폰 없음")
+                        Icon(Ink.ChevronLeft, if (pos > 0) "이전 쿠폰" else "이전 쿠폰 없음")
                     }
                     Text("${pos + 1} / ${ring.size}", Modifier.semantics { contentDescription = "${ring.size}개 중 ${pos + 1}번째" },
                         style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     IconButton(dropUnlessResumed { go(1) }, Modifier.size(Spacing.cta), enabled = pos < ring.lastIndex) {
-                        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, if (pos < ring.lastIndex) "다음 쿠폰" else "다음 쿠폰 없음")
+                        Icon(Ink.ChevronRight, if (pos < ring.lastIndex) "다음 쿠폰" else "다음 쿠폰 없음")
                     }
                 }
+            }) else null
+            AppTopBar("", onBack = back, center = pager) {
                 Box {
-                    IconButton({ st.menu = true }, Modifier.size(Spacing.cta)) { Icon(Icons.Outlined.MoreVert, "더 보기") }
+                    IconButton({ st.menu = true }, Modifier.size(Spacing.cta)) { Icon(Ink.More, "더 보기") }
                     DropdownMenu(st.menu, { st.menu = false }) {
                         DropdownMenuItem({ Text("수정") }, { st.menu = false; nav.navigate(Route.EditCoupon(id)) },
-                            Modifier.heightIn(min = Spacing.cta), leadingIcon = { Icon(Icons.Rounded.Edit, null) })
+                            Modifier.heightIn(min = Spacing.cta), leadingIcon = { Icon(Ink.Edit, null) })
                         DropdownMenuItem({ Text("삭제") }, { st.menu = false; st.confirmDelete = true },
-                            Modifier.heightIn(min = Spacing.cta), leadingIcon = { Icon(Icons.Rounded.Delete, null) })
+                            Modifier.heightIn(min = Spacing.cta), leadingIcon = { Icon(Ink.Trash, null) })
                     }
                 }
             }
@@ -216,7 +209,7 @@ private fun OnShareChosen(onChosen: () -> Unit) {
 private fun MissingCoupon(nav: NavHostController) {
     Scaffold(topBar = { AppTopBar("", onBack = { nav.toHome() }) }) { pad ->
         Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) {
-            EmptyState(Icons.Rounded.SearchOff, "이 쿠폰을 찾을 수 없어요", "지웠거나 백업에서 다시 불러온 쿠폰이에요. 목록에서 찾아 주세요",
+            EmptyState(Ink.SearchOff, "이 쿠폰을 찾을 수 없어요", "지웠거나 백업에서 다시 불러온 쿠폰이에요. 목록에서 찾아 주세요",
                 primary = "내 쿠폰 목록" to { nav.toHome() })
         }
     }

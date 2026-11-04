@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.remember
 import androidx.compose.ui.draw.drawBehind
@@ -38,7 +36,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -67,6 +64,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -164,9 +162,13 @@ fun GroupDivider(inset: Dp = 14.dp) = HorizontalDivider(Modifier.padding(start =
 @Composable
 fun GroupLabel(text: String, modifier: Modifier = Modifier, count: Int? = null) {
     Row(modifier.padding(start = Spacing.xs, top = 14.dp, bottom = 6.dp).semantics(mergeDescendants = true) { heading() },
-        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        count?.let { Text("$it", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.statusColors.faint) }
+    ) {
+        // designer 11-04: one Text so the count shares size and baseline; only its colour differs
+        val faint = MaterialTheme.statusColors.faint
+        Text(androidx.compose.ui.text.buildAnnotatedString {
+            append(text)
+            count?.let { append(" "); withStyle(androidx.compose.ui.text.SpanStyle(color = faint)) { append("$it") } }
+        }, style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"), color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -184,19 +186,21 @@ fun InkTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
 /** Top bar on the paper background: 22 Bold title, outlined 22dp icons (back/close labelled for TalkBack). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppTopBar(title: String, onBack: (() -> Unit)? = null, close: Boolean = false, actions: @Composable () -> Unit = {}) {
-    TopAppBar(
-        title = { Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() }) },
-        navigationIcon = {
-            // code review U-06: a second tap while the screen is already leaving would pop the screen below as well
-            if (onBack != null) IconButton(onClick = dropUnlessResumed(block = onBack)) {
-                Icon(if (close) Icons.Outlined.Close else Icons.AutoMirrored.Outlined.ArrowBack, if (close) "닫기" else "뒤로")
-            }
-        },
-        actions = { actions() },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background,
-            scrolledContainerColor = MaterialTheme.colorScheme.background),
-    )
+fun AppTopBar(title: String, onBack: (() -> Unit)? = null, close: Boolean = false, center: (@Composable () -> Unit)? = null,
+              actions: @Composable () -> Unit = {}) {
+    val titleSlot: @Composable () -> Unit = center ?: { Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() }) }
+    val nav: @Composable () -> Unit = {
+        // code review U-06: a second tap while the screen is already leaving would pop the screen below as well
+        if (onBack != null) IconButton(onClick = dropUnlessResumed(block = onBack)) {
+            Icon(if (close) Ink.Close else Ink.Back, if (close) "닫기" else "뒤로")
+        }
+    }
+    val colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background,
+        scrolledContainerColor = MaterialTheme.colorScheme.background, navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+        actionIconContentColor = MaterialTheme.colorScheme.onSurface)
+    // designer 11-04: [center] (S6 ‹ 1/4 ›) sits on the screen's centre line, not in the gap between back and the actions
+    if (center != null) androidx.compose.material3.CenterAlignedTopAppBar(titleSlot, navigationIcon = nav, actions = { actions() }, colors = colors)
+    else TopAppBar(titleSlot, navigationIcon = nav, actions = { actions() }, colors = colors)
 }
 
 /**
@@ -216,7 +220,8 @@ fun InfoBanner(
     val shape = MaterialTheme.shapes.large
     val base = modifier.fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.surface).border(1.dp, st.border, shape)
     Column(if (onClick != null) base.clickable(onClick = onClick) else base) {
-        Row(Modifier.padding(start = 12.dp, end = Spacing.xs, top = Spacing.s, bottom = Spacing.s).heightIn(min = 40.dp),
+        // designer 11-04: a one-line notice is 48-52dp (the inline button's 48dp touch sets it), not a 64dp slab
+        Row(Modifier.padding(start = 12.dp, end = Spacing.xs, top = if (inlineActions) 2.dp else Spacing.s, bottom = if (inlineActions) 2.dp else Spacing.s).heightIn(min = 46.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(30.dp).clip(CircleShape).background(accent?.copy(alpha = 0.14f) ?: st.track), contentAlignment = Alignment.Center) {
                 Icon(icon, null, Modifier.size(16.dp), tint = accent ?: MaterialTheme.colorScheme.onSurfaceVariant)
@@ -304,7 +309,7 @@ fun AppSheet(
 ) {
     // code review U-10: a progress sheet ([dismissible] false) cannot be swiped or backed away while its work goes on
     ModalBottomSheet(onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { dismissible || it != SheetValue.Hidden }),
-        containerColor = MaterialTheme.colorScheme.surface, contentWindowInsets = { WindowInsets(0) },
+        containerColor = MaterialTheme.colorScheme.background, contentWindowInsets = { WindowInsets(0) },
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = dismissible)) {
         // code review A18: the sheet's text fields (S8 amount, backup password) stay above the keyboard
         Column(Modifier.navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.l).padding(bottom = Spacing.l)) {

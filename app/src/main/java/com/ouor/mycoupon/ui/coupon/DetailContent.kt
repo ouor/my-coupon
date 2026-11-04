@@ -1,13 +1,7 @@
 package com.ouor.mycoupon.ui.coupon
 
+import com.ouor.mycoupon.ui.component.Ink
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.Storefront
-import androidx.compose.material.icons.automirrored.outlined.Send
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.ui.semantics.Role
 import com.ouor.mycoupon.ui.component.Group
@@ -41,16 +35,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -173,10 +157,10 @@ internal fun DetailContent(
             if (coupon.code != null && !dimmed) {
                 Row(Modifier.fillMaxWidth().clickable(role = Role.Button) { nav.navigate(Route.BarcodeFull(id)) }.heightIn(min = Spacing.cta)
                     .padding(start = 14.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Storefront, null, Modifier.size(22.dp))
+                    Icon(Ink.Store, null, Modifier.size(22.dp))
                     Spacer(Modifier.width(Spacing.m))
                     Text("점원에게 보여 주기", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, Modifier.size(18.dp), tint = MaterialTheme.statusColors.faint)
+                    Icon(Ink.ChevronRight, null, Modifier.size(18.dp), tint = MaterialTheme.statusColors.faint)
                 }
                 GroupDivider()
             }
@@ -185,7 +169,7 @@ internal fun DetailContent(
         val days = Stats.daysLeft(coupon, today)
         if (coupon.issuer?.contains("카카오") == true && days != null && days in 0..7 && coupon.status == CouponStatus.ACTIVE)
             Notice("카카오톡 선물함에서 기간 연장이 될 수 있어요")
-        if (coupon.needsCheck && coupon.status == CouponStatus.ACTIVE) InfoBanner(Icons.Outlined.ErrorOutline, "확인할 항목이 있어요",
+        if (coupon.needsCheck && coupon.status == CouponStatus.ACTIVE) InfoBanner(Ink.Alert, "확인할 항목이 있어요",
             Modifier.padding(vertical = Spacing.xs), accent = MaterialTheme.statusColors.review, inlineActions = true) {
             InkTextButton("확인하기", { nav.navigate(Route.EditCoupon(id)) })
         }
@@ -193,7 +177,7 @@ internal fun DetailContent(
             // code review U-16: says whether it is open
             TextButton({ st.notesOpen = !st.notesOpen }, Modifier.heightIn(min = Spacing.touch).semantics { stateDescription = if (st.notesOpen) "펼쳐짐" else "접힘" }) {
                 Text("유의사항", style = MaterialTheme.typography.labelLarge)
-                Icon(if (st.notesOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null)
+                Icon(if (st.notesOpen) Ink.ExpandLess else Ink.ExpandMore, null)
             }
             if (st.notesOpen) Text(notes, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -223,7 +207,7 @@ private fun BalanceRow(coupon: Coupon, records: Int, open: Boolean, onToggle: ()
         Spacer(Modifier.weight(1f))
         if (records > 0) Row(Modifier.heightIn(min = Spacing.touch), verticalAlignment = Alignment.CenterVertically) {
             Text("사용 기록 ${records}건", style = MaterialTheme.typography.labelLarge)
-            Icon(if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null)
+            Icon(if (open) Ink.ExpandLess else Ink.ExpandMore, null)
         }
     }
 }
@@ -237,10 +221,10 @@ private fun QuickActions(coupon: Coupon, st: DetailState) {
     val share = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         val sep = @Composable { VerticalDivider(Modifier.padding(vertical = 14.dp), thickness = 1.dp, color = MaterialTheme.statusColors.line) }
-        if (coupon.code != null) { QuickAction(Icons.Outlined.Image, if (st.showOriginal) "원본 닫기" else "원본 보기", Modifier.weight(1f)) { st.showOriginal = !st.showOriginal }; sep() }
-        QuickAction(Icons.Outlined.Notifications, "알림", Modifier.weight(1f)) { st.reminderSheet = true }
+        if (coupon.code != null) { QuickAction(Ink.Image, if (st.showOriginal) "원본 닫기" else "원본 보기", Modifier.weight(1f)) { st.showOriginal = !st.showOriginal }; sep() }
+        QuickAction(Ink.Bell, "알림", Modifier.weight(1f)) { st.reminderSheet = true }
         sep()
-        QuickAction(Icons.AutoMirrored.Outlined.Send, "보내기", Modifier.weight(1f)) {
+        QuickAction(Ink.Send, "보내기", Modifier.weight(1f)) {
             // code review A21: copying a multi-MB original and stripping EXIF stays off the main thread
             scope.launch {
                 val i = withContext(Dispatchers.IO) {
@@ -258,7 +242,7 @@ private fun QuickActions(coupon: Coupon, st: DetailState) {
 }
 
 @Composable
-private fun Notice(text: String) = InfoBanner(Icons.Outlined.Info, text, Modifier.padding(vertical = Spacing.xs))
+private fun Notice(text: String) = InfoBanner(Ink.Info, text, Modifier.padding(vertical = Spacing.xs))
 
 @Composable
 private fun QuickAction(icon: ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {
@@ -294,7 +278,7 @@ private fun ImageViewer(bmp: Bitmap, onClose: () -> Unit) {
             Image(bmp.asImageBitmap(), "쿠폰 원본 이미지, 두 손가락으로 확대",
                 Modifier.fillMaxSize().transformable(tf).graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y },
                 contentScale = ContentScale.Fit)
-            IconButton(onClose, Modifier.align(Alignment.TopEnd).padding(Spacing.l)) { Icon(Icons.Rounded.Close, "닫기", tint = Color.White) }
+            IconButton(onClose, Modifier.align(Alignment.TopEnd).padding(Spacing.l)) { Icon(Ink.Close, "닫기", tint = Color.White) }
         }
     }
 }

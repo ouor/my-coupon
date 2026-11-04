@@ -1,22 +1,9 @@
 package com.ouor.mycoupon.ui.home
 
+import com.ouor.mycoupon.ui.component.Ink
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.BugReport
-import androidx.compose.material.icons.outlined.NotificationsOff
-import androidx.compose.material.icons.outlined.TaskAlt
-import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.ImageSearch
-import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.Redeem
-import androidx.compose.material.icons.automirrored.outlined.Sort
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -46,13 +33,6 @@ import com.ouor.mycoupon.ui.component.won
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.material.icons.rounded.ChevronLeft
-import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.PhotoCamera
-import androidx.compose.material.icons.rounded.Redeem
-import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
@@ -87,19 +67,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.BugReport
-import androidx.compose.material.icons.rounded.CardGiftcard
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.ConfirmationNumber
-import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.ImageSearch
-import androidx.compose.material.icons.rounded.NotificationsOff
-import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -210,10 +177,10 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
             else TopAppBar(
                 title = { Text("내 쿠폰", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() }) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.background),
+                    scrolledContainerColor = MaterialTheme.colorScheme.background, actionIconContentColor = MaterialTheme.colorScheme.onSurface),
                 actions = {
-                    if (st.hasCoupons) IconButton({ searching = true }) { Icon(Icons.Outlined.Search, "쿠폰 검색") }
-                    IconButton({ nav.navigate(Route.Settings) }) { Icon(Icons.Outlined.Settings, "설정") }
+                    if (st.hasCoupons) IconButton({ searching = true }) { Icon(Ink.Search, "쿠폰 검색") }
+                    IconButton({ nav.navigate(Route.Settings) }) { Icon(Ink.Settings, "설정") }
                 },
             )
         },
@@ -222,9 +189,9 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
             if (st.hasCoupons && !past && !searching) ExtendedFloatingActionButton(
                 containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary,
                 shape = MaterialTheme.shapes.large,
-                elevation = FloatingActionButtonDefaults.elevation(3.dp, 4.dp, 3.dp, 4.dp),
+                elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp), // designer 11-04: paper, no shadow
                 onClick = { addSheet = true }, expanded = atTop,
-                icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("추가", style = MaterialTheme.typography.labelLarge) },
+                icon = { Icon(Ink.Plus, null) }, text = { Text("추가", style = MaterialTheme.typography.labelLarge) },
                 // code review U-15 checked on POCO: M3 clears the text's semantics, so this is the only label (read once)
                 modifier = Modifier.border(1.dp, MaterialTheme.statusColors.track, MaterialTheme.shapes.large).semantics { contentDescription = "쿠폰 추가" },
             )
@@ -237,7 +204,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
                 // QA R1-17: new-images / notification banners matter most when the list is empty
                 st.banner?.let { b -> HomeBannerView(b, st, vm, nav, notifPermission::launch) }
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    EmptyState(Icons.Rounded.ConfirmationNumber, "아직 쿠폰이 없어요",
+                    EmptyState(Ink.Ticket, "아직 쿠폰이 없어요",
                         primary = "사진에서 추가" to pickPhotos, secondary = "갤러리에서 쿠폰 찾기" to { nav.navigate(Route.Gallery) })
                 }
                 TextButton({ kakaoGuide = true }, Modifier.fillMaxWidth().heightIn(min = Spacing.touch).padding(bottom = Spacing.l)) {
@@ -263,7 +230,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
             // C2-10: the banner tap shows only today's and tomorrow's; this chip undoes it
             if (st.endingOnly && !past && !searching) item(key = "ending") {
                 FilterChip(true, shape = MaterialTheme.shapes.medium, onClick = { vm.endingOnly.value = false }, label = { Text("오늘·내일 끝나는 쿠폰 · 해제", style = MaterialTheme.typography.labelLarge) },
-                    modifier = Modifier.heightIn(min = Spacing.touch), trailingIcon = { Icon(Icons.Rounded.Close, null, Modifier.size(18.dp)) })
+                    modifier = Modifier.heightIn(min = Spacing.touch), trailingIcon = { Icon(Ink.Close, null, Modifier.size(18.dp)) })
             }
             else if (!past && !searching && st.brands.size >= 2) item(key = "brands") {
                 BrandChipRow(st.brands, st.query) { b -> vm.query.value = if (st.query == b) "" else b }
@@ -272,8 +239,8 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
                 when {
                     st.query.isNotBlank() -> Text("‘${st.query}’과 맞는 쿠폰이 없어요", Modifier.fillMaxWidth().padding(vertical = Spacing.xxl),
                         style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
-                    past -> EmptyState(Icons.Rounded.TaskAlt, "지난 쿠폰이 없어요")
-                    else -> EmptyState(Icons.Rounded.ConfirmationNumber, "쓸 수 있는 쿠폰이 없어요", primary = "사진에서 추가" to pickPhotos)
+                    past -> EmptyState(Ink.CheckCircle, "지난 쿠폰이 없어요")
+                    else -> EmptyState(Ink.Ticket, "쓸 수 있는 쿠폰이 없어요", primary = "사진에서 추가" to pickPhotos)
                 }
             }
             // redesign: by expiry the list splits into "7일 안에" and "나중에" groups; recent-first is one group
@@ -327,7 +294,7 @@ private fun SearchTopBar(query: String, onQuery: (String) -> Unit, onClose: () -
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     TopAppBar(
-        navigationIcon = { IconButton(onClose) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "검색 닫기") } },
+        navigationIcon = { IconButton(onClose) { Icon(Ink.Back, "검색 닫기") } },
         title = {
             TextField(query, onQuery, Modifier.fillMaxWidth().focusRequester(focus), singleLine = true,
                 placeholder = { Text("브랜드·상품명·메모 검색") }, textStyle = MaterialTheme.typography.bodyLarge,
@@ -335,7 +302,7 @@ private fun SearchTopBar(query: String, onQuery: (String) -> Unit, onClose: () -
                 colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
                     focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent))
         },
-        actions = { if (query.isNotEmpty()) IconButton({ onQuery("") }) { Icon(Icons.Rounded.Close, "검색어 지우기") } },
+        actions = { if (query.isNotEmpty()) IconButton({ onQuery("") }) { Icon(Ink.Close, "검색어 지우기") } },
     )
 }
 
@@ -373,10 +340,10 @@ private fun SortMenu(sort: ListSort, compact: Boolean, onSort: (ListSort) -> Uni
     Box {
         // redesign: a grey text button, not a third control shape
         val muted = MaterialTheme.colorScheme.onSurfaceVariant
-        if (compact) IconButton({ open = true }, a11y) { Icon(Icons.AutoMirrored.Outlined.Sort, null, tint = muted) }
+        if (compact) IconButton({ open = true }, a11y) { Icon(Ink.Sort, null, tint = muted) }
         else TextButton({ open = true }, a11y.heightIn(min = Spacing.touch), shape = MaterialTheme.shapes.medium,
             colors = ButtonDefaults.textButtonColors(contentColor = muted), contentPadding = PaddingValues(horizontal = 10.dp)) {
-            Icon(Icons.AutoMirrored.Outlined.Sort, null, Modifier.size(16.dp))
+            Icon(Ink.Sort, null, Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))
             Text(if (sort == ListSort.EXPIRY) "임박순" else "최근순", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), maxLines = 1, softWrap = false)
         }
@@ -396,14 +363,14 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
     val newImages = st.newImages
     val s = MaterialTheme.statusColors
     when (b) {
-        HomeBanner.CRASH -> InfoBanner(Icons.Outlined.BugReport, "지난번에 앱이 멈췄어요.", modifier) {
+        HomeBanner.CRASH -> InfoBanner(Ink.Bug, "지난번에 앱이 멈췄어요.", modifier) {
             BannerButton("닫기") { vm.crashBannerShown() }
             BannerButton(onClick = {
                 vm.crashFile()?.let { context.startActivity(Sharing.intent(context, it, it.name, "text/plain")) }
                 vm.crashBannerShown()
             }, "오류 기록 보내기")
         }
-        HomeBanner.NOTIFICATIONS_OFF -> InfoBanner(Icons.Outlined.NotificationsOff, "만료 알림이 꺼져 있어요", modifier, inlineActions = true) {
+        HomeBanner.NOTIFICATIONS_OFF -> InfoBanner(Ink.BellOff, "만료 알림이 꺼져 있어요", modifier, inlineActions = true) {
             BannerButton(onClick = {
                 if (Build.VERSION.SDK_INT >= 33 && !vm.notificationAsked) {
                     vm.notificationsAsked()
@@ -413,7 +380,7 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
         }
         HomeBanner.USE_ASK -> st.useAsk?.let { c ->
             val nm = c.title()
-            InfoBanner(Icons.Outlined.TaskAlt, "아까 $nm 썼어요?", modifier,
+            InfoBanner(Ink.CheckCircle, "아까 $nm 썼어요?", modifier,
                 sub = listOfNotNull(c.brand, c.balance?.takeIf { c.type == CouponType.AMOUNT }?.let { "잔액 ${won(it)}" })
                     .joinToString(" · ").ifEmpty { null }) {
                 BannerButton("아니요") { vm.answerUseAsk(c.id, used = false) }
@@ -424,13 +391,13 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
                 }
             }
         }
-        HomeBanner.ENDING_SOON -> InfoBanner(Icons.Outlined.Schedule, "오늘·내일 끝나는 쿠폰 ${st.endingSoon.size}개", modifier, accent = s.soon, inlineActions = true,
+        HomeBanner.ENDING_SOON -> InfoBanner(Ink.Clock, "오늘·내일 끝나는 쿠폰 ${st.endingSoon.size}개", modifier, accent = s.soon, inlineActions = true,
             onClick = { vm.filter.value = ListFilter.AVAILABLE; vm.query.value = ""; vm.endingOnly.value = true }) {
             BannerButton("닫기") { vm.hideEndingBanner() }
         }
-        HomeBanner.NEEDS_REVIEW -> InfoBanner(Icons.Outlined.ErrorOutline, "확인할 쿠폰이 ${review}개 있어요", modifier, accent = s.review,
+        HomeBanner.NEEDS_REVIEW -> InfoBanner(Ink.Alert, "확인할 쿠폰이 ${review}개 있어요", modifier, accent = s.review,
             onClick = { vm.state.value.firstReviewId?.let { nav.navigate(Route.EditCoupon(it)) } })
-        HomeBanner.NEW_IMAGES -> InfoBanner(Icons.Outlined.ImageSearch, "새 쿠폰 이미지 ${newImages}장이 있어요", modifier, inlineActions = true) {
+        HomeBanner.NEW_IMAGES -> InfoBanner(Ink.ImageSearch, "새 쿠폰 이미지 ${newImages}장이 있어요", modifier, inlineActions = true) {
             BannerButton("확인하기") { vm.reviewNewImages(); nav.navigate(Route.Import) }
         }
     }
@@ -441,17 +408,17 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
 private fun AddSheet(onDismiss: () -> Unit, onShare: () -> Unit, onPick: () -> Unit, onCamera: (() -> Unit)?, onGallery: () -> Unit, onKakao: () -> Unit) {
     // redesign: rows in one group (it was five grey cards on a grey sheet)
     AppSheet(onDismiss, "쿠폰 추가") {
-        Group(Modifier.border(1.dp, MaterialTheme.statusColors.line, MaterialTheme.shapes.large)) {
-            AddOption(Icons.Outlined.PhotoLibrary, "사진 고르기", "한 번에 30장까지 골라요", onPick)
+        Group {
+            AddOption(Ink.Photos, "사진 고르기", "한 번에 30장까지 골라요", onPick)
             GroupDivider(52.dp)
-            if (onCamera != null) { AddOption(Icons.Outlined.PhotoCamera, "카메라로 찍기", null, onCamera); GroupDivider(52.dp) }
-            AddOption(Icons.Outlined.ImageSearch, "갤러리에서 쿠폰 찾기", null, onGallery)
+            if (onCamera != null) { AddOption(Ink.Camera, "카메라로 찍기", null, onCamera); GroupDivider(52.dp) }
+            AddOption(Ink.ImageSearch, "갤러리에서 쿠폰 찾기", null, onGallery)
         }
         GroupLabel("넣는 법")
-        Group(Modifier.border(1.dp, MaterialTheme.statusColors.line, MaterialTheme.shapes.large)) {
-            AddOption(Icons.Outlined.Share, "카톡·문자에서 [공유]로 넣기", null, onShare)
+        Group {
+            AddOption(Ink.Share, "카톡·문자에서 [공유]로 넣기", null, onShare)
             GroupDivider(52.dp)
-            AddOption(Icons.Outlined.Redeem, "카카오톡 선물함 쿠폰 넣기", null, onKakao)
+            AddOption(Ink.Gift, "카카오톡 선물함 쿠폰 넣기", null, onKakao)
         }
     }
 }
@@ -461,9 +428,9 @@ private fun AddSheet(onDismiss: () -> Unit, onShare: () -> Unit, onPick: () -> U
 private fun ShareGuideSheet(onDismiss: () -> Unit) {
     AppSheet(onDismiss, "[공유] 한 번으로 넣어요") {
         listOf(
-            Triple(Icons.Rounded.TouchApp, "쿠폰 사진을 길게 눌러요", null),
-            Triple(Icons.Rounded.Share, "[공유]를 눌러요", "사진 아래나 오른쪽 위 메뉴에 있어요"),
-            Triple(Icons.Rounded.ConfirmationNumber, "'내 쿠폰'을 골라요", null),
+            Triple(Ink.Touch, "쿠폰 사진을 길게 눌러요", null),
+            Triple(Ink.Share, "[공유]를 눌러요", "사진 아래나 오른쪽 위 메뉴에 있어요"),
+            Triple(Ink.Ticket, "'내 쿠폰'을 골라요", null),
         ).forEachIndexed { i, (icon, title, sub) ->
             Row(Modifier.fillMaxWidth().padding(vertical = Spacing.s), verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Surface(Modifier.size(72.dp), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.primaryContainer) {
@@ -520,22 +487,24 @@ private fun BrandChipRow(brands: List<String>, selected: String, onPick: (String
         // round-2 V13: the last chip can scroll clear of the arrow
         LazyRow(state = state, contentPadding = PaddingValues(end = 56.dp), horizontalArrangement = Arrangement.spacedBy(Spacing.s), modifier = Modifier.semantics { contentDescription = "브랜드로 거르기" }) {
             items(brands, key = { it }) { b ->
-                FilterChip(selected == b, { onPick(b) }, { Text(b, style = MaterialTheme.typography.labelMedium) }, // 32dp chip, 48dp touch kept by M3
-                    shape = MaterialTheme.shapes.medium, colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface,
+                // designer 11-04: borderless on the segmented track's grey, so the line has no third control shape; 32dp, 48dp touch kept by M3
+                FilterChip(selected == b, { onPick(b) }, { Text(b, style = MaterialTheme.typography.labelMedium) },
+                    shape = MaterialTheme.shapes.medium, colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.statusColors.track,
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         selectedContainerColor = MaterialTheme.colorScheme.primary, selectedLabelColor = MaterialTheme.colorScheme.onPrimary),
-                    border = FilterChipDefaults.filterChipBorder(true, selected == b, borderColor = MaterialTheme.statusColors.line))
+                    border = null)
             }
         }
         if (state.canScrollForward) Box(Modifier.align(Alignment.CenterEnd).width(64.dp).height(Spacing.touch)
             .background(Brush.horizontalGradient(listOf(Color.Transparent, surface, surface)))) {
             IconButton({ scope.launch { state.animateScrollBy(step) } }, Modifier.align(Alignment.CenterEnd)) {
-                Icon(Icons.Rounded.ChevronRight, "브랜드 더 보기")
+                Icon(Ink.ChevronRight, "브랜드 더 보기")
             }
         }
         if (state.canScrollBackward) Box(Modifier.align(Alignment.CenterStart).width(64.dp).height(Spacing.touch)
             .background(Brush.horizontalGradient(listOf(surface, surface, Color.Transparent)))) {
             IconButton({ scope.launch { state.animateScrollBy(-step) } }, Modifier.align(Alignment.CenterStart)) {
-                Icon(Icons.Rounded.ChevronLeft, "앞 브랜드 보기")
+                Icon(Ink.ChevronLeft, "앞 브랜드 보기")
             }
         }
     }
@@ -551,6 +520,6 @@ private fun AddOption(icon: androidx.compose.ui.graphics.vector.ImageVector, tit
             Text(title, style = MaterialTheme.typography.bodyLarge)
             sub?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
-        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, Modifier.size(18.dp), tint = MaterialTheme.statusColors.faint)
+        Icon(Ink.ChevronRight, null, Modifier.size(18.dp), tint = MaterialTheme.statusColors.faint)
     }
 }

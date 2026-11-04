@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.coupon
 
+import com.ouor.mycoupon.ui.component.Ink
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.DisplayMode
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -13,8 +14,6 @@ import androidx.compose.ui.semantics.stateDescription
 import com.ouor.mycoupon.ui.component.isLargeFont
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.text.AnnotatedString
@@ -52,12 +51,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
@@ -209,11 +202,11 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                 // C2-18: the 40 % image is gone (it pushed the fields off small / 200 % screens); crops sit above each review field
                 FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, itemVerticalAlignment = Alignment.CenterVertically) {
                     if (c.needsReview.isNotEmpty()) Row(Modifier.padding(end = Spacing.s), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.ErrorOutline, null, tint = MaterialTheme.statusColors.review)
+                        Icon(Ink.Alert, null, tint = MaterialTheme.statusColors.review)
                         Text("  확인할 항목 ${c.needsReview.size}개", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.statusColors.review)
                     }
                     TextButton({ viewer = "" }, Modifier.heightIn(min = Spacing.touch)) {
-                        Icon(Icons.Rounded.Image, null, Modifier.padding(end = Spacing.xs)); Text("원본 전체 보기")
+                        Icon(Ink.Image, null, Modifier.padding(end = Spacing.xs)); Text("원본 전체 보기")
                     }
                     if (large) TextButton(onNotCoupon, Modifier.heightIn(min = Spacing.touch)) { Text("쿠폰 아님 · 빼기", style = MaterialTheme.typography.labelLarge) }
                 }
@@ -258,7 +251,7 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                         if (noExpiry) "기간 없음" else c.expiryDate?.dotted() ?: "", {}, Modifier.fillMaxWidth(), readOnly = true, enabled = false,
                         label = { Text("유효기간") },
                         leadingIcon = reviewIcon(expiryReview != null),
-                        trailingIcon = { Icon(Icons.Rounded.CalendarMonth, "유효기간 고르기") },
+                        trailingIcon = { Icon(Ink.Calendar, "유효기간 고르기") },
                         textStyle = MaterialTheme.typography.titleMedium,
                         colors = OutlinedTextFieldDefaults.colors(
                             disabledTextColor = MaterialTheme.colorScheme.onSurface,
@@ -305,7 +298,7 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                 c.notes?.let { notes ->
                     TextButton({ notesOpen = !notesOpen }, Modifier.heightIn(min = Spacing.touch).semantics { stateDescription = if (notesOpen) "펼쳐짐" else "접힘" }) {
                         Text("유의사항 원문", style = MaterialTheme.typography.labelLarge)
-                        Icon(if (notesOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null)
+                        Icon(if (notesOpen) Ink.ExpandLess else Ink.ExpandMore, null)
                     }
                     if (notesOpen) Text(notes, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -334,7 +327,7 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
         Dialog({ viewer = null }, DialogProperties(usePlatformDefaultWidth = false)) {
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
                 SourceImage(c, c.fieldBoxes[key], Modifier.fillMaxSize())
-                IconButton({ viewer = null }, Modifier.align(Alignment.TopEnd).padding(Spacing.s).size(56.dp)) { Icon(Icons.Rounded.Close, "닫기") }
+                IconButton({ viewer = null }, Modifier.align(Alignment.TopEnd).padding(Spacing.s).size(56.dp)) { Icon(Ink.Close, "닫기") }
             }
         }
     }
@@ -393,7 +386,7 @@ private fun ReviewLine(field: String, reasons: List<String>?, onConfirm: () -> U
     val s = MaterialTheme.statusColors
     if (reasons == null) {
         if (justConfirmed) Row(Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }, verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.CheckCircle, null, tint = s.available)
+            Icon(Ink.CheckCircle, null, tint = s.available)
             Text(" 확인했어요", style = MaterialTheme.typography.labelMedium, color = s.available)
         }
         return
@@ -403,7 +396,7 @@ private fun ReviewLine(field: String, reasons: List<String>?, onConfirm: () -> U
     Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = "확인 필요, $text" }, verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.ErrorOutline, null, tint = s.review)
+                Icon(Ink.Alert, null, tint = s.review)
                 Text(" 확인 필요", style = MaterialTheme.typography.labelMedium, color = s.review)
             }
             Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -491,7 +484,7 @@ private fun SourceCrop(c: Coupon, key: String, label: String = "${fieldLabel[key
 /** C2-07: review fields carry a shape too (readable in grey scale), not only the orange border. */
 @Composable
 private fun reviewIcon(on: Boolean): (@Composable () -> Unit)? =
-    if (on) ({ Icon(Icons.Rounded.ErrorOutline, "확인 필요", tint = MaterialTheme.statusColors.review) }) else null
+    if (on) ({ Icon(Ink.Alert, "확인 필요", tint = MaterialTheme.statusColors.review) }) else null
 
 /** C2-19: "ABCD EFGH 1234" while typing; the stored value has no spaces. */
 internal object FourGroups : VisualTransformation {

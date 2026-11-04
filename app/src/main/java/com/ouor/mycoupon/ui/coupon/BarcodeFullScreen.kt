@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.coupon
 
+import com.ouor.mycoupon.ui.component.Ink
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.text.style.TextAlign
@@ -25,8 +26,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -152,6 +151,6 @@ private fun HoldToClose(modifier: Modifier, onClose: () -> Unit, onShort: () -> 
             })
         }, contentAlignment = Alignment.Center) {
         CircularProgressIndicator({ progress.value }, Modifier.size(48.dp), trackColor = MaterialTheme.colorScheme.outlineVariant)
-        Icon(Icons.Rounded.Close, null, tint = MaterialTheme.colorScheme.onSurface)
+        Icon(Ink.Close, null, tint = MaterialTheme.colorScheme.onSurface)
     }
 }

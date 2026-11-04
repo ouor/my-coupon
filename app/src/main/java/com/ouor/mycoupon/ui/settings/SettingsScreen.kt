@@ -1,9 +1,9 @@
 package com.ouor.mycoupon.ui.settings
 
+import com.ouor.mycoupon.ui.component.Ink
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -18,9 +18,6 @@ import android.content.Context
 import android.graphics.drawable.Icon
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.compose.material.icons.rounded.Dashboard
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.core.content.ContextCompat
@@ -38,14 +35,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.BugReport
-import androidx.compose.material.icons.rounded.Code
-import androidx.compose.material.icons.rounded.DeleteForever
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.PhonelinkLock
-import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -97,7 +86,7 @@ internal fun SettingRow(title: String, sub: String? = null, value: String? = nul
         }
         value?.let { Text(it, Modifier.padding(start = Spacing.s), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
             color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        if (chevron && onClick != null) Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, Modifier.padding(start = Spacing.xs).size(18.dp),
+        if (chevron && onClick != null) Icon(Ink.ChevronRight, null, Modifier.padding(start = Spacing.xs).size(18.dp),
             tint = MaterialTheme.statusColors.faint)
     }
 }

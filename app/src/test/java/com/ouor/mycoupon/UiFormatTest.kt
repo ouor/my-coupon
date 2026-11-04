@@ -8,6 +8,7 @@ import com.ouor.mycoupon.ui.component.codeGroups
 import com.ouor.mycoupon.ui.component.codeSpoken
 import com.ouor.mycoupon.ui.component.dotted
 import com.ouor.mycoupon.ui.component.firstReason
+import com.ouor.mycoupon.ui.component.listName
 import com.ouor.mycoupon.ui.component.reasonText
 import com.ouor.mycoupon.ui.component.state
 import com.ouor.mycoupon.ui.component.subject
@@ -76,6 +77,18 @@ class UiFormatTest {
         assertEquals("(CU)", n("CU", "(CU)"))
         assertEquals("(CU)김밥", n(null, "(CU)김밥"))
         assertEquals(null, n("CU", null))
+    }
+
+    @Test fun listNameDropsTagAndBrand() {
+        assertEquals("카페라떼", listName("메가MGC커피", "[EVENT] 메가MGC커피 카페라떼"))
+        assertEquals("카페라떼", listName("메가MGC커피", "[EVENT]메가 MGC커피 카페라떼"))
+        assertEquals("(ICE)아메리카노", listName("메가MGC커피", "(ICE)아메리카노"))
+        assertEquals("치즈와퍼주니어세트", listName("버거킹", "치즈와퍼주니어세트"))
+        assertEquals("메가MGC커피", listName("메가MGC커피", "메가MGC커피"))
+        assertEquals("[EVENT]", listName(null, "[EVENT]"))
+        assertEquals("CUP라면", listName("CU", "CUP라면"))
+        assertEquals("30,000원권", listName("CU", "CU 30,000원권"))
+        assertEquals(null, listName("CU", null))
     }
 
     @Test fun codeTailShowsLastFour() {

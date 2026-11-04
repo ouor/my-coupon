@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.importing
 
+import com.ouor.mycoupon.ui.component.Ink
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.disabled
@@ -40,10 +41,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.BrokenImage
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -173,7 +170,7 @@ fun ImportScreen(nav: NavHostController, vm: ImportViewModel, home: HomeLinks) {
                 }
             }
             if (allFailed) item(key = "failed") {
-                EmptyState(Icons.Rounded.BrokenImage, "사진에서 쿠폰을 읽지 못했어요",
+                EmptyState(Ink.ImageOff, "사진에서 쿠폰을 읽지 못했어요",
                     primary = "다른 사진 고르기" to { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) })
             } else if (st.done > 0) item(key = "summary") {
                 // C2-09: the title is the [N개 등록] number; with nothing new it says why instead of "0개"
@@ -215,7 +212,7 @@ fun ImportScreen(nav: NavHostController, vm: ImportViewModel, home: HomeLinks) {
             if (folded.isNotEmpty()) item(key = "folded") {
                 TextButton({ foldOpen = !foldOpen }, Modifier.fillMaxWidth().heightIn(min = Spacing.touch)) {
                     Text("쿠폰이 아닌 것 ${folded.size}장", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-                    Icon(if (foldOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, if (foldOpen) "접기" else "펼치기")
+                    Icon(if (foldOpen) Ink.ExpandLess else Ink.ExpandMore, if (foldOpen) "접기" else "펼치기")
                 }
             }
             if (foldOpen) items(folded, key = { it.key }) { d ->

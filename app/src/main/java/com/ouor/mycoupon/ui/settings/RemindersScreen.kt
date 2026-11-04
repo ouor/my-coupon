@@ -1,7 +1,6 @@
 package com.ouor.mycoupon.ui.settings
 
-import androidx.compose.material.icons.outlined.NotificationsOff
-import androidx.compose.material.icons.outlined.Notifications
+import com.ouor.mycoupon.ui.component.Ink
 import com.ouor.mycoupon.ui.component.Group
 import com.ouor.mycoupon.ui.component.GroupDivider
 import com.ouor.mycoupon.ui.component.InkTextButton
@@ -11,7 +10,6 @@ import com.ouor.mycoupon.ui.component.OffsetChecks
 import com.ouor.mycoupon.ui.component.TimePickDialog
 import com.ouor.mycoupon.ui.component.openNotificationSettings
 import com.ouor.mycoupon.ui.component.timeLabel
-import androidx.compose.material.icons.rounded.MusicNote
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -24,10 +22,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.NotificationsOff
-import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -67,7 +61,7 @@ fun RemindersScreen(nav: NavHostController) {
     Scaffold(topBar = { AppTopBar("만료 알림", onBack = { nav.popBackStack() }) }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {
             if (off)
-                InfoBanner(Icons.Outlined.NotificationsOff, "알림이 꺼져 있어요", Modifier.padding(horizontal = Spacing.l, vertical = Spacing.xs),
+                InfoBanner(Ink.BellOff, "알림이 꺼져 있어요", Modifier.padding(horizontal = Spacing.l, vertical = Spacing.xs),
                     inlineActions = true) { InkTextButton("켜기", { openNotificationSettings(activity) }) }
             SectionTitle("알림 시점")
             Group(Modifier.padding(horizontal = Spacing.l)) {
@@ -86,7 +80,7 @@ fun RemindersScreen(nav: NavHostController) {
             }
             if (!ignoresBattery(activity)) {
                 Spacer(Modifier.height(Spacing.l))
-                InfoBanner(Icons.Outlined.Notifications, "알림이 늦게 오면 배터리 설정에서 ‘제한 없음’으로 바꿔 주세요", Modifier.padding(horizontal = Spacing.l)) {
+                InfoBanner(Ink.Bell, "알림이 늦게 오면 배터리 설정에서 ‘제한 없음’으로 바꿔 주세요", Modifier.padding(horizontal = Spacing.l)) {
                     InkTextButton("설정 열기", {
                         activity.startActivity(Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", activity.packageName, null)))
                     })

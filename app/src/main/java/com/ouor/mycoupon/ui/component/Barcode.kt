@@ -1,8 +1,5 @@
 package com.ouor.mycoupon.ui.component
 
-import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.LightMode
-import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.layout.layout
 import com.ouor.mycoupon.ui.theme.statusColors
@@ -10,7 +7,6 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.Box
@@ -38,8 +34,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -137,7 +131,7 @@ fun BarcodeImage(c: Coupon, modifier: Modifier = Modifier, maxHeight: Dp = Dp.In
             val cap = if (maxHeight == Dp.Infinity) Int.MAX_VALUE else with(d) { maxHeight.roundToPx() }
             val twoD = BarcodeRenderer.is2d(c.codeFormat)
             val side = minOf((px * 0.7).toInt(), cap)
-            val h1d = minOf(maxOf(with(d) { 96.dp.roundToPx() }, (px * 0.35).toInt()), cap)
+            val h1d = minOf(maxOf(with(d) { 96.dp.roundToPx() }, (px * 0.45).toInt()), cap)
             // code review U-02 (A21 for S7): the pixel loop runs off the main thread; the space is held meanwhile
             val bmp by produceState<Bitmap?>(null, code, c.codeFormat, px, side, h1d) {
                 value = withContext(Dispatchers.Default) { BarcodeRenderer.render(code, c.codeFormat!!, if (twoD) side else px, h1d) }
@@ -222,12 +216,12 @@ fun BarcodeBlock(
                     FlowRow(Modifier.fillMaxWidth().heightIn(min = 46.dp), horizontalArrangement = Arrangement.End, itemVerticalAlignment = Alignment.CenterVertically) {
                         if (bright) Row(Modifier.weight(1f).padding(vertical = Spacing.s).clearAndSetSemantics { contentDescription = "밝기 최대, 화면 켜 둠" },
                             verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.LightMode, null, Modifier.size(15.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Ink.Sun, null, Modifier.size(15.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.width(5.dp))
                             Text("밝기 최대 · 화면 켜 둠", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         } else Spacer(Modifier.weight(1f))
-                        if (onSpeak != null) InkTextButton("번호 읽기", onSpeak, icon = Icons.AutoMirrored.Outlined.VolumeUp)
-                        InkTextButton("번호 복사", { copyCode(context, code); onCopied(false) }, icon = Icons.Outlined.ContentCopy)
+                        if (onSpeak != null) InkTextButton("번호 읽기", onSpeak, icon = Ink.Volume)
+                        InkTextButton("번호 복사", { copyCode(context, code); onCopied(false) }, icon = Ink.Copy)
                     }
                 }
             }

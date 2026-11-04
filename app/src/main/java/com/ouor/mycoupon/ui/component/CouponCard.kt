@@ -10,9 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,6 +23,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ouor.mycoupon.data.Coupon
@@ -81,9 +79,11 @@ fun CouponRow(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modifi
                 if (!large) DdayCell(c, today, review, Modifier.widthIn(min = 58.dp).padding(end = Spacing.m))
                 Column(Modifier.weight(1f)) {
                     c.brand?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    Text(c.name() ?: "이름 없는 쿠폰", style = MaterialTheme.typography.titleMedium,
+                    // designer 11-04: one line at 100 % so a screen holds more rows; bigger fonts wrap
+                    val scale = LocalDensity.current.fontScale
+                    Text(c.listName() ?: "이름 없는 쿠폰", style = MaterialTheme.typography.titleMedium,
                         color = if (past) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                        maxLines = if (large) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
+                        maxLines = if (large) Int.MAX_VALUE else if (scale > 1.05f) 2 else 1, overflow = TextOverflow.Ellipsis)
                     if (sub.isNotEmpty()) Text(sub, Modifier.padding(top = 2.dp), style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -109,10 +109,10 @@ private fun DdayCell(c: Coupon, today: LocalDate, review: Boolean, modifier: Mod
             state == CouponState.EXPIRED -> StatusChip(Chip.EXPIRED)
             state == CouponState.USED -> StatusChip(Chip.USED)
             state == CouponState.GIVEN -> StatusChip(Chip.GIVEN)
-            review -> StatusChip("확인", Icons.Outlined.ErrorOutline, st.review, st.reviewContainer)
+            review -> StatusChip("확인", Ink.Alert, st.review, st.reviewContainer)
             state == CouponState.TODAY -> Text("오늘", style = DdayStyle, color = st.soon)
             state == CouponState.SOON -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                Icon(Icons.Outlined.Schedule, null, Modifier.size(15.dp), tint = st.soon)
+                Icon(Ink.Clock, null, Modifier.size(15.dp), tint = st.soon)
                 Text("D-${Stats.daysLeft(c, today)}", style = DdayStyle, color = st.soon)
             }
             state == CouponState.NO_EXPIRY -> Text("기간 없음", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

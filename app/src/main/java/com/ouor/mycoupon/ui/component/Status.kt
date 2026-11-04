@@ -5,18 +5,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Event
-import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.rounded.Block
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.EventBusy
-import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.rounded.TaskAlt
-import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -55,14 +43,14 @@ enum class Chip { EXPIRED_DRAFT, EXPIRED, USED, GIVEN, NOT_COUPON, REGISTERED, A
 fun StatusChip(kind: Chip, modifier: Modifier = Modifier, suffix: String = "") {
     val s = MaterialTheme.statusColors
     val (text, icon, colors) = when (kind) {
-        Chip.EXPIRED_DRAFT -> Triple("이미 만료됐어요", Icons.Rounded.EventBusy, s.soon to s.soonContainer)
-        Chip.EXPIRED -> Triple("만료", Icons.Rounded.EventBusy, s.ended to s.endedContainer)
-        Chip.USED -> Triple("사용 완료", Icons.Rounded.TaskAlt, s.ended to s.endedContainer)
-        Chip.GIVEN -> Triple("넘김", Icons.AutoMirrored.Rounded.Send, s.ended to s.endedContainer)
-        Chip.NOT_COUPON -> Triple("쿠폰이 아닌 것 같아요", Icons.Rounded.Block, s.ended to s.endedContainer)
-        Chip.REGISTERED -> Triple("이미 등록된 쿠폰", Icons.Rounded.ContentCopy, s.ended to s.endedContainer)
-        Chip.ALREADY_USED -> Triple("이미 사용한 쿠폰이에요", Icons.Rounded.Warning, s.soon to s.soonContainer)
-        Chip.AVAILABLE -> Triple("사용 가능", Icons.Rounded.CheckCircle, s.available to s.availableContainer)
+        Chip.EXPIRED_DRAFT -> Triple("이미 만료됐어요", Ink.EventBusy, s.soon to s.soonContainer)
+        Chip.EXPIRED -> Triple("만료", Ink.EventBusy, s.ended to s.endedContainer)
+        Chip.USED -> Triple("사용 완료", Ink.CheckCircle, s.ended to s.endedContainer)
+        Chip.GIVEN -> Triple("넘김", Ink.Send, s.ended to s.endedContainer)
+        Chip.NOT_COUPON -> Triple("쿠폰이 아닌 것 같아요", Ink.Block, s.ended to s.endedContainer)
+        Chip.REGISTERED -> Triple("이미 등록된 쿠폰", Ink.Copy, s.ended to s.endedContainer)
+        Chip.ALREADY_USED -> Triple("이미 사용한 쿠폰이에요", Ink.Warning, s.soon to s.soonContainer)
+        Chip.AVAILABLE -> Triple("사용 가능", Ink.CheckCircle, s.available to s.availableContainer)
     }
     StatusChip(text + suffix, icon, colors.first, colors.second, modifier)
 }
@@ -72,7 +60,7 @@ fun StatusChip(kind: Chip, modifier: Modifier = Modifier, suffix: String = "") {
 fun ReviewMark(modifier: Modifier = Modifier, text: String = "확인 필요") {
     val s = MaterialTheme.statusColors
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Icon(Icons.Rounded.ErrorOutline, null, Modifier.size(16.dp), tint = s.review)
+        Icon(Ink.Alert, null, Modifier.size(16.dp), tint = s.review)
         Text(text, style = MaterialTheme.typography.labelMedium, color = s.review)
     }
 }
@@ -97,11 +85,11 @@ fun DdayBadge(c: Coupon, today: LocalDate, modifier: Modifier = Modifier, large:
     when (c.state(today)) {
         // redesign: on S6 the D-day is a status chip beside the date (red with a clock inside 7 days, grey otherwise)
         CouponState.AVAILABLE -> if (large) Text("D-${Stats.daysLeft(c, today)}", m, style = big)
-            else StatusChip("D-${Stats.daysLeft(c, today)}", Icons.Outlined.Event, MaterialTheme.colorScheme.onSurface, s.track, m)
+            else StatusChip("D-${Stats.daysLeft(c, today)}", Ink.Calendar, MaterialTheme.colorScheme.onSurface, s.track, m)
         CouponState.SOON -> if (large) Row(m, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(Icons.Rounded.Schedule, null, Modifier.size(28.dp), tint = s.soon)
+            Icon(Ink.Clock, null, Modifier.size(28.dp), tint = s.soon)
             Text("D-${Stats.daysLeft(c, today)}", style = big, color = s.soon)
-        } else StatusChip("D-${Stats.daysLeft(c, today)}", Icons.Outlined.Schedule, s.soon, s.soonContainer, m)
+        } else StatusChip("D-${Stats.daysLeft(c, today)}", Ink.Clock, s.soon, s.soonContainer, m)
         CouponState.TODAY -> Surface(m, shape = MaterialTheme.shapes.small, color = s.soon, contentColor = MaterialTheme.colorScheme.surface) {
             Text("오늘까지", Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                 style = if (large) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.labelLarge)

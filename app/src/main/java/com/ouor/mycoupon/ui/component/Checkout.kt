@@ -18,11 +18,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.rounded.EventBusy
-import androidx.compose.material.icons.rounded.LightMode
-import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -66,7 +61,7 @@ fun BrightnessChip(modifier: Modifier = Modifier) {
         shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Row(Modifier.padding(horizontal = Spacing.s, vertical = Spacing.xs), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Icon(Icons.Rounded.LightMode, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+            Icon(Ink.Sun, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
             Text("밝기 최대 · 화면 켜 둠", style = MaterialTheme.typography.labelMedium)
         }
     }
@@ -87,7 +82,7 @@ fun PastCouponBand(c: Coupon, today: LocalDate, modifier: Modifier = Modifier) {
     val s = MaterialTheme.statusColors
     val state = c.state(today)
     val (fg, bg) = if (state == CouponState.EXPIRED) s.ended to s.endedContainer else s.soon to s.soonContainer
-    val icon = when (state) { CouponState.GIVEN -> Icons.AutoMirrored.Rounded.Send; CouponState.EXPIRED -> Icons.Rounded.EventBusy; else -> Icons.Rounded.Warning }
+    val icon = when (state) { CouponState.GIVEN -> Ink.Send; CouponState.EXPIRED -> Ink.EventBusy; else -> Ink.Warning }
     Surface(modifier.fillMaxWidth().heightIn(min = 64.dp).semantics(mergeDescendants = true) {}, shape = MaterialTheme.shapes.medium,
         color = bg, contentColor = fg) {
         Row(Modifier.padding(Spacing.m), verticalAlignment = Alignment.CenterVertically) {

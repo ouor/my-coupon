@@ -1,5 +1,6 @@
 package com.ouor.mycoupon.ui.gallery
 
+import com.ouor.mycoupon.ui.component.Ink
 import com.ouor.mycoupon.ui.ImportStarter
 import com.ouor.mycoupon.ui.component.Promise
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -23,10 +24,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.ImageSearch
-import androidx.compose.material.icons.rounded.PhonelinkLock
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -145,12 +142,12 @@ fun GalleryScreen(nav: NavHostController, importer: ImportStarter) {
                 }
                 // C4: nothing in the range / everything already checked / checked and found nothing
                 p.finished && p.found.isEmpty() -> when {
-                    p.inRange == 0 -> EmptyState(Icons.Rounded.ImageSearch, "이 기간에는 사진이 없어요",
+                    p.inRange == 0 -> EmptyState(Ink.ImageSearch, "이 기간에는 사진이 없어요",
                         primary = "다른 기간 찾기" to { started = false }, secondary = "사진 고르기" to pick)
-                    p.total == 0 -> EmptyState(Icons.Rounded.ImageSearch, "새로 확인할 사진이 없어요", "이 기간의 사진 ${n(p.inRange)}장은 지난번에 모두 확인했어요.",
+                    p.total == 0 -> EmptyState(Ink.ImageSearch, "새로 확인할 사진이 없어요", "이 기간의 사진 ${n(p.inRange)}장은 지난번에 모두 확인했어요.",
                         primary = "다른 기간 찾기" to { started = false }, secondary = "사진 고르기" to pick)
                     // C2-11 (QA): "찾지 못했어요" read as a failure; the reasons say the photos were seen and set aside
-                    else -> EmptyState(Icons.Rounded.ImageSearch, "새로 찾은 쿠폰이 없어요", listOfNotNull(
+                    else -> EmptyState(Ink.ImageSearch, "새로 찾은 쿠폰이 없어요", listOfNotNull(
                         p.registered.takeIf { it > 0 }?.let { "이미 등록한 쿠폰 ${n(it)}장 제외" },
                         p.notCoupon.takeIf { it > 0 }?.let { "쿠폰이 아닌 사진 ${n(it)}장 제외" },
                     ).joinToString("\n").ifEmpty { null }, primary = "사진 고르기" to pick, secondary = "다른 기간 찾기" to { started = false })
@@ -186,10 +183,10 @@ fun GalleryScreen(nav: NavHostController, importer: ImportStarter) {
 @Composable
 private fun Rationale(title: String, promises: List<String>) {
     Spacer(Modifier.height(Spacing.xl))
-    androidx.compose.material3.Icon(Icons.Rounded.PhonelinkLock, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+    androidx.compose.material3.Icon(Ink.PhoneLock, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
     Spacer(Modifier.height(Spacing.l))
     Text(title, style = MaterialTheme.typography.headlineSmall)
     Spacer(Modifier.height(Spacing.m))
-    promises.forEach { Promise(Icons.Rounded.CheckCircle, it, null) }
+    promises.forEach { Promise(Ink.CheckCircle, it, null) }
     Spacer(Modifier.height(Spacing.xl))
 }

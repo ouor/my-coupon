@@ -59,6 +59,29 @@ fun Coupon.title(): String = name() ?: brand ?: "이름 없는 쿠폰"
 /** Product name as shown everywhere (brand prefix dropped, review U1). */
 fun Coupon.name(): String? = CouponText.shortName(brand, productName)
 
+/**
+ * S1 row only (designer 11-04): also drops a leading "[EVENT]"-style tag and the brand the row already shows above —
+ * "[EVENT] 메가MGC커피 카페라떼" → "카페라떼". Falls back to [name] when nothing would be left. TalkBack keeps [name].
+ */
+fun Coupon.listName(): String? = listName(brand, name())
+
+private fun Char.isAsciiWord() = code < 0x80 && isLetterOrDigit()
+
+internal fun listName(brand: String?, name: String?): String? {
+    name ?: return null
+    var r = name.replaceFirst(Regex("""^\s*\[[^\]]*]\s*"""), "")
+    if (!brand.isNullOrBlank()) {
+        val b = brand.filterNot(Char::isWhitespace)
+        // brand compared without spaces ("메가 MGC커피" == "메가MGC커피"); i walks the name until b is used up
+        var i = 0; var j = 0
+        while (i < r.length && j < b.length) { if (r[i].isWhitespace()) i++ else if (r[i].equals(b[j], true)) { i++; j++ } else break }
+        // "CU" must not eat the start of "CUP라면": a Latin word that runs on past the brand is not the brand
+        val runsOn = i in 1 until r.length && r[i].isAsciiWord() && r[i - 1].isAsciiWord()
+        if (j == b.length && !runsOn) r = r.substring(i)
+    }
+    return r.trim().ifEmpty { name }
+}
+
 /** S5 copy per reason (screens.md S5): the first reason of a field is shown. */
 fun reasonText(field: String, reason: String): String = when (reason) {
     "YEAR_INFERRED" -> "사진에 연도가 없어 추정했어요"
