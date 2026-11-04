@@ -25,11 +25,12 @@
 3. **계산대에서**: 목록에서 쿠폰을 누르면 화면이 최대 밝기로 바뀌고 바코드와 번호가 크게 나와요. 다 쓰면 **사용 완료**를 눌러요.
 
 <div align="center">
-<img src="docs/images/screen-1.jpg" width="30%" alt="목록: 만료 임박순 쿠폰 카드, 브랜드 칩, D-4·D-7 빨간 표시, 금액권 잔액">
-<img src="docs/images/screen-2.jpg" width="30%" alt="사용 화면: 사용처와 상품명, D-day, 큰 바코드(가림 처리), 점원에게 보여 주기, 사용 완료 버튼">
-<img src="docs/images/screen-3.jpg" width="30%" alt="홈 화면 위젯: 곧 끝나는 쿠폰과 D-day, 금액권 잔액">
+<img src="docs/images/screen-1.jpg" width="23%" alt="목록: 기한 임박·기한 여유로 나뉜 쿠폰, 맨 앞의 D-day(D-3·D-6 빨간 표시), 금액권 잔액">
+<img src="docs/images/screen-2.jpg" width="23%" alt="사용 화면: 브랜드와 상품명, D-day, 큰 바코드와 번호, 점원에게 보여 주기, 사용 완료 버튼">
+<img src="docs/images/screen-4.jpg" width="23%" alt="금액권 화면: 잔액 12,400원 / 30,000원, 사용 기록, 바코드, 쓴 금액 입력 버튼">
+<img src="docs/images/screen-3.jpg" width="23%" alt="홈 화면 위젯: 쿠폰과 D-day 목록">
 </div>
-<div align="center"><sub>쿠폰 목록 · 바코드 화면 (바코드는 가림 처리) · 홈 화면 위젯</sub></div>
+<div align="center"><sub>쿠폰 목록 · 바코드 화면 · 금액권 잔액 · 홈 화면 위젯 (모두 가상의 쿠폰)</sub></div>
 
 ## ✨ 할 수 있는 것
 
