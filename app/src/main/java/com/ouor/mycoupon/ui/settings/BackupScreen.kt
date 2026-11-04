@@ -86,15 +86,13 @@ fun BackupScreen(nav: NavHostController) {
 
     Scaffold(topBar = { AppTopBar("백업·복원", onBack = { nav.popBackStack() }) }, snackbarHost = { SnackbarHost(snackbar.host) }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {
-            InfoBanner(Icons.Rounded.Lock, "백업 파일에는 바코드 번호가 들어 있어요. 비밀번호로 잠가서 저장해요. 비밀번호를 잊으면 아무도 열 수 없어요.",
+            InfoBanner(Icons.Rounded.Lock, "비밀번호를 잊으면 백업 파일을 아무도 열 수 없어요.",
                 MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.onSurface, Modifier.padding(horizontal = Spacing.l))
             Spacer(Modifier.height(Spacing.m))
             val last = st.lastBackupAt?.let { " · 마지막 백업 " + com.ouor.mycoupon.ui.component.epochDay(it).let { d -> "${d.monthValue}월 ${d.dayOfMonth}일" } } ?: ""
             SettingRow(Icons.Rounded.Save, "백업 파일 만들기", if (st.coupons == 0) "백업할 쿠폰이 없어요" else "쿠폰 ${st.coupons}개$last",
                 onClick = if (st.coupons == 0) null else ({ password = ""; passwordFor = "export" }))
-            SettingRow(Icons.Rounded.Download, "백업 파일 가져오기", "다른 폰에서 만든 파일을 합쳐요") { openDoc.launch(arrayOf("*/*")) }
-            Text("파일은 내가 고른 곳에만 저장돼요. 앱이 어디로도 보내지 않아요.", Modifier.padding(Spacing.l),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SettingRow(Icons.Rounded.Download, "백업 파일 가져오기") { openDoc.launch(arrayOf("*/*")) }
         }
     }
 
@@ -121,14 +119,13 @@ fun BackupScreen(nav: NavHostController) {
     LaunchedEffect(backup) { if (backup is BackupUi.Preview || backup is BackupUi.Failed) passwordFor = null }
 
     when (val b = backup) {
-        BackupUi.Working -> if (passwordFor == null) AppSheet({}, if (exporting) "백업 파일 만드는 중" else "잠시만요", "백업 파일을 다루는 중이에요", dismissible = false) {
+        BackupUi.Working -> if (passwordFor == null) AppSheet({}, if (exporting) "백업 파일 만드는 중" else "잠시만요", null, dismissible = false) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
             Spacer(Modifier.height(Spacing.m))
             if (!importing) SecondaryButton("그만두기", { vm.cancelBackup() })
         }
         is BackupUi.Exported -> AppSheet({ vm.backupUi.value = BackupUi.Idle }, "쿠폰 ${b.count}개를 저장했어요",
-            listOfNotNull("이미지가 없는 쿠폰 ${b.missingImages}개는 정보만 저장했어요.".takeIf { b.missingImages > 0 },
-                "새 폰에서는 [백업 파일 가져오기]로 열어요. 비밀번호를 꼭 기억해 주세요.").joinToString(" ")) { PrimaryButton("확인", { vm.backupUi.value = BackupUi.Idle }) }
+            "이미지가 없는 쿠폰 ${b.missingImages}개는 정보만 저장했어요.".takeIf { b.missingImages > 0 }) { PrimaryButton("확인", { vm.backupUi.value = BackupUi.Idle }) }
         is BackupUi.Preview -> {
             val n = b.p.total - b.p.skipped
             AppSheet({ vm.cancelImport(b.p) }, if (n == 0) "새로 가져올 쿠폰이 없어요" else "쿠폰 ${b.p.total}개를 찾았어요",
@@ -173,7 +170,7 @@ private fun PasswordSheet(
     val problem = if (confirm) backupPasswordProblem(pw) else null
     val mismatch = confirm && pw2.isNotEmpty() && pw != pw2
     val ok = if (confirm) pw.isNotEmpty() && problem == null && pw == pw2 else pw.isNotEmpty()
-    AppSheet(onDismiss, title, if (confirm) "8자 이상, 숫자만은 안 돼요. 외우기 쉬운 짧은 문장이 좋아요 (예: 우리집 강아지 초코)" else null) {
+    AppSheet(onDismiss, title, if (confirm) "8자 이상, 숫자만은 안 돼요" else null) {
         val vt = if (show) VisualTransformation.None else PasswordVisualTransformation()
         val eye: @Composable () -> Unit = {
             IconButton({ show = !show }) { Icon(if (show) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (show) "비밀번호 숨기기" else "비밀번호 보기") }

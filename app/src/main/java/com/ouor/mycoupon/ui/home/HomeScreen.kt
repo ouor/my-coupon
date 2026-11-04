@@ -1,5 +1,8 @@
 package com.ouor.mycoupon.ui.home
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material3.AssistChip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -11,7 +14,6 @@ import com.ouor.mycoupon.ui.component.TimePickDialog
 import com.ouor.mycoupon.ui.component.openNotificationSettings
 import com.ouor.mycoupon.ui.component.timeLabel
 import androidx.lifecycle.compose.LifecycleStartEffect
-import com.ouor.mycoupon.ui.component.codeTail
 import com.ouor.mycoupon.ui.component.won
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.animateScrollBy
@@ -43,7 +45,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -208,7 +209,7 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
                 // QA R1-17: new-images / notification banners matter most when the list is empty
                 st.banner?.let { b -> HomeBannerView(b, st, vm, nav, notifPermission::launch) }
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    EmptyState(Icons.Rounded.ConfirmationNumber, "아직 쿠폰이 없어요", "쿠폰 사진을 고르면 알아서 읽어 등록해요",
+                    EmptyState(Icons.Rounded.ConfirmationNumber, "아직 쿠폰이 없어요",
                         primary = "사진에서 추가" to pickPhotos, secondary = "갤러리에서 쿠폰 찾기" to { nav.navigate(Route.Gallery) })
                 }
                 TextButton({ kakaoGuide = true }, Modifier.fillMaxWidth().heightIn(min = Spacing.touch).padding(bottom = Spacing.l)) {
@@ -222,14 +223,16 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
             verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
             if (!searching) st.banner?.let { b -> item(key = "banner") { HomeBannerView(b, st, vm, nav, notifPermission::launch) } }
             item(key = "filters") {
-                // QA R1-05: at 200 % the chips leave no room, so the sort button gets its own line (FlowRow wraps it)
-                FlowRow(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(Spacing.s), itemVerticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(!past, { vm.filter.value = ListFilter.AVAILABLE }, { Text("사용 가능 ${st.availableCount}", style = MaterialTheme.typography.labelLarge) },
-                        Modifier.heightIn(min = Spacing.touch))
-                    FilterChip(past, { vm.filter.value = ListFilter.PAST }, { Text("지난 쿠폰", style = MaterialTheme.typography.labelLarge) },
-                        Modifier.heightIn(min = Spacing.touch))
-                    if (!isLargeFont()) Spacer(Modifier.weight(1f))
-                    if (!past) SortMenu(st.sort) { vm.sort.value = it }
+                // owner feedback 11-04: always one line. Narrow or large font scrolls the chips sideways (like the brand row); sort shrinks to an icon at large font
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        FilterChip(!past, { vm.filter.value = ListFilter.AVAILABLE }, { Text("사용 가능 ${st.availableCount}", style = MaterialTheme.typography.labelLarge, maxLines = 1) },
+                            Modifier.heightIn(min = Spacing.touch))
+                        FilterChip(past, { vm.filter.value = ListFilter.PAST }, { Text("지난 쿠폰", style = MaterialTheme.typography.labelLarge, maxLines = 1) },
+                            Modifier.heightIn(min = Spacing.touch))
+                    }
+                    if (!past) SortMenu(st.sort, compact = isLargeFont()) { vm.sort.value = it }
                 }
             }
             // review U9: find a coupon at the counter in one tap
@@ -245,16 +248,13 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
                 when {
                     st.query.isNotBlank() -> Text("‘${st.query}’과 맞는 쿠폰이 없어요", Modifier.fillMaxWidth().padding(vertical = Spacing.xxl),
                         style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
-                    past -> EmptyState(Icons.Rounded.TaskAlt, "지난 쿠폰이 없어요", "다 쓴 쿠폰과 기간이 지난 쿠폰이 여기에 모여요")
-                    else -> EmptyState(Icons.Rounded.ConfirmationNumber, "쓸 수 있는 쿠폰이 없어요", "새 쿠폰을 추가해 보세요", primary = "사진에서 추가" to pickPhotos)
+                    past -> EmptyState(Icons.Rounded.TaskAlt, "지난 쿠폰이 없어요")
+                    else -> EmptyState(Icons.Rounded.ConfirmationNumber, "쓸 수 있는 쿠폰이 없어요", primary = "사진에서 추가" to pickPhotos)
                 }
             }
-            // review U3: identical names get the last four digits so they can be told apart
-            val twins = st.coupons.groupingBy { it.brand to it.title() }.eachCount().filterValues { it > 1 }.keys
             items(st.coupons, key = { it.id }) { c ->
                 // code review U-06: a double tap opens one S6, not two
                 CouponCard(c, st.today, onClick = dropUnlessResumed { if (android.os.SystemClock.elapsedRealtime() >= vm.cardTapsFrom) nav.navigate(Route.Detail(c.id)) }, modifier = Modifier.animateItem(),
-                    codeTail = (c.brand to c.title()) in twins,
                     onUndo = if (c.status == CouponStatus.USED) ({
                         vm.undoUse(c.id); snackbar.show("${c.title()} ${Copy.UNDONE}")
                     }) else null)
@@ -308,14 +308,16 @@ private fun SearchTopBar(query: String, onQuery: (String) -> Unit, onClose: () -
 }
 
 @Composable
-private fun SortMenu(sort: ListSort, onSort: (ListSort) -> Unit) {
+private fun SortMenu(sort: ListSort, compact: Boolean, onSort: (ListSort) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val label = { s: ListSort -> if (s == ListSort.EXPIRY) "만료 임박순" else "최근 등록순" }
     Box {
         // round-2 V13: a chip like its neighbours, not blue text
         // code review U-15: it opens a menu (an unselected FilterChip read as "checkbox, not checked")
-        AssistChip({ open = true }, { Text(label(sort), style = MaterialTheme.typography.labelLarge) },
-            Modifier.heightIn(min = Spacing.touch).semantics { role = Role.DropdownList; stateDescription = "정렬" },
+        if (compact) IconButton({ open = true }, Modifier.semantics { role = Role.DropdownList; stateDescription = label(sort) }) {
+            Icon(Icons.AutoMirrored.Rounded.Sort, "정렬")
+        } else AssistChip({ open = true }, { Text(label(sort), style = MaterialTheme.typography.labelLarge, maxLines = 1) },
+            Modifier.padding(start = Spacing.s).heightIn(min = Spacing.touch).semantics { role = Role.DropdownList; stateDescription = "정렬" },
             trailingIcon = { Icon(Icons.Rounded.ExpandMore, null, Modifier.size(18.dp)) })
         DropdownMenu(open, { open = false }) {
             ListSort.entries.forEach { s ->
@@ -352,7 +354,7 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
         HomeBanner.USE_ASK -> st.useAsk?.let { c ->
             val nm = c.title()
             InfoBanner(Icons.Rounded.TaskAlt, "아까 $nm 썼어요?", cs.surfaceContainerHighest, cs.onSurface,
-                sub = listOfNotNull(c.brand, c.balance?.takeIf { c.type == CouponType.AMOUNT }?.let { "잔액 ${won(it)}" }, c.code?.let(::codeTail))
+                sub = listOfNotNull(c.brand, c.balance?.takeIf { c.type == CouponType.AMOUNT }?.let { "잔액 ${won(it)}" })
                     .joinToString(" · ").ifEmpty { null }) {
                 BannerButton("아니요") { vm.answerUseAsk(c.id, used = false) }
                 if (c.type == CouponType.AMOUNT) BannerButton("쓴 금액 입력") {
@@ -378,11 +380,11 @@ private fun HomeBannerView(b: HomeBanner, st: HomeState, vm: HomeViewModel, nav:
 @Composable
 private fun AddSheet(onDismiss: () -> Unit, onShare: () -> Unit, onPick: () -> Unit, onCamera: (() -> Unit)?, onGallery: () -> Unit, onKakao: () -> Unit) {
     AppSheet(onDismiss, "쿠폰 추가") {
-        AddOption(Icons.Rounded.Share, "카톡·문자에서 [공유]로 넣는 법", "사진을 길게 눌러 공유 → 내 쿠폰", onShare)
+        AddOption(Icons.Rounded.Share, "카톡·문자에서 [공유]로 넣는 법", null, onShare)
         AddOption(Icons.Rounded.PhotoLibrary, "사진 고르기", "한 번에 30장까지 골라요", onPick)
-        if (onCamera != null) AddOption(Icons.Rounded.PhotoCamera, "카메라로 찍기", "종이 쿠폰을 찍어 넣어요", onCamera)
-        AddOption(Icons.Rounded.ImageSearch, "갤러리에서 쿠폰 찾기", "쿠폰 같은 사진을 대신 찾아 드려요", onGallery)
-        AddOption(Icons.Rounded.Redeem, "카카오톡 선물함 쿠폰 넣는 법", "선물함 → 이미지 저장 → 사진 고르기", onKakao)
+        if (onCamera != null) AddOption(Icons.Rounded.PhotoCamera, "카메라로 찍기", null, onCamera)
+        AddOption(Icons.Rounded.ImageSearch, "갤러리에서 쿠폰 찾기", null, onGallery)
+        AddOption(Icons.Rounded.Redeem, "카카오톡 선물함 쿠폰 넣는 법", null, onKakao)
     }
 }
 
@@ -391,9 +393,9 @@ private fun AddSheet(onDismiss: () -> Unit, onShare: () -> Unit, onPick: () -> U
 private fun ShareGuideSheet(onDismiss: () -> Unit) {
     AppSheet(onDismiss, "[공유] 한 번으로 넣어요") {
         listOf(
-            Triple(Icons.Rounded.TouchApp, "쿠폰 사진을 길게 눌러요", "카카오톡 대화방·문자·갤러리 어디서든"),
+            Triple(Icons.Rounded.TouchApp, "쿠폰 사진을 길게 눌러요", null),
             Triple(Icons.Rounded.Share, "[공유]를 눌러요", "사진 아래나 오른쪽 위 메뉴에 있어요"),
-            Triple(Icons.Rounded.ConfirmationNumber, "'내 쿠폰'을 골라요", "알아서 읽어 확인 화면을 보여 드려요"),
+            Triple(Icons.Rounded.ConfirmationNumber, "'내 쿠폰'을 골라요", null),
         ).forEachIndexed { i, (icon, title, sub) ->
             Row(Modifier.fillMaxWidth().padding(vertical = Spacing.s), verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Surface(Modifier.size(72.dp), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.primaryContainer) {
@@ -402,12 +404,11 @@ private fun ShareGuideSheet(onDismiss: () -> Unit) {
                 Spacer(Modifier.width(Spacing.l))
                 Column(Modifier.weight(1f)) {
                     Text("${i + 1}. $title", style = MaterialTheme.typography.titleMedium)
-                    Text(sub, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    sub?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
         }
-        Text("카카오톡 선물함 쿠폰은 쿠폰을 열고 오른쪽 위 ⋮ → [이미지 저장] 뒤 [사진 고르기]로 넣어요", Modifier.padding(vertical = Spacing.m),
-            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(Spacing.m))
         PrimaryButton("알겠어요", onDismiss)
     }
 }
@@ -426,7 +427,7 @@ private fun BannerButton(onClick: () -> Unit, text: String) {
 private fun ReminderTimeSheet(initialMinute: Int, onDismiss: () -> Unit, onOk: (Int) -> Unit) {
     var minute by rememberSaveable { mutableStateOf(initialMinute) }
     var picker by remember { mutableStateOf(false) }
-    AppSheet(onDismiss, "만료되기 전에 알려 드릴게요", "하루에 한 번, 그날 챙길 쿠폰을 모아 알려 드려요. 광고 알림은 없어요.") {
+    AppSheet(onDismiss, "만료되기 전에 알려 드릴게요") {
         Text("몇 시에 알려 드릴까요?", style = MaterialTheme.typography.titleMedium)
         Row(Modifier.fillMaxWidth().padding(vertical = Spacing.s), verticalAlignment = Alignment.CenterVertically) {
             Text(timeLabel(minute), Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall)
@@ -472,12 +473,12 @@ private fun BrandChipRow(brands: List<String>, selected: String, onPick: (String
 }
 
 @Composable
-private fun AddOption(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, sub: String, onClick: () -> Unit) {
+private fun AddOption(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, sub: String?, onClick: () -> Unit) {
     androidx.compose.material3.Surface(onClick, Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(vertical = Spacing.xs),
         shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
         ListItem(
             headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },
-            supportingContent = { Text(sub, style = MaterialTheme.typography.bodyMedium) },
+            supportingContent = sub?.let { { Text(it, style = MaterialTheme.typography.bodyMedium) } },
             leadingContent = { Icon(icon, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary) },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         )

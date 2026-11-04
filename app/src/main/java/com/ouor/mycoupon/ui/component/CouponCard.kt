@@ -33,7 +33,7 @@ import java.time.LocalDate
  * "스타벅스, 아메리카노 T, 3일 남음, 곧 만료, 확인 필요". Past coupons get [onUndo] (사용 완료·넘김 only).
  */
 @Composable
-fun CouponCard(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modifier = Modifier, onUndo: (() -> Unit)? = null, codeTail: Boolean = false) {
+fun CouponCard(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modifier = Modifier, onUndo: (() -> Unit)? = null) {
     val state = c.state(today)
     val past = state == CouponState.EXPIRED || state == CouponState.USED || state == CouponState.GIVEN
     val large = isLargeFont()
@@ -41,8 +41,7 @@ fun CouponCard(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modif
     val balance = if (c.type == CouponType.AMOUNT && c.balance != null && !past) "잔액 ${won(c.balance)}" else null
     // C2-25: "10월 27일 넘김 · 김○○"
     val usedLine = c.usedAt?.takeIf { past }?.let { epochDay(it).monthDay() + if (state == CouponState.GIVEN) " 넘김" + (c.givenTo?.let { n -> " · $n" } ?: "") else " 사용" }
-    val tail = c.code?.takeIf { codeTail }?.let(::codeTail)
-    // C2-05 / design-system §9: "사용 완료, 10월 27일, 브랜드, 상품명" for past ones, otherwise "브랜드, 상품명, 4일 남음, 11월 1일까지, 번호 끝 2416"
+    // C2-05 / design-system §9: "사용 완료, 10월 27일, 브랜드, 상품명" for past ones, otherwise "브랜드, 상품명, 4일 남음, 11월 1일까지, 번호 끝 2416" (the tail is spoken only; owner feedback 11-04 took it off the card)
     val pastWhen = if (state == CouponState.EXPIRED) c.expiryDate?.let { it.monthDay() + "까지" } else c.usedAt?.let { epochDay(it).monthDay() }
     val spoken = (if (past) listOfNotNull(ddaySpoken(c, today), pastWhen) else emptyList())
         .plus(listOfNotNull(c.brand, c.name() ?: "이름 없는 쿠폰", ddaySpoken(c, today).takeIf { !past }, c.givenTo?.takeIf { state == CouponState.GIVEN },
@@ -69,7 +68,7 @@ fun CouponCard(c: Coupon, today: LocalDate, onClick: () -> Unit, modifier: Modif
                 c.brand?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 Text(c.name() ?: "이름 없는 쿠폰", style = MaterialTheme.typography.titleMedium)
                 if (large) DdayBadge(c, today, Modifier.padding(top = Spacing.xs))
-                val sub = listOfNotNull(balance, usedLine, tail).joinToString(" · ")
+                val sub = listOfNotNull(balance, usedLine).joinToString(" · ")
                 if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (review) ReviewMark(Modifier.padding(top = 2.dp))
             }

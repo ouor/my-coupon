@@ -103,7 +103,7 @@ class CouponWidget : GlanceAppWidget() {
                 }
                 Spacer(GlanceModifier.height(4.dp))
                 if (top.isEmpty()) {
-                    Text("쿠폰을 추가해 보세요", GlanceModifier.fillMaxWidth().padding(vertical = 12.dp).clickable(actionStartActivity(open)),
+                    Text("쓸 수 있는 쿠폰이 없어요", GlanceModifier.fillMaxWidth().padding(vertical = 12.dp).clickable(actionStartActivity(open)),
                         style = TextStyle(fontSize = 15.sp, color = fg))
                 }
                 LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight()) { items(top, itemId = { it.id }) { c ->

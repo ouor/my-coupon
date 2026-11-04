@@ -64,7 +64,7 @@ fun RemindersScreen(nav: NavHostController) {
             if (off)
                 InfoBanner(Icons.Rounded.NotificationsOff, "알림이 꺼져 있어요", MaterialTheme.statusColors.reviewContainer, MaterialTheme.colorScheme.onSurface,
                     Modifier.padding(horizontal = Spacing.l)) { TextButton({ openNotificationSettings(activity) }) { Text("켜기") } }
-            SectionTitle("알림 시점 (여러 개 고를 수 있어요)")
+            SectionTitle("알림 시점")
             Column(Modifier.padding(horizontal = Spacing.l)) {
                 OffsetChecks(st.app.reminderOffsets) { list ->
                     if (list.isEmpty()) emptyWarn = true else { emptyWarn = false; vm.setReminders(list, st.app.reminderMinute) }
@@ -74,8 +74,6 @@ fun RemindersScreen(nav: NavHostController) {
             }
             SectionTitle("알림 시각")
             SettingRow(Icons.Rounded.Schedule, timeLabel(st.app.reminderMinute)) { timeDialog = true }
-            Text("하루에 한 번만, 그날 챙길 쿠폰을 모아 알려 드려요. 같은 상품 여러 장은 한 줄로 합쳐요.", Modifier.padding(horizontal = Spacing.l, vertical = Spacing.s),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             // C2-08 AC3: the system settings of this app's "만료 알림" channel
             SettingRow(Icons.Rounded.MusicNote, "알림 소리 바꾸기") { activity.startActivity(vm.channelSettingsIntent()) }
             if (!ignoresBattery(activity)) {

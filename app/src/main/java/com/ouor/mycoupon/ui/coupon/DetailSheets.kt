@@ -54,7 +54,7 @@ internal fun DetailSheets(coupon: Coupon, st: DetailState, vm: CouponViewModel, 
             if (v == 0L) st.finishing = Copy.USED
             else snackbar.show("$nm 잔액 ${won(v)}으로 기록했어요", Copy.UNDO) { home.undoLastBalance(coupon.id, log) }
         })
-    if (st.askGiven) AppSheet({ st.askGiven = false }, "이 쿠폰을 넘겼나요?", "넘긴 쿠폰은 지난 쿠폰으로 옮겨 다시 쓰지 않게 해요") {
+    if (st.askGiven) AppSheet({ st.askGiven = false }, "이 쿠폰을 넘겼나요?") {
         // C2-25: optional name; the keyboard is not raised (leaving it empty is the default)
         OutlinedTextField(st.givenTo, { st.givenTo = it.take(40) }, Modifier.fillMaxWidth(), label = { Text("누구에게(선택)") },
             placeholder = { Text("예: 김민지") }, singleLine = true)

@@ -77,7 +77,7 @@ fun BrightnessChip(modifier: Modifier = Modifier) {
 fun pastBand(c: Coupon, today: LocalDate): Pair<String, String>? = when (c.state(today)) {
     CouponState.USED -> "이미 사용한 쿠폰이에요" to (c.usedAt?.let { epochDay(it).monthDay() } ?: "")
     CouponState.GIVEN -> "넘긴 쿠폰이에요" to listOfNotNull(c.usedAt?.let { epochDay(it).monthDay() }, c.givenTo).joinToString(" · ")
-    CouponState.EXPIRED -> "기간이 지난 쿠폰이에요" to "${c.expiryDate!!.monthDay()}까지 · 매장에 따라 받아 줄 수도 있어요"
+    CouponState.EXPIRED -> "기간이 지난 쿠폰이에요" to "${c.expiryDate!!.monthDay()}까지"
     else -> null
 }
 

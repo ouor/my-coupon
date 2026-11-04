@@ -146,7 +146,7 @@ internal fun DetailContent(
         if (coupon.code != null) BarcodeBlock(coupon, onExpand = { nav.navigate(Route.BarcodeFull(id)) },
             onCopied = { auth -> snackbar.show(if (auth) "인증번호를 복사했어요" else "번호를 복사했어요") },
             dimmed = dimmed, onReveal = { st.revealed = true }, onSpeak = tts?.let { t -> { speakCode(t, coupon) } })
-        else Notice("번호가 없어요. 원본 이미지를 보여 주세요")
+        else Notice("번호가 없어요")
         // C2Q-02: the opened history goes under the number, so at 200 % it never pushes the number under the bottom CTA
         if (coupon.type == CouponType.AMOUNT && st.history) UsageHistory(usage) { logId ->
             // code review U-07: the record the user saw is the one removed, and a double tap cannot reach the next one
@@ -164,10 +164,6 @@ internal fun DetailContent(
             Text("점원에게 보여 주기", style = MaterialTheme.typography.labelLarge)
         }
         QuickActions(coupon, st)
-        // C2-16: the gallery original may go, the app keeps its own copy
-        if (st.showOriginal || coupon.code == null) Text("앱에 사본이 있어 갤러리 원본을 지워도 계속 볼 수 있어요", Modifier.padding(bottom = Spacing.s),
-            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
         val days = Stats.daysLeft(coupon, today)
         if (coupon.issuer?.contains("카카오") == true && days != null && days in 0..7 && coupon.status == CouponStatus.ACTIVE)
             Notice("카카오톡 선물함에서 기간 연장이 될 수 있어요")

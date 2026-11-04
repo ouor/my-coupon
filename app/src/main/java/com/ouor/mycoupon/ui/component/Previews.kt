@@ -24,6 +24,6 @@ private fun BannerAndCtaLarge() = MyCouponTheme {
     Column {
         InfoBanner(Icons.Rounded.TaskAlt, "아까 아메리카노 썼어요?", MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurface,
             sub = "스타벅스 · 잔액 12,400원 · …3456") { OutlinedButton({}) { Text("아니요") } }
-        BottomCta("쓴 금액 입력", {}, hint = "확인 필요 쿠폰도 지금 등록하고 나중에 고칠 수 있어요")
+        BottomCta("쓴 금액 입력", {}, hint = "등록할 쿠폰을 골라 주세요")
     }
 }

@@ -156,8 +156,6 @@ fun ImportScreen(nav: NavHostController, vm: ImportViewModel, home: HomeLinks) {
             else BottomCta("${st.checkedCount}개 등록", { if (st.running) confirmEarly = true else register() },
                 enabled = st.checkedCount > 0 && !registering, hint = when {
                     st.checkedCount == 0 && st.done > 0 -> "등록할 쿠폰을 골라 주세요"
-                    // C2-09: review cards need not block registering (F3 already lets them be fixed later from S1)
-                    reviewCount > 0 -> "확인 필요 쿠폰도 지금 등록하고 나중에 고칠 수 있어요"
                     else -> null
                 })
         },
@@ -173,12 +171,10 @@ fun ImportScreen(nav: NavHostController, vm: ImportViewModel, home: HomeLinks) {
                         TextButton(vm::stop) { Text("그만 읽기") }
                     }
                     LinearProgressIndicator(progress = { st.done.toFloat() / maxOf(1, st.total) }, Modifier.fillMaxWidth().padding(top = Spacing.s))
-                    Text("사진은 이 폰 안에서만 읽어요", Modifier.padding(top = Spacing.s), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (allFailed) item(key = "failed") {
-                EmptyState(Icons.Rounded.BrokenImage, "사진에서 쿠폰을 읽지 못했어요", "직접 입력하거나 다른 사진을 골라 주세요",
+                EmptyState(Icons.Rounded.BrokenImage, "사진에서 쿠폰을 읽지 못했어요",
                     primary = "다른 사진 고르기" to { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) })
             } else if (st.done > 0) item(key = "summary") {
                 // C2-09: the title is the [N개 등록] number; with nothing new it says why instead of "0개"
@@ -225,9 +221,6 @@ fun ImportScreen(nav: NavHostController, vm: ImportViewModel, home: HomeLinks) {
             }
             if (foldOpen) items(folded, key = { it.key }) { d ->
                 DraftCard(d, Modifier.animateItem(), onCheck = { vm.setChecked(d.key, it) }, onOpen = { nav.navigate(Route.EditDraft(d.key)) })
-            }
-            if (st.origin == ImportOrigin.GALLERY_SCAN) item(key = "pin-hint") {
-                Text("바코드 없는 상품권은 [사진 고르기]로 추가해 주세요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -320,13 +313,8 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
                                         Text("사용 완료로 표시한 쿠폰과 번호가 같아요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     Duplicate.REGISTERED, Duplicate.IN_BATCH -> StatusChip(Chip.REGISTERED)
-                                    null -> if (!d.isCoupon) {
-                                        StatusChip(Chip.NOT_COUPON)
-                                        Text("쿠폰이 맞으면 체크해 주세요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    } else if (expired) {
-                                        StatusChip(Chip.EXPIRED_DRAFT)
-                                        Text("등록하면 지난 쿠폰으로 가요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
+                                    null -> if (!d.isCoupon) StatusChip(Chip.NOT_COUPON)
+                                        else if (expired) StatusChip(Chip.EXPIRED_DRAFT)
                                 }
                                 // round-2 V3: no brand line when the name already starts with it; the name outranks the date
                                 c?.brand?.takeIf { b -> c.name()?.startsWith(b) != true }
@@ -346,7 +334,7 @@ private fun DraftCard(d: Draft, modifier: Modifier, onCheck: (Boolean) -> Unit, 
                     if (c.needsReview.containsKey("expiryDate") && review) ReviewMark()
                     val other = c.needsReview.keys.any { it != "expiryDate" }
                     val line = listOfNotNull(
-                        c.code?.let(::codeTail) ?: "번호를 찾지 못했어요 · 핀번호면 직접 입력해 주세요",
+                        "번호를 찾지 못했어요 · 핀번호면 직접 입력해 주세요".takeIf { c.code == null },
                         if (c.type == CouponType.AMOUNT) "금액권" + (c.faceValue?.let { " ${won(it)}" } ?: "") else "교환·할인권",
                     ).joinToString(" · ")
                     Text(line, Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

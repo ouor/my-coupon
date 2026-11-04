@@ -257,7 +257,7 @@ private fun CouponEditor(initial: Coupon, brands: List<String>, codeRequired: Bo
                 }, enabled = !noExpiry) {
                     OutlinedTextField(
                         if (noExpiry) "기간 없음" else c.expiryDate?.dotted() ?: "", {}, Modifier.fillMaxWidth(), readOnly = true, enabled = false,
-                        label = { Text("유효기간") }, placeholder = { Text("날짜를 골라 주세요") },
+                        label = { Text("유효기간") },
                         leadingIcon = reviewIcon(expiryReview != null),
                         trailingIcon = { Icon(Icons.Rounded.CalendarMonth, "유효기간 고르기") },
                         textStyle = MaterialTheme.typography.titleMedium,

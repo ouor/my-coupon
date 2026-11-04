@@ -194,8 +194,6 @@ fun BarcodeBlock(
                         horizontalAlignment = Alignment.CenterHorizontally) {
                         BarcodeImage(c)
                     }
-                    if (view == CodeView.ORIGINAL) Text("원본 이미지예요. 안 찍히면 번호를 불러 주세요",
-                        Modifier.padding(top = Spacing.s), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(Spacing.m))
                 }
                 CodeNumber(code, if (view == CodeView.PIN) CodeTypography.codePin else CodeTypography.codeLarge,
