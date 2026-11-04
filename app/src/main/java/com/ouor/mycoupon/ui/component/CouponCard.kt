@@ -111,10 +111,8 @@ private fun DdayCell(c: Coupon, today: LocalDate, review: Boolean, modifier: Mod
             state == CouponState.GIVEN -> StatusChip(Chip.GIVEN)
             review -> StatusChip("확인", Ink.Alert, st.review, st.reviewContainer)
             state == CouponState.TODAY -> Text("오늘", style = DdayStyle, color = st.soon)
-            state == CouponState.SOON -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                Icon(Ink.Clock, null, Modifier.size(15.dp), tint = st.soon)
-                Text("D-${Stats.daysLeft(c, today)}", style = DdayStyle, color = st.soon)
-            }
+            // owner 11-04: no clock — red text only, so every D-day, date and chip starts on the column's left edge
+            state == CouponState.SOON -> Text("D-${Stats.daysLeft(c, today)}", style = DdayStyle, color = st.soon)
             state == CouponState.NO_EXPIRY -> Text("기간 없음", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             else -> Text("D-${Stats.daysLeft(c, today)}", style = DdayStyle)
         }

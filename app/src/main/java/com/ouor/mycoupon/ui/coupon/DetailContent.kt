@@ -120,8 +120,8 @@ internal fun DetailContent(
         // C2-02: the band first (also TalkBack's first stop after the top bar), then the title
         // code review U-14: no requestFocus here (it moved the keyboard focus only, not TalkBack's)
         if (past) PastCouponBand(coupon, today, Modifier.padding(bottom = Spacing.m))
-        // C2-03: "〈브랜드〉에서 사용" always (never hidden at 200 %), the product name in at most two lines
-        coupon.brand?.let { Text("${it}에서 사용", Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        // C2-03: the brand always (never hidden at 200 %; owner 11-04: just the brand), the product name in at most two lines
+        coupon.brand?.let { Text(it, Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         Text(coupon.title(), Modifier.padding(top = 2.dp).semantics { heading() }, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
         // round-2 V7: the band already says the state and the date
         if (!past) FlowRow(Modifier.padding(top = Spacing.s, bottom = 14.dp), itemVerticalAlignment = Alignment.CenterVertically,

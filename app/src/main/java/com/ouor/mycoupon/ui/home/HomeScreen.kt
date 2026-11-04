@@ -243,9 +243,9 @@ fun HomeScreen(nav: NavHostController, vm: HomeViewModel, importVm: ImportStarte
                     else -> EmptyState(Ink.Ticket, "쓸 수 있는 쿠폰이 없어요", primary = "사진에서 추가" to pickPhotos)
                 }
             }
-            // redesign: by expiry the list splits into "7일 안에" and "나중에" groups; recent-first is one group
+            // redesign: by expiry the list splits into "기한 임박" (≤ 7 days) and "기한 여유" groups; recent-first is one group
             val sections = if (!past && st.sort == ListSort.EXPIRY) st.coupons.partition { it.state(st.today).let { s -> s == CouponState.SOON || s == CouponState.TODAY } }
-                .toList().zip(listOf("7일 안에", "나중에")).filter { it.first.isNotEmpty() } else listOf(st.coupons to "")
+                .toList().zip(listOf("기한 임박", "기한 여유")).filter { it.first.isNotEmpty() } else listOf(st.coupons to "")
             sections.forEach { (list, title) ->
                 if (sections.size > 1) item(key = "label-$title") { GroupLabel(title, Modifier.animateItem(), count = list.size) }
                 else item(key = "gap") { Spacer(Modifier.height(Spacing.s)) }

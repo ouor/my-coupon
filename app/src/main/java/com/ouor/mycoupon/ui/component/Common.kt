@@ -62,6 +62,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
@@ -158,11 +160,12 @@ fun Group(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> 
 @Composable
 fun GroupDivider(inset: Dp = 14.dp) = HorizontalDivider(Modifier.padding(start = inset), thickness = 1.dp, color = MaterialTheme.statusColors.line)
 
-/** Small grey label above a group ("7일 안에 2", "알림"). [count] in the fainter grey. */
+/** Small grey label above a group ("기한 임박 2", "알림"). [count] in the fainter grey. */
 @Composable
 fun GroupLabel(text: String, modifier: Modifier = Modifier, count: Int? = null) {
-    Row(modifier.padding(start = Spacing.xs, top = 14.dp, bottom = 6.dp).semantics(mergeDescendants = true) { heading() },
-    ) {
+    Row(modifier.padding(start = Spacing.xs, top = 14.dp, bottom = 6.dp).clearAndSetSemantics {
+        heading(); contentDescription = count?.let { "$text, ${it}개" } ?: text
+    }) {
         // designer 11-04: one Text so the count shares size and baseline; only its colour differs
         val faint = MaterialTheme.statusColors.faint
         Text(androidx.compose.ui.text.buildAnnotatedString {

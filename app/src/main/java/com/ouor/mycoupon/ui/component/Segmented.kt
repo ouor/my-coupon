@@ -11,6 +11,9 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -50,13 +53,13 @@ fun SegmentedFilter(options: List<Pair<String, Int?>>, selected: Int, onSelect: 
             Box(Modifier.fillMaxHeight().selectable(on, interactionSource = null, indication = null, role = Role.Tab, onClick = { onSelect(i) })
                 .padding(vertical = margin + 3.dp), contentAlignment = Alignment.Center) {
                 Row(face.heightIn(min = 34.dp).padding(horizontal = if (small) 8.dp else 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(text, style = if (on) label else label.copy(fontWeight = FontWeight.Medium),
-                        color = if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false)
-                    count?.let {
-                        Spacer(Modifier.width(5.dp))
-                        Text("$it", style = label.copy(fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum"),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false)
-                    }
+                    // owner 11-04: one Text so the count shares the label's size and baseline; only colour + Medium differ
+                    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+                    Text(buildAnnotatedString {
+                        append(text)
+                        count?.let { append(" "); withStyle(SpanStyle(color = muted, fontWeight = FontWeight.Medium)) { append("$it") } }
+                    }, style = (if (on) label else label.copy(fontWeight = FontWeight.Medium)).copy(fontFeatureSettings = "tnum"),
+                        color = if (on) MaterialTheme.colorScheme.onSurface else muted, maxLines = 1, softWrap = false)
                 }
             }
         }
