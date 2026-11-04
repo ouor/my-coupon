@@ -520,7 +520,7 @@ private fun BrandChipRow(brands: List<String>, selected: String, onPick: (String
         // round-2 V13: the last chip can scroll clear of the arrow
         LazyRow(state = state, contentPadding = PaddingValues(end = 56.dp), horizontalArrangement = Arrangement.spacedBy(Spacing.s), modifier = Modifier.semantics { contentDescription = "브랜드로 거르기" }) {
             items(brands, key = { it }) { b ->
-                FilterChip(selected == b, { onPick(b) }, { Text(b, style = MaterialTheme.typography.labelMedium) }, Modifier.heightIn(min = Spacing.touch),
+                FilterChip(selected == b, { onPick(b) }, { Text(b, style = MaterialTheme.typography.labelMedium) }, // 32dp chip, 48dp touch kept by M3
                     shape = MaterialTheme.shapes.medium, colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface,
                         selectedContainerColor = MaterialTheme.colorScheme.primary, selectedLabelColor = MaterialTheme.colorScheme.onPrimary),
                     border = FilterChipDefaults.filterChipBorder(true, selected == b, borderColor = MaterialTheme.statusColors.line))
